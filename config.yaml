@@ -1,5 +1,14 @@
 project_name: ae
 folders:
+    - dir: /users/company
+      storage:
+        type: s3_storage
+        bucket: test-mindia-bucket
+      policies:
+        - name: md_thumbnail
+          width: 150
+          height: 150
+          format: ""
     - dir: /houses
       storage:
         type: filesystem_storage
@@ -30,15 +39,6 @@ folders:
         - name: sm_thumbnail
           width: 80
           height: 80
-          format: ""
-    - dir: /users/company
-      storage:
-        type: s3_storage
-        bucket: test-mindia-bucket
-      policies:
-        - name: md_thumbnail
-          width: 150
-          height: 150
           format: ""
 api_server:
     port: 3500

@@ -15,17 +15,22 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog/log"
 )
 
 func loadEnv() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		utils.ExitErrorf("Unable to load .env, %v", err)
+	if _, err := os.Stat(".env"); err == nil {
+		err := godotenv.Load(".env")
+		if err != nil {
+			utils.ExitErrorf("Unable to load .env, %v", err)
+		}
 	}
 }
 
 func main() {
 	loadEnv()
+
+	log.Info().Msg("starting mindia")
 
 	filesystemStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageInput{
 		MountDir: "./data",

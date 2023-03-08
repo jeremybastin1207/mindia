@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  mindia:
+    image: mindia:latest
+    restart: unless-stopped
+    volumes:
+      - mindia-data:/app/data
+    environment:
+      - ACCESS_KEY_ID
+      - SECRET_ACCESS_KEY
+    ports:
+      - 3500:3500
+
+volumes:
+  mindia-data:
