@@ -1,0 +1,44 @@
+project_name: ae
+folders:
+    - dir: /houses
+      storage:
+        type: filesystem_storage
+        mount_dir: ./data
+      policies:
+        - name: xl_thumbnail
+          width: 280
+          height: 320
+          format: ""
+    - dir: /houses/garden
+      storage:
+        type: filesystem_storage
+        mount_dir: ./data
+      policies:
+        - name: xl_thumbnail
+          width: 280
+          height: 320
+          format: ""
+        - name: md_thumbnail
+          width: 150
+          height: 150
+          format: ""
+    - dir: /users
+      storage:
+        type: s3_storage
+        bucket: test-mindia-bucket
+      policies:
+        - name: sm_thumbnail
+          width: 80
+          height: 80
+          format: ""
+    - dir: /users/company
+      storage:
+        type: s3_storage
+        bucket: test-mindia-bucket
+      policies:
+        - name: md_thumbnail
+          width: 150
+          height: 150
+          format: ""
+api_server:
+    port: 3500
