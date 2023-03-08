@@ -9,17 +9,17 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type NamerConfig struct {
+	Suffix string `yaml:"suffix"`
+}
+
 type Namer struct {
-	Suffix string
+	*NamerConfig `yaml:",inline"`
 }
 
-type NamerArgs struct {
-	Suffix string
-}
-
-func NewNamer(args *NamerArgs) *Namer {
+func NewNamer(config *NamerConfig) *Namer {
 	return &Namer{
-		Suffix: args.Suffix,
+		NamerConfig: config,
 	}
 }
 

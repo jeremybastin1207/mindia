@@ -12,20 +12,20 @@ import (
 
 const apiVersion = "v0"
 
+type ApiServerConfig struct {
+	Port int `yaml:"api_server"`
+}
+
 type ApiServer struct {
-	folders folder.FoldersMap
-	routes  []route
-	Port    int
+	folders          folder.FoldersMap
+	routes           []route
+	*ApiServerConfig `yaml:",inline"`
 }
 
-type ApiServerInput struct {
-	Port int
-}
-
-func NewApiServer(in *ApiServerInput) *ApiServer {
+func NewApiServer(config *ApiServerConfig) *ApiServer {
 	return &ApiServer{
-		folders: folder.FoldersMap{},
-		Port:    in.Port,
+		folders:         folder.FoldersMap{},
+		ApiServerConfig: config,
 	}
 }
 

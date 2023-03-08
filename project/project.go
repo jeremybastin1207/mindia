@@ -3,35 +3,22 @@ package project
 import (
 	"mindia/apiserver"
 	"mindia/folder"
-	"mindia/iam"
 )
 
+type ProjectConfig struct {
+	Name      string               `yaml:"name"`
+	ApiServer *apiserver.ApiServer `yaml:"api_server"`
+}
+
 type Project struct {
-	Name        string
-	Folders     folder.FoldersMap
-	ApiServer   *apiserver.ApiServer
-	UserManager *iam.UserManager
+	*ProjectConfig `yaml:",inline"`
+	Folders        folder.FoldersMap `yaml:"folders"`
 }
 
-type ProjectArgs struct {
-	Name      string
-	Folders   []*folder.Folder
-	ApiServer *apiserver.ApiServer
-}
-
-func NewProject(args *ProjectArgs) *Project {
-	folders := folder.FoldersMap{}
-	if args.Folders != nil {
-		for _, f := range args.Folders {
-			folders[f.Dir] = f
-			args.ApiServer.AddFolder(f)
-		}
-	}
+func NewProject(config *ProjectConfig) *Project {
 	return &Project{
-		Name:        args.Name,
-		Folders:     folders,
-		ApiServer:   args.ApiServer,
-		UserManager: iam.NewUserManager(),
+		Folders:       folder.FoldersMap{},
+		ProjectConfig: config,
 	}
 }
 

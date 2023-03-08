@@ -13,17 +13,17 @@ import (
 	"strings"
 )
 
+type FilesystemStorageConfig struct {
+	MountDir string `yaml:"mount_dir"`
+}
+
 type FilesystemStorage struct {
-	MountDir string
+	*FilesystemStorageConfig `yaml:",inline"`
 }
 
-type FilesystemStorageInput struct {
-	MountDir string
-}
-
-func NewFileSystemStorage(p *FilesystemStorageInput) *FilesystemStorage {
+func NewFileSystemStorage(config *FilesystemStorageConfig) *FilesystemStorage {
 	s := &FilesystemStorage{
-		MountDir: p.MountDir,
+		FilesystemStorageConfig: config,
 	}
 	s.createMountPathNotExists("")
 	return s
@@ -114,14 +114,4 @@ func (s *FilesystemStorage) ReadAll(in *ReadAllInput) ([]*types.File, error) {
 func (s *FilesystemStorage) Delete(in *DeleteInput) error {
 	s.createMountPathNotExists(in.Dir)
 	return os.Remove(filepath.Join(s.MountDir, in.Dir, in.Name))
-}
-
-type FilesystemStorageConfig struct {
-	MountDir string
-}
-
-func (s *FilesystemStorage) Config() FilesystemStorageConfig {
-	return FilesystemStorageConfig{
-		MountDir: s.MountDir,
-	}
 }

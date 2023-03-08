@@ -18,7 +18,7 @@ func NewConfigurer() *Configurer {
 }
 
 func (c *Configurer) PersistConfig(p *project.Project) error {
-	yamlData, err := yaml.Marshal(projectToConfig(p))
+	yamlData, err := yaml.Marshal(p)
 	if err != nil {
 		fmt.Printf("Error while Marshaling. %v", err)
 		return err

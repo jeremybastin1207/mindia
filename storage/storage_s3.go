@@ -10,17 +10,18 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
+type S3StorageConfig struct {
+	*S3ClientConfig `yaml:",inline"`
+}
+
 type S3Storage struct {
-	s3 *S3Client
+	*S3StorageConfig `yaml:",inline"`
+	s3               *S3Client
 }
 
-type S3StorageInput struct {
-	Client *S3ClientInput
-}
-
-func NewS3Storage(in *S3StorageInput) *S3Storage {
+func NewS3Storage(config *S3StorageConfig) *S3Storage {
 	return &S3Storage{
-		s3: NewS3Client(in.Client),
+		s3: NewS3Client(config.S3ClientConfig),
 	}
 }
 
@@ -132,14 +133,4 @@ func (s *S3Storage) Delete(in *DeleteInput) error {
 		Bucket: s.s3.Bucket,
 		Key:    utils.JoinPath(in.Dir, in.Name),
 	})
-}
-
-type S3StorageConfig struct {
-	Bucket string
-}
-
-func (s *S3Storage) Config() S3StorageConfig {
-	return S3StorageConfig{
-		Bucket: s.s3.Bucket,
-	}
 }

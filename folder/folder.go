@@ -9,23 +9,19 @@ import (
 	"path/filepath"
 )
 
+type FolderConfig struct {
+	Dir         string                   `yaml:"dir"`
+	Storage     storage.Storage          `yaml:"storage"`
+	Automations []*automation.Automation `yaml:"automations"`
+}
+
 type Folder struct {
-	Dir         string
-	Storage     storage.Storage
-	Automations automation.AutomationsMap
+	*FolderConfig `yaml:",inline"`
 }
 
-type FolderArgs struct {
-	Dir         string
-	Storage     storage.Storage
-	Automations []*automation.Automation
-}
-
-func NewFolder(args *FolderArgs) *Folder {
+func NewFolder(config *FolderConfig) *Folder {
 	return &Folder{
-		Dir:         args.Dir,
-		Storage:     args.Storage,
-		Automations: automation.ToMap(args.Automations),
+		FolderConfig: config,
 	}
 }
 

@@ -12,17 +12,17 @@ import (
 	"golang.org/x/image/draw"
 )
 
+type ResizerConfig struct {
+	Size types.Size `yaml:"size"`
+}
+
 type Resizer struct {
-	Size types.Size
+	*ResizerConfig `yaml:",inline"`
 }
 
-type ResizerArgs struct {
-	Size types.Size
-}
-
-func NewResizer(args *ResizerArgs) *Resizer {
+func NewResizer(config *ResizerConfig) *Resizer {
 	return &Resizer{
-		Size: args.Size,
+		ResizerConfig: config,
 	}
 }
 

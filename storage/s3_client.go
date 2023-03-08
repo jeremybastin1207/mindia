@@ -16,32 +16,32 @@ type S3Object struct {
 	Metadata map[string]*string
 }
 
-type S3ClientInput struct {
-	Bucket          string
+type S3ClientConfig struct {
+	Bucket          string `yaml:"bucket"`
 	AccessKeyId     string
 	SecretAccessKey string
-	Endpoint        string
-	Region          string
+	Endpoint        string `yaml:"endpoint"`
+	Region          string `yaml:"region"`
 }
 
 type S3Client struct {
-	Bucket string
-	s3     *s3.S3
+	*S3ClientConfig `yaml:",inline"`
+	s3              *s3.S3
 }
 
-func NewS3Client(in *S3ClientInput) *S3Client {
+func NewS3Client(config *S3ClientConfig) *S3Client {
 	s3 := S3Client{
-		Bucket: in.Bucket,
+		S3ClientConfig: config,
 	}
-	s3.createSession(in)
+	s3.createSession(config)
 	return &s3
 }
 
-func (s *S3Client) createSession(in *S3ClientInput) {
+func (s *S3Client) createSession(config *S3ClientConfig) {
 	s3Config := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(in.AccessKeyId, in.SecretAccessKey, ""),
-		Endpoint:    aws.String(in.Endpoint),
-		Region:      aws.String(in.Region),
+		Credentials: credentials.NewStaticCredentials(config.AccessKeyId, config.SecretAccessKey, ""),
+		Endpoint:    aws.String(config.Endpoint),
+		Region:      aws.String(config.Region),
 	}
 	newSession, err := session.NewSession(s3Config)
 	if err != nil {

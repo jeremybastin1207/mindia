@@ -32,14 +32,14 @@ func main() {
 
 	log.Info().Msg("starting mindia")
 
-	filesystemStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageInput{
+	filesystemStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageConfig{
 		MountDir: "./data",
 	})
-	filesystemBackupStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageInput{
+	filesystemBackupStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageConfig{
 		MountDir: "./data/backup",
 	})
-	s3Storage := storage.NewS3Storage(&storage.S3StorageInput{
-		Client: &storage.S3ClientInput{
+	s3Storage := storage.NewS3Storage(&storage.S3StorageConfig{
+		S3ClientConfig: &storage.S3ClientConfig{
 			Bucket:          "test-mindia-bucket",
 			Region:          "ams3",
 			Endpoint:        "https://ams3.digitaloceanspaces.com",
@@ -47,8 +47,8 @@ func main() {
 			SecretAccessKey: os.Getenv("SECRET_ACCESS_KEY"),
 		},
 	})
-	s3BackupStorage := storage.NewS3Storage(&storage.S3StorageInput{
-		Client: &storage.S3ClientInput{
+	s3BackupStorage := storage.NewS3Storage(&storage.S3StorageConfig{
+		S3ClientConfig: &storage.S3ClientConfig{
 			Bucket:          "test-backup-mindia-bucket",
 			Region:          "ams3",
 			Endpoint:        "https://ams3.digitaloceanspaces.com",
@@ -65,22 +65,22 @@ func main() {
 	synchronizer := synchronizer.NewSynchronizer(&synchronizer.SynchronizerInput{
 		AutoSync: false,
 	})
-	apiServer := apiserver.NewApiServer(&apiserver.ApiServerInput{
+	apiServer := apiserver.NewApiServer(&apiserver.ApiServerConfig{
 		Port: 3500,
 	})
 
-	project1 := project.NewProject(&project.ProjectArgs{
+	project1 := project.NewProject(&project.ProjectConfig{
 		Name:      "ae",
 		ApiServer: apiServer,
 	})
 
-	automation1 := automation.NewAutomation(&automation.AutomationArgs{
+	automation1 := automation.NewAutomation(&automation.AutomationConfig{
 		Name: "automation1",
 		Steps: []automation.AutomationStep{
-			automation.NewNamer(&automation.NamerArgs{
+			automation.NewNamer(&automation.NamerConfig{
 				Suffix: "xl",
 			}),
-			automation.NewResizer(&automation.ResizerArgs{
+			automation.NewResizer(&automation.ResizerConfig{
 				Size: types.Size{
 					Width:  200,
 					Height: 200,
@@ -88,13 +88,13 @@ func main() {
 			}),
 		},
 	})
-	automation2 := automation.NewAutomation(&automation.AutomationArgs{
+	automation2 := automation.NewAutomation(&automation.AutomationConfig{
 		Name: "automation2",
 		Steps: []automation.AutomationStep{
-			automation.NewNamer(&automation.NamerArgs{
+			automation.NewNamer(&automation.NamerConfig{
 				Suffix: "md",
 			}),
-			automation.NewResizer(&automation.ResizerArgs{
+			automation.NewResizer(&automation.ResizerConfig{
 				Size: types.Size{
 					Width:  100,
 					Height: 100,
@@ -103,7 +103,7 @@ func main() {
 		},
 	})
 
-	folder1 := folder.NewFolder(&folder.FolderArgs{
+	folder1 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/houses",
 		Storage: filesystemStorage,
 		Automations: []*automation.Automation{
@@ -111,18 +111,18 @@ func main() {
 			automation2,
 		},
 	})
-	folder2 := folder.NewFolder(&folder.FolderArgs{
+	folder2 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/houses/garden",
 		Storage: filesystemStorage,
 		Automations: []*automation.Automation{
 			automation1,
 		},
 	})
-	folder3 := folder.NewFolder(&folder.FolderArgs{
+	folder3 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/users",
 		Storage: s3Storage,
 	})
-	folder4 := folder.NewFolder(&folder.FolderArgs{
+	folder4 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/users/company",
 		Storage: s3Storage,
 	})

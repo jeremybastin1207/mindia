@@ -4,20 +4,18 @@ import (
 	"context"
 )
 
+type AutomationConfig struct {
+	Name  string           `yaml:"name"`
+	Steps []AutomationStep `yaml:"steps"`
+}
+
 type Automation struct {
-	Steps []AutomationStep
-	Name  string
+	*AutomationConfig `yaml:",inline"`
 }
 
-type AutomationArgs struct {
-	Steps []AutomationStep
-	Name  string
-}
-
-func NewAutomation(args *AutomationArgs) *Automation {
+func NewAutomation(config *AutomationConfig) *Automation {
 	return &Automation{
-		Steps: args.Steps,
-		Name:  args.Name,
+		AutomationConfig: config,
 	}
 }
 
