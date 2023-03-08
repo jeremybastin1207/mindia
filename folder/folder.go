@@ -7,11 +7,13 @@ import (
 	"mindia/types"
 	"mindia/utils"
 	"path/filepath"
+	"time"
 )
 
 type FolderConfig struct {
 	Dir         string                   `yaml:"dir"`
 	Storage     storage.Storage          `yaml:"storage"`
+	Backup      storage.Storage          `yaml:"backup,omitempty"`
 	Automations []*automation.Automation `yaml:"automations"`
 }
 
@@ -20,13 +22,20 @@ type Folder struct {
 }
 
 func NewFolder(config *FolderConfig) *Folder {
-	return &Folder{
+	f := &Folder{
 		FolderConfig: config,
 	}
-}
 
-func (f *Folder) IsSourceFile(file *types.File) bool {
-	return utils.IsValidUUID(utils.NameWithoutExt(file.Name))
+	if config.Backup != nil {
+		go func() {
+			for {
+				f.backup()
+				time.Sleep(10 * time.Second)
+			}
+		}()
+	}
+
+	return f
 }
 
 func (f *Folder) Upload(name string, bytes []byte) (*types.File, error) {
@@ -129,3 +138,87 @@ func (f *Folder) DeleteOne(name string) error {
 	}
 	return nil
 }
+
+func (f *Folder) backup() {
+	files, _ := f.ReadAll()
+	for _, file := range files {
+		if types.IsSourceFile(file) {
+			bytes, err := f.Download(file.Name)
+			if err != nil {
+				return
+			}
+			doesExist, _ := f.Backup.DoesExist(&storage.DoesExistInput{
+				Dir:  f.Dir,
+				Name: file.Name,
+			})
+			if !doesExist {
+				f.Backup.Upload(&storage.UploadInput{
+					Dir:   f.Dir,
+					Name:  file.Name,
+					Bytes: bytes,
+				})
+			}
+		}
+	}
+}
+
+/*
+func (f *Folder) synchronize() {
+	files, _ := f.ReadAll()
+	for _, file := range files {
+		if types.IsSourceFile(file) {
+			prefix := strings.TrimSuffix(file.Name, filepath.Ext(file.Name)) + "_"
+			refs, _ := f.ReadPrefix(prefix)
+
+			f.syncOne(file, refs)
+		}
+	}
+}
+
+func (f *Folder) syncOne(source *types.File, refs []*types.File) {
+  needSync := false
+
+	policies, err := folder.ReadPolicies()
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return
+	}
+
+	for _, ref := range refs {
+		obj, err := f.ReadSize(ref.Dir, ref.Name)
+		if err != nil {
+			fmt.Printf("Error: %s", err)
+			return
+		}
+
+		for _, policy := range policies {
+			if policy.IsOf(ref.Name) {
+				if obj.Width != policy.Width && obj.Height != policy.Height {
+					needSync = true
+				}
+				continue
+			}
+		}
+	}
+
+	if !needSync {
+		for _, policy := range policies {
+			found := false
+			for _, ref := range refs {
+				if policy.IsOf(ref.Name) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				needSync = true
+			}
+		}
+	}
+
+	if needSync {
+		bytes, _ := f.Download(source.Name)
+		f.Upload(source.Name, bytes)
+	}
+}
+*/

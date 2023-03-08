@@ -2,39 +2,56 @@ name: ae
 api_server:
     api_server: 3500
 folders:
-    /houses:
-        dir: /houses
-        storage:
-            mount_dir: ./data
-        automations:
-            - name: automation1
-              steps:
-                - suffix: xl
-                - size:
-                    width: 200
-                    height: 200
-            - name: automation2
-              steps:
-                - suffix: md
-                - size:
-                    width: 100
-                    height: 100
-    /houses/garden:
-        dir: /houses/garden
-        storage:
-            mount_dir: ./data
-        automations:
-            - name: automation1
-              steps:
-                - suffix: xl
-                - size:
-                    width: 200
-                    height: 200
-    /users:
-        dir: /users
-        storage: {}
-        automations: []
-    /users/company:
-        dir: /users/company
-        storage: {}
-        automations: []
+    - dir: /houses
+      storage:
+        type: filesystem
+        mount_dir: ./data
+      backup:
+        type: filesystem
+        mount_dir: ./data/backup
+      automations:
+        - name: automation1
+          steps:
+            - suffix: xl
+            - size:
+                width: 200
+                height: 200
+        - name: automation2
+          steps:
+            - suffix: md
+            - size:
+                width: 100
+                height: 100
+    - dir: /houses/garden
+      storage:
+        type: filesystem
+        mount_dir: ./data
+      automations:
+        - name: automation1
+          steps:
+            - suffix: xl
+            - size:
+                width: 200
+                height: 200
+    - dir: /users
+      storage:
+        type: s3
+      backup:
+        type: s3
+      automations:
+        - name: automation1
+          steps:
+            - suffix: xl
+            - size:
+                width: 200
+                height: 200
+    - dir: /users/company
+      storage:
+        type: s3
+      automations:
+        - name: automation1
+          steps:
+            - suffix: xl
+            - size:
+                width: 200
+                height: 200

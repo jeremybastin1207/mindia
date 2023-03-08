@@ -18,8 +18,8 @@ type S3Object struct {
 
 type S3ClientConfig struct {
 	Bucket          string `yaml:"bucket"`
-	AccessKeyId     string
-	SecretAccessKey string
+	AccessKeyId     string `yaml:"omitempty"`
+	SecretAccessKey string `yaml:"omitempty"`
 	Endpoint        string `yaml:"endpoint"`
 	Region          string `yaml:"region"`
 }

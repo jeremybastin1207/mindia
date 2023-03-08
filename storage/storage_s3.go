@@ -11,16 +11,20 @@ import (
 )
 
 type S3StorageConfig struct {
+	*StorageConfig  `yaml:",inline"`
 	*S3ClientConfig `yaml:",inline"`
 }
 
 type S3Storage struct {
-	*S3StorageConfig `yaml:",inline"`
-	s3               *S3Client
+	*StorageConfig `yaml:",inline"`
+	s3             *S3Client
 }
 
 func NewS3Storage(config *S3StorageConfig) *S3Storage {
 	return &S3Storage{
+		StorageConfig: &StorageConfig{
+			StorageType: "s3",
+		},
 		s3: NewS3Client(config.S3ClientConfig),
 	}
 }

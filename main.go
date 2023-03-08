@@ -3,16 +3,13 @@ package main
 import (
 	"mindia/apiserver"
 	"mindia/automation"
-	"mindia/backup"
 	"mindia/configurer"
 	"mindia/folder"
 	"mindia/project"
 	"mindia/storage"
-	"mindia/synchronizer"
 	"mindia/types"
 	"mindia/utils"
 	"os"
-	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/rs/zerolog/log"
@@ -56,23 +53,6 @@ func main() {
 			SecretAccessKey: os.Getenv("SECRET_ACCESS_KEY"),
 		},
 	})
-	filesystemBackup := backup.NewBackup(&backup.BackupInput{
-		Target: filesystemBackupStorage,
-	})
-	s3Backup := backup.NewBackup(&backup.BackupInput{
-		Target: s3BackupStorage,
-	})
-	synchronizer := synchronizer.NewSynchronizer(&synchronizer.SynchronizerInput{
-		AutoSync: false,
-	})
-	apiServer := apiserver.NewApiServer(&apiserver.ApiServerConfig{
-		Port: 3500,
-	})
-
-	project1 := project.NewProject(&project.ProjectConfig{
-		Name:      "ae",
-		ApiServer: apiServer,
-	})
 
 	automation1 := automation.NewAutomation(&automation.AutomationConfig{
 		Name: "automation1",
@@ -106,6 +86,7 @@ func main() {
 	folder1 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/houses",
 		Storage: filesystemStorage,
+		Backup:  filesystemBackupStorage,
 		Automations: []*automation.Automation{
 			automation1,
 			automation2,
@@ -121,43 +102,36 @@ func main() {
 	folder3 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/users",
 		Storage: s3Storage,
+		Backup:  s3BackupStorage,
+		Automations: []*automation.Automation{
+			automation1,
+		},
 	})
 	folder4 := folder.NewFolder(&folder.FolderConfig{
 		Dir:     "/users/company",
 		Storage: s3Storage,
+		Automations: []*automation.Automation{
+			automation1,
+		},
 	})
 
-	filesystemBackup.AddFolder(folder1)
-	filesystemBackup.AddFolder(folder2)
-	filesystemBackup.AddFolder(folder3)
-	filesystemBackup.AddFolder(folder4)
+	apiServer := apiserver.NewApiServer(&apiserver.ApiServerConfig{
+		Port: 3500,
+	})
 
-	s3Backup.AddFolder(folder1)
-	s3Backup.AddFolder(folder2)
-	s3Backup.AddFolder(folder3)
-	s3Backup.AddFolder(folder4)
-
-	synchronizer.AddFolder(folder1)
-	synchronizer.AddFolder(folder2)
-	synchronizer.AddFolder(folder3)
-	synchronizer.AddFolder(folder4)
-
-	project1.AddFolder(folder1)
-	project1.AddFolder(folder2)
-	project1.AddFolder(folder3)
-	project1.AddFolder(folder4)
+	project1 := project.NewProject(&project.ProjectConfig{
+		Name:      "ae",
+		ApiServer: apiServer,
+		Folders: []*folder.Folder{
+			folder1,
+			folder2,
+			folder3,
+			folder4,
+		},
+	})
 
 	configurer := configurer.NewConfigurer()
 	configurer.PersistConfig(project1)
-
-	go func() {
-		for {
-			synchronizer.Synchronize()
-			filesystemBackup.Backup()
-			s3Backup.Backup()
-			time.Sleep(10 * time.Second)
-		}
-	}()
 
 	apiServer.Serve()
 }

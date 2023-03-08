@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"mindia/utils"
 	"path/filepath"
 
 	"github.com/google/uuid"
@@ -66,6 +67,10 @@ func NewImage(in *ImageInput) (*Image, error) {
 
 func GenerateName(filename string) string {
 	return uuid.New().String() + filepath.Ext(filename)
+}
+
+func IsSourceFile(file *File) bool {
+	return utils.IsValidUUID(utils.NameWithoutExt(file.Name))
 }
 
 func (f *File) ToString() string {

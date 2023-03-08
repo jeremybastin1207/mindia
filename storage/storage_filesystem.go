@@ -18,11 +18,15 @@ type FilesystemStorageConfig struct {
 }
 
 type FilesystemStorage struct {
+	*StorageConfig           `yaml:",inline"`
 	*FilesystemStorageConfig `yaml:",inline"`
 }
 
 func NewFileSystemStorage(config *FilesystemStorageConfig) *FilesystemStorage {
 	s := &FilesystemStorage{
+		StorageConfig: &StorageConfig{
+			StorageType: "filesystem",
+		},
 		FilesystemStorageConfig: config,
 	}
 	s.createMountPathNotExists("")

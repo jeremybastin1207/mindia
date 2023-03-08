@@ -6,6 +6,10 @@ import (
 
 type StoragesMap map[string]Storage
 
+type StorageConfig struct {
+	StorageType string `yaml:"type"`
+}
+
 type Storage interface {
 	Upload(in *UploadInput) error
 	Download(in *DonwloadInput) ([]byte, error)
