@@ -1,7 +1,6 @@
 package synchronizer
 
 import (
-	"fmt"
 	"mindia/folder"
 	"mindia/types"
 	"path/filepath"
@@ -48,49 +47,49 @@ func (s *Synchronizer) Synchronize() {
 }
 
 func (s *Synchronizer) syncOne(folder *folder.Folder, source *types.File, refs []*types.File, wg *sync.WaitGroup) {
-	defer wg.Done()
-	needSync := false
+	/* 	defer wg.Done()
+	   	needSync := false
 
-	policies, err := folder.ReadPolicies()
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-		return
-	}
+	   	policies, err := folder.ReadPolicies()
+	   	if err != nil {
+	   		fmt.Printf("Error: %s", err)
+	   		return
+	   	}
 
-	for _, ref := range refs {
-		obj, err := folder.ReadSize(ref.Dir, ref.Name)
-		if err != nil {
-			fmt.Printf("Error: %s", err)
-			return
-		}
+	   	for _, ref := range refs {
+	   		obj, err := folder.ReadSize(ref.Dir, ref.Name)
+	   		if err != nil {
+	   			fmt.Printf("Error: %s", err)
+	   			return
+	   		}
 
-		for _, policy := range policies {
-			if policy.IsOf(ref.Name) {
-				if obj.Width != policy.Width && obj.Height != policy.Height {
-					needSync = true
-				}
-				continue
-			}
-		}
-	}
+	   		for _, policy := range policies {
+	   			if policy.IsOf(ref.Name) {
+	   				if obj.Width != policy.Width && obj.Height != policy.Height {
+	   					needSync = true
+	   				}
+	   				continue
+	   			}
+	   		}
+	   	}
 
-	if !needSync {
-		for _, policy := range policies {
-			found := false
-			for _, ref := range refs {
-				if policy.IsOf(ref.Name) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				needSync = true
-			}
-		}
-	}
+	   	if !needSync {
+	   		for _, policy := range policies {
+	   			found := false
+	   			for _, ref := range refs {
+	   				if policy.IsOf(ref.Name) {
+	   					found = true
+	   					break
+	   				}
+	   			}
+	   			if !found {
+	   				needSync = true
+	   			}
+	   		}
+	   	}
 
-	if needSync {
-		bytes, _ := folder.Download(source.Name)
-		folder.Upload(source.Name, bytes)
-	}
+	   	if needSync {
+	   		bytes, _ := folder.Download(source.Name)
+	   		folder.Upload(source.Name, bytes)
+	   	} */
 }

@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime/multipart"
 	"mindia/folder"
-	"mindia/utils"
 	"net/http"
 )
 
@@ -37,7 +36,6 @@ func (s *ApiServer) AddFolder(f *folder.Folder) {
 func (s *ApiServer) Serve() {
 	s.routes = []route{
 		newRoute("GET", "/metadatas/folders", s.handleReadFolders),
-		newRoute("GET", "(/.*)/policies", s.handleReadPolicies),
 		newRoute("GET", "(/.*)/list", s.handleReadFolder),
 		newRoute("GET", "(/.*)/download/(.*)", s.handleDownload),
 		newRoute("POST", "(/.*)/upload", s.handleUpload),
@@ -54,11 +52,6 @@ func (s *ApiServer) handleReadFolders(w http.ResponseWriter, r *http.Request) {
 		folders = append(folders, *folder)
 	}
 	writeJSON(w, folders)
-}
-
-func (s *ApiServer) handleReadPolicies(w http.ResponseWriter, r *http.Request) {
-	policies, _ := s.folders[getFolder(r)].ReadPolicies()
-	writeJSON(w, utils.ToArray(policies))
 }
 
 func (s *ApiServer) handleReadFolder(w http.ResponseWriter, r *http.Request) {

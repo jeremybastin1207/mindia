@@ -71,17 +71,17 @@ func apiServerToConfig(s apiserver.ApiServer) ApiServerConfig {
 }
 
 func folderToConfig(f *folder.Folder) FolderConfig {
-	pp, _ := f.ReadPolicies()
+	/* 	pp, _ := f.ReadPolicies()
 
-	pp2 := []PolicyConfig{}
-	for _, p := range pp {
-		pp2 = append(pp2, policyToConfig(*p))
-	}
+	   	pp2 := []PolicyConfig{}
+	   	for _, p := range pp {
+	   		pp2 = append(pp2, policyToConfig(*p))
+	   	} */
 
 	return FolderConfig{
-		Dir:      f.Dir,
-		Storage:  storageToConfig(f.Storage),
-		Policies: pp2,
+		Dir:     f.Dir,
+		Storage: storageToConfig(f.Storage),
+		//Policies: pp2,
 	}
 }
 

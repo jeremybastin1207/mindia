@@ -1,64 +1,36 @@
 package folder
 
 import (
-	"context"
-	"mindia/policy"
+	"fmt"
+	"mindia/automation"
 	"mindia/storage"
-	"mindia/transformer"
 	"mindia/types"
 	"mindia/utils"
 	"path/filepath"
 )
 
 type Folder struct {
-	Dir          string
-	Storage      storage.Storage
-	Policies     policy.PoliciesMap
-	Transformers transformer.TransformersMap
+	Dir         string
+	Storage     storage.Storage
+	Automations automation.AutomationsMap
 }
 
-type FolderInput struct {
-	Dir          string
-	Storage      storage.Storage
-	Policies     policy.PoliciesMap
-	Transformers []transformer.Transformer
+type FolderArgs struct {
+	Dir         string
+	Storage     storage.Storage
+	Automations []*automation.Automation
 }
 
-func NewFolder(in *FolderInput) *Folder {
-	if in.Policies == nil {
-		in.Policies = policy.PoliciesMap{}
+func NewFolder(args *FolderArgs) *Folder {
+	return &Folder{
+		Dir:         args.Dir,
+		Storage:     args.Storage,
+		Automations: automation.ToMap(args.Automations),
 	}
-	transformers := transformer.TransformersMap{}
-	if in.Transformers != nil {
-		for _, t := range in.Transformers {
-			transformers[t.GetName()] = t
-		}
-	}
-	f := &Folder{
-		Dir:          in.Dir,
-		Storage:      in.Storage,
-		Policies:     in.Policies,
-		Transformers: transformers,
-	}
-	return f
 }
 
 func (f *Folder) IsSourceFile(file *types.File) bool {
 	return utils.IsValidUUID(utils.NameWithoutExt(file.Name))
-}
-
-func (f *Folder) WritePolicy(in *policy.PolicyInput) error {
-	p := policy.NewPolicy(in)
-	f.Policies[p.Name] = &p
-	return nil
-}
-
-func (f *Folder) ReadPolicy(name string) (*policy.Policy, error) {
-	return f.Policies[name], nil
-}
-
-func (f *Folder) ReadPolicies() (policy.PoliciesMap, error) {
-	return f.Policies, nil
 }
 
 func (f *Folder) Upload(name string, bytes []byte) (*types.File, error) {
@@ -74,28 +46,28 @@ func (f *Folder) Upload(name string, bytes []byte) (*types.File, error) {
 		return nil, err
 	}
 
-	for _, p := range f.Policies {
-		transformer := f.Transformers[p.TransformerName]
+	for _, a := range f.Automations {
+		ctx, b, err := a.Run(name, bytes)
+		if err != nil {
+			fmt.Printf("Error: %s", err)
+			continue
+		}
 
-		ctx := context.Background()
-		ctx = context.WithValue(ctx, "size", types.Size{
-			Width:  p.Width,
-			Height: p.Height,
-		})
-		b, _ := transformer.Transform(ctx, bytes)
+		name := ctx.Value(automation.NamerCtxKey{}).(string)
+		size := ctx.Value(automation.ResizerCtxKey{}).(types.Size)
+
+		fmt.Println(name)
+		fmt.Println(size)
 
 		f.Storage.Upload(&storage.UploadInput{
 			Dir:   f.Dir,
-			Name:  p.GetName(name),
+			Name:  name,
 			Bytes: b,
 			Size: types.Size{
-				Width:  p.Width,
-				Height: p.Height,
+				Width:  size.Width,
+				Height: size.Height,
 			},
 		})
-	}
-	if err != nil {
-		return nil, err
 	}
 
 	return f.Storage.ReadOne(&storage.ReadOneInput{

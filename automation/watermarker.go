@@ -1,4 +1,4 @@
-package transformer
+package automation
 
 import (
 	"bufio"
@@ -9,6 +9,8 @@ import (
 	"image/jpeg"
 	"image/png"
 	"os"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Watermarker struct {
@@ -18,7 +20,9 @@ func NewWatermarker() *Watermarker {
 	return &Watermarker{}
 }
 
-func (w *Watermarker) Transform(ctx context.Context, bytes2 []byte) ([]byte, error) {
+func (w *Watermarker) Do(ctx context.Context, bytes2 []byte) (context.Context, []byte, error) {
+	log.Info().Msg("running watermarker")
+
 	watermarkPath := ctx.Value("watermarkPath").(string)
 
 	input := bytes.NewReader(bytes2)
@@ -41,7 +45,7 @@ func (w *Watermarker) Transform(ctx context.Context, bytes2 []byte) ([]byte, err
 
 	jpeg.Encode(w2, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
 
-	return buff.Bytes(), nil
+	return ctx, buff.Bytes(), nil
 }
 
 func (w *Watermarker) GetName() string {

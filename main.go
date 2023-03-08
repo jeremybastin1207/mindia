@@ -2,14 +2,14 @@ package main
 
 import (
 	"mindia/apiserver"
+	"mindia/automation"
 	"mindia/backup"
 	"mindia/configurer"
 	"mindia/folder"
-	"mindia/policy"
 	"mindia/project"
 	"mindia/storage"
 	"mindia/synchronizer"
-	"mindia/transformer"
+	"mindia/types"
 	"mindia/utils"
 	"os"
 	"time"
@@ -68,68 +68,64 @@ func main() {
 	apiServer := apiserver.NewApiServer(&apiserver.ApiServerInput{
 		Port: 3500,
 	})
-	resizer := transformer.NewResizer()
-	watermarker := transformer.NewWatermarker()
 
-	project := project.NewProject(&project.ProjectInput{
+	project1 := project.NewProject(&project.ProjectArgs{
 		Name:      "ae",
 		ApiServer: apiServer,
 	})
 
-	xl_policy := policy.PolicyInput{
-		Name:            "xl_thumbnail",
-		Width:           280,
-		Height:          320,
-		TransformerName: resizer.GetName(),
-	}
-	md_policy := policy.PolicyInput{
-		Name:            "md_thumbnail",
-		Width:           150,
-		Height:          150,
-		TransformerName: resizer.GetName(),
-	}
-	sm_policy := policy.PolicyInput{
-		Name:            "sm_thumbnail",
-		Width:           80,
-		Height:          80,
-		TransformerName: resizer.GetName(),
-	}
+	automation1 := automation.NewAutomation(&automation.AutomationArgs{
+		Name: "automation1",
+		Steps: []automation.AutomationStep{
+			automation.NewNamer(&automation.NamerArgs{
+				Suffix: "xl",
+			}),
+			automation.NewResizer(&automation.ResizerArgs{
+				Size: types.Size{
+					Width:  200,
+					Height: 200,
+				},
+			}),
+		},
+	})
+	automation2 := automation.NewAutomation(&automation.AutomationArgs{
+		Name: "automation2",
+		Steps: []automation.AutomationStep{
+			automation.NewNamer(&automation.NamerArgs{
+				Suffix: "md",
+			}),
+			automation.NewResizer(&automation.ResizerArgs{
+				Size: types.Size{
+					Width:  100,
+					Height: 100,
+				},
+			}),
+		},
+	})
 
-	folder1 := folder.NewFolder(&folder.FolderInput{
+	folder1 := folder.NewFolder(&folder.FolderArgs{
 		Dir:     "/houses",
 		Storage: filesystemStorage,
-		Transformers: []transformer.Transformer{
-			resizer,
-			watermarker,
+		Automations: []*automation.Automation{
+			automation1,
+			automation2,
 		},
 	})
-	folder2 := folder.NewFolder(&folder.FolderInput{
+	folder2 := folder.NewFolder(&folder.FolderArgs{
 		Dir:     "/houses/garden",
 		Storage: filesystemStorage,
-		Transformers: []transformer.Transformer{
-			resizer,
+		Automations: []*automation.Automation{
+			automation1,
 		},
 	})
-	folder3 := folder.NewFolder(&folder.FolderInput{
+	folder3 := folder.NewFolder(&folder.FolderArgs{
 		Dir:     "/users",
 		Storage: s3Storage,
-		Transformers: []transformer.Transformer{
-			resizer,
-		},
 	})
-	folder4 := folder.NewFolder(&folder.FolderInput{
+	folder4 := folder.NewFolder(&folder.FolderArgs{
 		Dir:     "/users/company",
 		Storage: s3Storage,
-		Transformers: []transformer.Transformer{
-			resizer,
-		},
 	})
-
-	folder1.WritePolicy(&xl_policy)
-	folder2.WritePolicy(&xl_policy)
-	folder2.WritePolicy(&md_policy)
-	folder3.WritePolicy(&sm_policy)
-	folder4.WritePolicy(&md_policy)
 
 	filesystemBackup.AddFolder(folder1)
 	filesystemBackup.AddFolder(folder2)
@@ -146,13 +142,13 @@ func main() {
 	synchronizer.AddFolder(folder3)
 	synchronizer.AddFolder(folder4)
 
-	project.AddFolder(folder1)
-	project.AddFolder(folder2)
-	project.AddFolder(folder3)
-	project.AddFolder(folder4)
+	project1.AddFolder(folder1)
+	project1.AddFolder(folder2)
+	project1.AddFolder(folder3)
+	project1.AddFolder(folder4)
 
 	configurer := configurer.NewConfigurer()
-	configurer.PersistConfig(project)
+	configurer.PersistConfig(project1)
 
 	go func() {
 		for {

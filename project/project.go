@@ -13,24 +13,24 @@ type Project struct {
 	UserManager *iam.UserManager
 }
 
-type ProjectInput struct {
+type ProjectArgs struct {
 	Name      string
 	Folders   []*folder.Folder
 	ApiServer *apiserver.ApiServer
 }
 
-func NewProject(in *ProjectInput) *Project {
+func NewProject(args *ProjectArgs) *Project {
 	folders := folder.FoldersMap{}
-	if in.Folders != nil {
-		for _, f := range in.Folders {
+	if args.Folders != nil {
+		for _, f := range args.Folders {
 			folders[f.Dir] = f
-			in.ApiServer.AddFolder(f)
+			args.ApiServer.AddFolder(f)
 		}
 	}
 	return &Project{
-		Name:        in.Name,
+		Name:        args.Name,
 		Folders:     folders,
-		ApiServer:   in.ApiServer,
+		ApiServer:   args.ApiServer,
 		UserManager: iam.NewUserManager(),
 	}
 }
