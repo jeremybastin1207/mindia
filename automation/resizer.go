@@ -8,12 +8,12 @@ import (
 	"image/jpeg"
 	"mindia/types"
 
-	"github.com/rs/zerolog/log"
 	"golang.org/x/image/draw"
 )
 
 type ResizerConfig struct {
-	Size types.Size `yaml:"size"`
+	*AutomationStepConfig `yaml:",inline"`
+	Size                  types.Size `yaml:"size"`
 }
 
 type Resizer struct {
@@ -26,12 +26,13 @@ func NewResizer(config *ResizerConfig) *Resizer {
 	}
 }
 
-type ResizerCtxKey struct{}
+func (r *Resizer) GetChildren() []*Automation {
+	return r.Children
+}
 
-func (r *Resizer) Do(ctx context.Context, bytes2 []byte) (context.Context, []byte, error) {
-	log.Info().Msg("running resizer")
-
-	input := bytes.NewReader(bytes2)
+func (r *Resizer) Do(ctx context.Context) (context.Context, error) {
+	actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+	input := bytes.NewReader(actx.Body)
 	decodedInput, _ := jpeg.Decode(input)
 
 	width := decodedInput.Bounds().Max.X
@@ -52,12 +53,8 @@ func (r *Resizer) Do(ctx context.Context, bytes2 []byte) (context.Context, []byt
 	buff := new(bytes.Buffer)
 	w2 := bufio.NewWriter(buff)
 	jpeg.Encode(w2, dst, &jpeg.Options{Quality: jpeg.DefaultQuality})
+	actx.Body = buff.Bytes()
 
-	ctx = context.WithValue(ctx, ResizerCtxKey{}, r.Size)
-
-	return ctx, buff.Bytes(), nil
-}
-
-func (r *Resizer) GetName() string {
-	return "resizer"
+	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
+	return ctx, nil
 }

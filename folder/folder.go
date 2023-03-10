@@ -7,7 +7,6 @@ import (
 	"mindia/types"
 	"mindia/utils"
 	"path/filepath"
-	"time"
 )
 
 type FolderConfig struct {
@@ -25,60 +24,48 @@ func NewFolder(config *FolderConfig) *Folder {
 	f := &Folder{
 		FolderConfig: config,
 	}
-
-	if config.Backup != nil {
-		go func() {
-			for {
-				f.backup()
-				time.Sleep(10 * time.Second)
-			}
-		}()
-	}
+	/*
+		if config.Backup != nil {
+			go func() {
+				for {
+					f.backup()
+					f.sync()
+					time.Sleep(10 * time.Second)
+				}
+			}()
+		} */
 
 	return f
 }
 
-func (f *Folder) Upload(name string, bytes []byte) (*types.File, error) {
-	if !utils.IsValidUUID(utils.NameWithoutExt(name)) {
-		name = types.GenerateName(name)
-	}
-	err := f.Storage.Upload(&storage.UploadInput{
-		Dir:   f.Dir,
-		Name:  name,
-		Bytes: bytes,
-	})
-	if err != nil {
-		return nil, err
+func (f *Folder) Upload(name string, bytes []byte) error {
+	var err error
+
+	sinker := automation.Sinker{
+		SinkerConfig: &automation.SinkerConfig{
+			Sink: func(actx automation.AutomationCtx) {
+				f.Storage.Upload(&storage.UploadInput{
+					Dir:   f.Dir,
+					Name:  actx.Name,
+					Bytes: actx.Body,
+				})
+			},
+		},
 	}
 
 	for _, a := range f.Automations {
-		ctx, b, err := a.Run(name, bytes)
+		actx := automation.AutomationCtx{
+			Name: name,
+			Body: bytes,
+		}
+		err = a.Run(actx, sinker)
 		if err != nil {
 			fmt.Printf("Error: %s", err)
 			continue
 		}
-
-		name := ctx.Value(automation.NamerCtxKey{}).(string)
-		size := ctx.Value(automation.ResizerCtxKey{}).(types.Size)
-
-		fmt.Println(name)
-		fmt.Println(size)
-
-		f.Storage.Upload(&storage.UploadInput{
-			Dir:   f.Dir,
-			Name:  name,
-			Bytes: b,
-			Size: types.Size{
-				Width:  size.Width,
-				Height: size.Height,
-			},
-		})
 	}
 
-	return f.Storage.ReadOne(&storage.ReadOneInput{
-		Dir:  f.Dir,
-		Name: name,
-	})
+	return nil
 }
 
 func (f *Folder) ReadSize(dir, name string) (*types.Size, error) {
@@ -139,7 +126,7 @@ func (f *Folder) DeleteOne(name string) error {
 	return nil
 }
 
-func (f *Folder) backup() {
+/* func (f *Folder) backup() {
 	files, _ := f.ReadAll()
 	for _, file := range files {
 		if types.IsSourceFile(file) {
@@ -160,65 +147,33 @@ func (f *Folder) backup() {
 			}
 		}
 	}
-}
+} */
 
-/*
-func (f *Folder) synchronize() {
-	files, _ := f.ReadAll()
-	for _, file := range files {
-		if types.IsSourceFile(file) {
-			prefix := strings.TrimSuffix(file.Name, filepath.Ext(file.Name)) + "_"
-			refs, _ := f.ReadPrefix(prefix)
-
-			f.syncOne(file, refs)
-		}
-	}
-}
-
-func (f *Folder) syncOne(source *types.File, refs []*types.File) {
-  needSync := false
-
-	policies, err := folder.ReadPolicies()
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-		return
-	}
-
-	for _, ref := range refs {
-		obj, err := f.ReadSize(ref.Dir, ref.Name)
-		if err != nil {
-			fmt.Printf("Error: %s", err)
-			return
-		}
-
-		for _, policy := range policies {
-			if policy.IsOf(ref.Name) {
-				if obj.Width != policy.Width && obj.Height != policy.Height {
-					needSync = true
+func (f *Folder) sync() {
+	/* 	for _, a := range f.Automations {
+		if a.Triggers.SyncCron != "" {
+			files, _ := f.ReadAll()
+			for _, file := range files {
+				if !a.Namer.Match(file.Name) {
+					continue
 				}
-				continue
-			}
-		}
-	}
-
-	if !needSync {
-		for _, policy := range policies {
-			found := false
-			for _, ref := range refs {
-				if policy.IsOf(ref.Name) {
-					found = true
-					break
+				bytes, _ := f.Download(file.Name)
+				isSync, err := a.IsSync(file, bytes)
+				if err != nil {
+					continue
+				}
+				if !isSync {
+					fmt.Println("sync")
+					files2, _ := f.ReadPrefix(a.Namer.Prefix(file.Name))
+					for _, file2 := range files2 {
+						if types.IsSourceFile(file2) {
+							bytes, _ := f.Download(file2.Name)
+							f.Upload(file2.Name, bytes)
+							break
+						}
+					}
 				}
 			}
-			if !found {
-				needSync = true
-			}
 		}
-	}
-
-	if needSync {
-		bytes, _ := f.Download(source.Name)
-		f.Upload(source.Name, bytes)
-	}
+	} */
 }
-*/

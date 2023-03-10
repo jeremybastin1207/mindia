@@ -10,48 +10,98 @@ folders:
         type: filesystem
         mount_dir: ./data/backup
       automations:
-        - name: automation1
-          steps:
-            - suffix: xl
-            - size:
-                width: 200
-                height: 200
-        - name: automation2
-          steps:
-            - suffix: md
-            - size:
-                width: 100
-                height: 100
+        - automationconfig:
+            steps:
+                - children: []
+                - children:
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: xl
+                            - children: []
+                              size:
+                                width: 300
+                                height: 300
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: md
+                            - children: []
+                              size:
+                                width: 200
+                                height: 200
     - dir: /houses/garden
       storage:
         type: filesystem
         mount_dir: ./data
       automations:
-        - name: automation1
-          steps:
-            - suffix: xl
-            - size:
-                width: 200
-                height: 200
+        - automationconfig:
+            steps:
+                - children: []
+                - children:
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: xl
+                            - children: []
+                              size:
+                                width: 300
+                                height: 300
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: md
+                            - children: []
+                              size:
+                                width: 200
+                                height: 200
     - dir: /users
       storage:
         type: s3
       backup:
         type: s3
       automations:
-        - name: automation1
-          steps:
-            - suffix: xl
-            - size:
-                width: 200
-                height: 200
+        - automationconfig:
+            steps:
+                - children: []
+                - children:
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: xl
+                            - children: []
+                              size:
+                                width: 300
+                                height: 300
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: md
+                            - children: []
+                              size:
+                                width: 200
+                                height: 200
     - dir: /users/company
       storage:
         type: s3
       automations:
-        - name: automation1
-          steps:
-            - suffix: xl
-            - size:
-                width: 200
-                height: 200
+        - automationconfig:
+            steps:
+                - children: []
+                - children:
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: xl
+                            - children: []
+                              size:
+                                width: 300
+                                height: 300
+                    - automationconfig:
+                        steps:
+                            - children: []
+                              suffix: md
+                            - children: []
+                              size:
+                                width: 200
+                                height: 200

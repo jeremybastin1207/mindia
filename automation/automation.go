@@ -4,13 +4,28 @@ import (
 	"context"
 )
 
+type AutomationCtxKey struct{}
+
+type AutomationCtx struct {
+	Name string
+	Body []byte
+}
+
+type AutomationStepConfig struct {
+	Children []*Automation
+}
+
+type AutomationStep interface {
+	GetChildren() []*Automation
+	Do(ctx context.Context) (context.Context, error)
+}
+
 type AutomationConfig struct {
-	Name  string           `yaml:"name"`
-	Steps []AutomationStep `yaml:"steps"`
+	Steps []AutomationStep
 }
 
 type Automation struct {
-	*AutomationConfig `yaml:",inline"`
+	*AutomationConfig
 }
 
 func NewAutomation(config *AutomationConfig) *Automation {
@@ -19,30 +34,25 @@ func NewAutomation(config *AutomationConfig) *Automation {
 	}
 }
 
-func (a *Automation) Run(name string, bytes []byte) (context.Context, []byte, error) {
+func (a *Automation) Run(actx AutomationCtx, sinker Sinker) error {
+	var err error
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, NamerCtxKey{}, name)
+	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
 
-	for _, step := range a.Steps {
-		ctx2, bytes2, err := step.Do(ctx, bytes)
+	steps := a.Steps
+	steps = append(steps, &sinker)
+
+	for _, step := range steps {
+		ctx, err = step.Do(ctx)
 		if err != nil {
-			return ctx, nil, err
+			return err
 		}
-		ctx = ctx2
-		bytes = bytes2
+		actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+
+		for _, sa := range step.GetChildren() {
+			sa.Run(actx, sinker)
+		}
+
 	}
-
-	return ctx, bytes, nil
-}
-
-func (a *Automation) GetName() string {
-	return a.Name
-}
-
-func ToMap(arr []*Automation) AutomationsMap {
-	mp := AutomationsMap{}
-	for _, el := range arr {
-		mp[el.GetName()] = el
-	}
-	return mp
+	return nil
 }

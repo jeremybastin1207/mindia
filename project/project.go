@@ -16,7 +16,11 @@ type Project struct {
 }
 
 func NewProject(config *ProjectConfig) *Project {
-	return &Project{
+	p := &Project{
 		ProjectConfig: config,
 	}
+	for _, f := range p.Folders {
+		p.ApiServer.AddFolder(f)
+	}
+	return p
 }

@@ -97,18 +97,13 @@ func (s *ApiServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	metadata, err := s.folders[folder].Upload(handler.Filename, buf.Bytes())
+	err = s.folders[folder].Upload(handler.Filename, buf.Bytes())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	_, err = fmt.Fprintf(w, "Successfully Uploaded File\n")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.Error(w, metadata.ToString(), http.StatusOK)
+	http.Error(w, "File uploaded", http.StatusOK)
 }
 
 func (s *ApiServer) handleDelete(w http.ResponseWriter, r *http.Request) {

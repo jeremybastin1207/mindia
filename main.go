@@ -54,13 +54,37 @@ func main() {
 		},
 	})
 
-	automation1 := automation.NewAutomation(&automation.AutomationConfig{
-		Name: "automation1",
+	automationXl := automation.NewAutomation(&automation.AutomationConfig{
 		Steps: []automation.AutomationStep{
-			automation.NewNamer(&automation.NamerConfig{
+			automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{},
+				},
 				Suffix: "xl",
 			}),
 			automation.NewResizer(&automation.ResizerConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{},
+				},
+				Size: types.Size{
+					Width:  300,
+					Height: 300,
+				},
+			}),
+		},
+	})
+	automationMd := automation.NewAutomation(&automation.AutomationConfig{
+		Steps: []automation.AutomationStep{
+			automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{},
+				},
+				Suffix: "md",
+			}),
+			automation.NewResizer(&automation.ResizerConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{},
+				},
 				Size: types.Size{
 					Width:  200,
 					Height: 200,
@@ -68,16 +92,20 @@ func main() {
 			}),
 		},
 	})
-	automation2 := automation.NewAutomation(&automation.AutomationConfig{
-		Name: "automation2",
+
+	automation1 := automation.NewAutomation(&automation.AutomationConfig{
 		Steps: []automation.AutomationStep{
-			automation.NewNamer(&automation.NamerConfig{
-				Suffix: "md",
+			automation.NewNamerUuid(&automation.NamerUuidConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{},
+				},
 			}),
-			automation.NewResizer(&automation.ResizerConfig{
-				Size: types.Size{
-					Width:  100,
-					Height: 100,
+			automation.NewJpegConverter(&automation.JpegConverterConfig{
+				AutomationStepConfig: &automation.AutomationStepConfig{
+					Children: []*automation.Automation{
+						automationXl,
+						automationMd,
+					},
 				},
 			}),
 		},
@@ -89,7 +117,6 @@ func main() {
 		Backup:  filesystemBackupStorage,
 		Automations: []*automation.Automation{
 			automation1,
-			automation2,
 		},
 	})
 	folder2 := folder.NewFolder(&folder.FolderConfig{
