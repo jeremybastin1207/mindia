@@ -1,4 +1,4 @@
-package automation
+package namer
 
 import (
 	"fmt"
@@ -20,8 +20,8 @@ func NewNamerSuffix(config *NamerSuffixConfig) *NamerSuffix {
 	}
 }
 
-func (n *NamerSuffix) NamerFunc(Name string) string {
-	extension := filepath.Ext(Name)
-	basename := strings.TrimSuffix(Name, extension)
+func (n *NamerSuffix) Name(fileame string) string {
+	extension := filepath.Ext(fileame)
+	basename := strings.TrimSuffix(fileame, extension)
 	return fmt.Sprintf("%s_%s%s", basename, n.Suffix, extension)
 }

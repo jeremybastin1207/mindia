@@ -1,4 +1,4 @@
-package automation
+package namer
 
 import (
 	"path/filepath"
@@ -19,6 +19,6 @@ func NewNamerUuid(config *NamerUuidConfig) *NamerUuid {
 	}
 }
 
-func (n *NamerUuid) NamerFunc(Name string) string {
-	return uuid.New().String() + filepath.Ext(Name)
+func (n *NamerUuid) Name(filename string) string {
+	return uuid.New().String() + filepath.Ext(filename)
 }

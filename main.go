@@ -3,6 +3,7 @@ package main
 import (
 	"mindia/apiserver"
 	"mindia/automation"
+	"mindia/automation/namer"
 	"mindia/configurer"
 	"mindia/folder"
 	"mindia/project"
@@ -55,7 +56,7 @@ func main() {
 	})
 
 	automationXl := automation.NewAutomation(&automation.AutomationConfig{
-		Namer: automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+		Namer: namer.NewNamerSuffix(&namer.NamerSuffixConfig{
 			Suffix: "xl",
 		}),
 		Steps: []automation.AutomationStep{
@@ -71,7 +72,7 @@ func main() {
 		},
 	})
 	automationMd := automation.NewAutomation(&automation.AutomationConfig{
-		Namer: automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+		Namer: namer.NewNamerSuffix(&namer.NamerSuffixConfig{
 			Suffix: "md",
 		}),
 		Steps: []automation.AutomationStep{
@@ -87,8 +88,7 @@ func main() {
 		},
 	})
 	automation1 := automation.NewAutomation(&automation.AutomationConfig{
-		ApplyToCurrentFiles: true,
-		Namer:               automation.NewNamerUuid(&automation.NamerUuidConfig{}),
+		Namer: namer.NewNamerUuid(&namer.NamerUuidConfig{}),
 		Steps: []automation.AutomationStep{
 			automation.NewJpegConverter(&automation.JpegConverterConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{

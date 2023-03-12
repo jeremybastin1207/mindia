@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"mindia/automation/namer"
 )
 
 type Body []byte
@@ -13,15 +14,9 @@ type AutomationCtx struct {
 	Body Body
 }
 
-type UniqueNamer struct{}
-
 type AutomationStepConfig struct {
-	Namer    UniqueNamer
+	Namer    *namer.Namer
 	Children []*Automation
-}
-
-type NamerStep interface {
-	NamerFunc(Name string) string
 }
 
 type AutomationStep interface {
@@ -30,9 +25,8 @@ type AutomationStep interface {
 }
 
 type AutomationConfig struct {
-	ApplyToCurrentFiles bool
-	Namer               NamerStep
-	Steps               []AutomationStep
+	Namer namer.Namer
+	Steps []AutomationStep
 }
 
 type Automation struct {
@@ -45,23 +39,23 @@ func NewAutomation(config *AutomationConfig) *Automation {
 	}
 }
 
-func (a *Automation) Run(actx AutomationCtx, namerFunc UniqueNamerFunc, source *Source, sinker *Sinker) error {
+func (a *Automation) Run(actx AutomationCtx, namer namer.Namer, source *Source, sinker *Sinker) error {
 	var err error
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
-
-	namer := NewNamer(&NamerConfig{
-		AutomationStepConfig: &AutomationStepConfig{
-			Children: []*Automation{},
-		},
-		NamerFunc: namerFunc,
-	})
 
 	steps := a.Steps
 	if source != nil {
 		steps = append([]AutomationStep{source}, steps...)
 	}
-	steps = append([]AutomationStep{namer}, steps...)
+	steps = append([]AutomationStep{
+		NewNamer(&NamerConfig{
+			AutomationStepConfig: &AutomationStepConfig{
+				Children: []*Automation{},
+			},
+			Namer: namer,
+		}),
+	}, steps...)
 	steps = append(steps, sinker)
 
 	for _, step := range steps {
@@ -71,7 +65,7 @@ func (a *Automation) Run(actx AutomationCtx, namerFunc UniqueNamerFunc, source *
 		}
 		actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
 		for _, sa := range step.GetChildren() {
-			sa.Run(actx, sa.AutomationConfig.Namer.NamerFunc, nil, sinker)
+			sa.Run(actx, sa.AutomationConfig.Namer, nil, sinker)
 		}
 	}
 	return nil

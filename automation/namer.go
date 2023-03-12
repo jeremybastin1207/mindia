@@ -2,13 +2,14 @@ package automation
 
 import (
 	"context"
+	"mindia/automation/namer"
 )
 
 type UniqueNamerFunc func(Name string) string
 
 type NamerConfig struct {
 	*AutomationStepConfig `yaml:",inline"`
-	NamerFunc             UniqueNamerFunc
+	Namer                 namer.Namer
 }
 
 type Namer struct {
@@ -28,8 +29,8 @@ func (n *Namer) GetChildren() []*Automation {
 func (n *Namer) Do(ctx context.Context) (context.Context, error) {
 	actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
 
-	if n.NamerFunc != nil {
-		actx.Name = n.NamerFunc(actx.Name)
+	if n.Namer != nil {
+		actx.Name = n.Namer.Name(actx.Name)
 		ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
 	}
 

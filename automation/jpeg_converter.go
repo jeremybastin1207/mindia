@@ -1,6 +1,8 @@
 package automation
 
-import "context"
+import (
+	"context"
+)
 
 type JpegConverterConfig struct {
 	*AutomationStepConfig `yaml:",inline"`

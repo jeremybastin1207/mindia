@@ -61,7 +61,7 @@ func (f *Folder) Upload(name string, bytes []byte) error {
 			Name: name,
 			Body: bytes,
 		}
-		err = a.Automation.Run(actx, a.Automation.AutomationConfig.Namer.NamerFunc, &source, &sinker)
+		err = a.Automation.Run(actx, a.Automation.AutomationConfig.Namer, &source, &sinker)
 		if err != nil {
 			fmt.Printf("Error: %s", err)
 			continue

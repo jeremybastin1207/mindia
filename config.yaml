@@ -12,27 +12,24 @@ folders:
       automations:
         - automation:
             automationconfig:
-                applytocurrentfiles: true
                 namer: {}
                 steps:
-                    - namer: {}
+                    - namer: null
                       children:
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 250
                                     height: 250
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: md
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 150
@@ -45,27 +42,24 @@ folders:
       automations:
         - automation:
             automationconfig:
-                applytocurrentfiles: true
                 namer: {}
                 steps:
-                    - namer: {}
+                    - namer: null
                       children:
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 250
                                     height: 250
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: md
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 150
@@ -79,27 +73,24 @@ folders:
       automations:
         - automation:
             automationconfig:
-                applytocurrentfiles: true
                 namer: {}
                 steps:
-                    - namer: {}
+                    - namer: null
                       children:
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 250
                                     height: 250
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: md
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 150
@@ -111,27 +102,24 @@ folders:
       automations:
         - automation:
             automationconfig:
-                applytocurrentfiles: true
                 namer: {}
                 steps:
-                    - namer: {}
+                    - namer: null
                       children:
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 250
                                     height: 250
                         - automationconfig:
-                            applytocurrentfiles: false
                             namer:
                                 suffix: md
                             steps:
-                                - namer: {}
+                                - namer: null
                                   children: []
                                   size:
                                     width: 150
