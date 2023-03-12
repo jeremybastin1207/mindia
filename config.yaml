@@ -14,14 +14,33 @@ folders:
             automationconfig:
                 namer: {}
                 steps:
-                    - namer: null
+                    - automationstep:
+                        children:
+                            - automationconfig:
+                                namer:
+                                    suffix: xl
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 250
+                                        height: 250
+                            - automationconfig:
+                                namer:
+                                    suffix: md
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 150
+                                        height: 150
                       children:
                         - automationconfig:
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 250
                                     height: 250
@@ -29,8 +48,8 @@ folders:
                             namer:
                                 suffix: md
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 150
                                     height: 150
@@ -44,14 +63,33 @@ folders:
             automationconfig:
                 namer: {}
                 steps:
-                    - namer: null
+                    - automationstep:
+                        children:
+                            - automationconfig:
+                                namer:
+                                    suffix: xl
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 250
+                                        height: 250
+                            - automationconfig:
+                                namer:
+                                    suffix: md
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 150
+                                        height: 150
                       children:
                         - automationconfig:
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 250
                                     height: 250
@@ -59,8 +97,8 @@ folders:
                             namer:
                                 suffix: md
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 150
                                     height: 150
@@ -75,14 +113,33 @@ folders:
             automationconfig:
                 namer: {}
                 steps:
-                    - namer: null
+                    - automationstep:
+                        children:
+                            - automationconfig:
+                                namer:
+                                    suffix: xl
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 250
+                                        height: 250
+                            - automationconfig:
+                                namer:
+                                    suffix: md
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 150
+                                        height: 150
                       children:
                         - automationconfig:
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 250
                                     height: 250
@@ -90,8 +147,8 @@ folders:
                             namer:
                                 suffix: md
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 150
                                     height: 150
@@ -104,14 +161,33 @@ folders:
             automationconfig:
                 namer: {}
                 steps:
-                    - namer: null
+                    - automationstep:
+                        children:
+                            - automationconfig:
+                                namer:
+                                    suffix: xl
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 250
+                                        height: 250
+                            - automationconfig:
+                                namer:
+                                    suffix: md
+                                steps:
+                                    - automationstep:
+                                        children: []
+                                      size:
+                                        width: 150
+                                        height: 150
                       children:
                         - automationconfig:
                             namer:
                                 suffix: xl
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 250
                                     height: 250
@@ -119,8 +195,8 @@ folders:
                             namer:
                                 suffix: md
                             steps:
-                                - namer: null
-                                  children: []
+                                - automationstep:
+                                    children: []
                                   size:
                                     width: 150
                                     height: 150

@@ -5,28 +5,9 @@ import (
 	"mindia/automation/namer"
 )
 
-type Body []byte
-
-type AutomationCtxKey struct{}
-
-type AutomationCtx struct {
-	Name string
-	Body Body
-}
-
-type AutomationStepConfig struct {
-	Namer    *namer.Namer
-	Children []*Automation
-}
-
-type AutomationStep interface {
-	GetChildren() []*Automation
-	Do(ctx context.Context) (context.Context, error)
-}
-
 type AutomationConfig struct {
 	Namer namer.Namer
-	Steps []AutomationStep
+	Steps []AutomationDoer
 }
 
 type Automation struct {
@@ -46,9 +27,9 @@ func (a *Automation) Run(actx AutomationCtx, namer namer.Namer, source *Source, 
 
 	steps := a.Steps
 	if source != nil {
-		steps = append([]AutomationStep{source}, steps...)
+		steps = append([]AutomationDoer{source}, steps...)
 	}
-	steps = append([]AutomationStep{
+	steps = append([]AutomationDoer{
 		NewNamer(&NamerConfig{
 			AutomationStepConfig: &AutomationStepConfig{
 				Children: []*Automation{},

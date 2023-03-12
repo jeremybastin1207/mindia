@@ -5,19 +5,21 @@ import "context"
 type RetrieveFunc func(Name string) (Body, error)
 
 type SourceConfig struct {
+	*AutomationStepConfig
 	Load RetrieveFunc
 }
 
-type Source struct {
-	*SourceConfig
-}
-
 func NewSource(config *SourceConfig) *Source {
-	return &Source{}
+	return &Source{
+		AutomationStep: AutomationStep{
+			Children: config.AutomationStepConfig.Children,
+		},
+	}
 }
 
-func (s *Source) GetChildren() []*Automation {
-	return []*Automation{}
+type Source struct {
+	AutomationStep
+	*SourceConfig
 }
 
 func (s *Source) Do(ctx context.Context) (context.Context, error) {

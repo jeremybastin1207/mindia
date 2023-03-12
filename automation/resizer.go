@@ -16,18 +16,18 @@ type ResizerConfig struct {
 	Size                  types.Size `yaml:"size"`
 }
 
-type Resizer struct {
-	*ResizerConfig `yaml:",inline"`
-}
-
 func NewResizer(config *ResizerConfig) *Resizer {
 	return &Resizer{
-		ResizerConfig: config,
+		AutomationStep: AutomationStep{
+			Children: config.AutomationStepConfig.Children,
+		},
+		Size: config.Size,
 	}
 }
 
-func (r *Resizer) GetChildren() []*Automation {
-	return r.Children
+type Resizer struct {
+	AutomationStep
+	Size types.Size `yaml:"size"`
 }
 
 func (r *Resizer) Do(ctx context.Context) (context.Context, error) {

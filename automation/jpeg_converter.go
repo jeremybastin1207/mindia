@@ -8,18 +8,18 @@ type JpegConverterConfig struct {
 	*AutomationStepConfig `yaml:",inline"`
 }
 
-type JpegConverter struct {
-	*JpegConverterConfig `yaml:",inline"`
-}
-
 func NewJpegConverter(config *JpegConverterConfig) *JpegConverter {
 	return &JpegConverter{
+		AutomationStep: AutomationStep{
+			Children: config.AutomationStepConfig.Children,
+		},
 		JpegConverterConfig: config,
 	}
 }
 
-func (c *JpegConverter) GetChildren() []*Automation {
-	return c.Children
+type JpegConverter struct {
+	AutomationStep
+	*JpegConverterConfig `yaml:",inline"`
 }
 
 func (c *JpegConverter) Do(ctx context.Context) (context.Context, error) {

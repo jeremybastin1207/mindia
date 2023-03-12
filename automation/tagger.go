@@ -6,18 +6,18 @@ type TaggerConfig struct {
 	*AutomationStepConfig `yaml:",inline"`
 }
 
-type Tagger struct {
-	*TaggerConfig `yaml:",inline"`
-}
-
 func NewTagger(config *TaggerConfig) *Tagger {
 	return &Tagger{
+		AutomationStep: AutomationStep{
+			Children: config.AutomationStepConfig.Children,
+		},
 		TaggerConfig: config,
 	}
 }
 
-func (t *Tagger) GetChildren() []*Automation {
-	return t.Children
+type Tagger struct {
+	AutomationStep
+	*TaggerConfig `yaml:",inline"`
 }
 
 func (t *Tagger) Do(ctx context.Context) (context.Context, error) {

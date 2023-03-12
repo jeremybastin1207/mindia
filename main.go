@@ -59,7 +59,7 @@ func main() {
 		Namer: namer.NewNamerSuffix(&namer.NamerSuffixConfig{
 			Suffix: "xl",
 		}),
-		Steps: []automation.AutomationStep{
+		Steps: []automation.AutomationDoer{
 			automation.NewResizer(&automation.ResizerConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{},
@@ -75,7 +75,7 @@ func main() {
 		Namer: namer.NewNamerSuffix(&namer.NamerSuffixConfig{
 			Suffix: "md",
 		}),
-		Steps: []automation.AutomationStep{
+		Steps: []automation.AutomationDoer{
 			automation.NewResizer(&automation.ResizerConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{},
@@ -89,7 +89,7 @@ func main() {
 	})
 	automation1 := automation.NewAutomation(&automation.AutomationConfig{
 		Namer: namer.NewNamerUuid(&namer.NamerUuidConfig{}),
-		Steps: []automation.AutomationStep{
+		Steps: []automation.AutomationDoer{
 			automation.NewJpegConverter(&automation.JpegConverterConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{

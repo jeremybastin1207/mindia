@@ -5,25 +5,23 @@ import (
 	"mindia/automation/namer"
 )
 
-type UniqueNamerFunc func(Name string) string
-
 type NamerConfig struct {
 	*AutomationStepConfig `yaml:",inline"`
 	Namer                 namer.Namer
 }
 
-type Namer struct {
-	*NamerConfig `yaml:",inline"`
-}
-
 func NewNamer(config *NamerConfig) *Namer {
 	return &Namer{
+		AutomationStep: AutomationStep{
+			Children: config.AutomationStepConfig.Children,
+		},
 		NamerConfig: config,
 	}
 }
 
-func (n *Namer) GetChildren() []*Automation {
-	return n.Children
+type Namer struct {
+	AutomationStep
+	*NamerConfig `yaml:",inline"`
 }
 
 func (n *Namer) Do(ctx context.Context) (context.Context, error) {
