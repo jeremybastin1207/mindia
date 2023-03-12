@@ -53,7 +53,7 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: true
+          applytocurrentfiles: false
     - dir: /houses/garden
       storage:
         type: filesystem
@@ -102,7 +102,7 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: true
+          applytocurrentfiles: false
     - dir: /users
       storage:
         type: s3
@@ -152,7 +152,7 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: true
+          applytocurrentfiles: false
     - dir: /users/company
       storage:
         type: s3
@@ -200,4 +200,4 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: true
+          applytocurrentfiles: false

@@ -8,10 +8,8 @@ type TaggerConfig struct {
 
 func NewTagger(config *TaggerConfig) *Tagger {
 	return &Tagger{
-		AutomationStep: AutomationStep{
-			Children: config.AutomationStepConfig.Children,
-		},
-		TaggerConfig: config,
+		AutomationStep: *NewAutomationStep(config.AutomationStepConfig),
+		TaggerConfig:   config,
 	}
 }
 

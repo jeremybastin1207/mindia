@@ -12,10 +12,8 @@ type NamerConfig struct {
 
 func NewNamer(config *NamerConfig) *Namer {
 	return &Namer{
-		AutomationStep: AutomationStep{
-			Children: config.AutomationStepConfig.Children,
-		},
-		NamerConfig: config,
+		AutomationStep: *NewAutomationStep(config.AutomationStepConfig),
+		NamerConfig:    config,
 	}
 }
 
@@ -26,11 +24,15 @@ type Namer struct {
 
 func (n *Namer) Do(ctx context.Context) (context.Context, error) {
 	actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+	name := actx.Name
 
 	if n.Namer != nil {
-		actx.Name = n.Namer.Name(actx.Name)
-		ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
+		name = n.Namer.Name(name)
 	}
+
+	actx.Name = name
+	actx.Outputs = append(actx.Outputs, actx.Name)
+	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
 
 	return ctx, nil
 }

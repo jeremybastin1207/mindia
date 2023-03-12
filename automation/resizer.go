@@ -18,10 +18,8 @@ type ResizerConfig struct {
 
 func NewResizer(config *ResizerConfig) *Resizer {
 	return &Resizer{
-		AutomationStep: AutomationStep{
-			Children: config.AutomationStepConfig.Children,
-		},
-		Size: config.Size,
+		AutomationStep: *NewAutomationStep(config.AutomationStepConfig),
+		Size:           config.Size,
 	}
 }
 
@@ -32,6 +30,10 @@ type Resizer struct {
 
 func (r *Resizer) Do(ctx context.Context) (context.Context, error) {
 	actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+	if actx.Body == nil {
+		return ctx, nil
+	}
+
 	input := bytes.NewReader(actx.Body)
 	decodedInput, _ := jpeg.Decode(input)
 

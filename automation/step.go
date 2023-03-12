@@ -17,6 +17,17 @@ func (s *AutomationStep) GetChildren() []*Automation {
 	return s.Children
 }
 
+func NewAutomationStep(config *AutomationStepConfig) *AutomationStep {
+	children := []*Automation{}
+	if config.Children != nil {
+		children = config.Children
+	}
+	a := AutomationStep{
+		Children: children,
+	}
+	return &a
+}
+
 type AutomationStep struct {
 	Children []*Automation
 }

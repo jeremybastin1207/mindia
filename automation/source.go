@@ -11,9 +11,7 @@ type SourceConfig struct {
 
 func NewSource(config *SourceConfig) *Source {
 	return &Source{
-		AutomationStep: AutomationStep{
-			Children: config.AutomationStepConfig.Children,
-		},
+		AutomationStep: *NewAutomationStep(config.AutomationStepConfig),
 	}
 }
 

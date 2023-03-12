@@ -10,9 +10,7 @@ type JpegConverterConfig struct {
 
 func NewJpegConverter(config *JpegConverterConfig) *JpegConverter {
 	return &JpegConverter{
-		AutomationStep: AutomationStep{
-			Children: config.AutomationStepConfig.Children,
-		},
+		AutomationStep:      *NewAutomationStep(config.AutomationStepConfig),
 		JpegConverterConfig: config,
 	}
 }

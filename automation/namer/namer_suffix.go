@@ -25,3 +25,7 @@ func (n *NamerSuffix) Name(fileame string) string {
 	basename := strings.TrimSuffix(fileame, extension)
 	return fmt.Sprintf("%s_%s%s", basename, n.Suffix, extension)
 }
+
+func (n *NamerSuffix) IsOf(name string) bool {
+	return strings.Contains(name, n.Suffix)
+}

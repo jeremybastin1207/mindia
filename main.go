@@ -103,7 +103,7 @@ func main() {
 	automations := []folder.AutomationConfig{
 		{
 			Automation:          automation1,
-			ApplyToCurrentFiles: true,
+			ApplyToCurrentFiles: false,
 		},
 	}
 

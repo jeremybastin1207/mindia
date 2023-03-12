@@ -14,10 +14,11 @@ type Size struct {
 }
 
 type File struct {
-	Dir           string `json:"dir"`
-	Name          string `json:"name"`
-	ContentType   string `json:"content_type"`
-	ContentLength int64  `json:"content_length"`
+	Dir           string   `json:"dir"`
+	Name          string   `json:"name"`
+	ContentType   string   `json:"content_type"`
+	ContentLength int64    `json:"content_length"`
+	Children      []string `json:"children"`
 }
 
 type Image struct {

@@ -6,7 +6,6 @@ import (
 	"mindia/storage"
 	"mindia/types"
 	"mindia/utils"
-	"path/filepath"
 )
 
 type AutomationConfig struct {
@@ -88,13 +87,30 @@ func (f *Folder) ReadOne(dir string) (*types.File, error) {
 func (f *Folder) ReadAll() ([]*types.File, error) {
 	res, err := f.Storage.ReadAll(&storage.ReadAllInput{Dir: f.Dir})
 
-	files := []*types.File{}
-	for _, f := range res {
-		if filepath.Ext(f.Name) != ".jpg" && filepath.Ext(f.Name) != ".jpeg" {
-			continue
+	var files []*types.File
+
+	for _, file := range res {
+		for _, a := range f.Automations {
+			if a.Automation.Namer.IsOf(file.Name) {
+				actx := automation.AutomationCtx{
+					Name: file.Name,
+				}
+				ctx, _ := a.Automation.DryRun(actx, nil)
+				actx = ctx.Value(automation.AutomationCtxKey{}).(automation.AutomationCtx)
+				file.Children = actx.Outputs
+
+				for i, child := range file.Children {
+					if child == file.Name {
+						file.Children = append(file.Children[:i], file.Children[i+1:]...)
+						break
+					}
+				}
+
+				files = append(files, file)
+			}
 		}
-		files = append(files, f)
 	}
+
 	return files, err
 }
 
