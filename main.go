@@ -55,51 +55,41 @@ func main() {
 	})
 
 	automationXl := automation.NewAutomation(&automation.AutomationConfig{
+		Namer: automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+			Suffix: "xl",
+		}),
 		Steps: []automation.AutomationStep{
-			automation.NewNamerSuffix(&automation.NamerSuffixConfig{
-				AutomationStepConfig: &automation.AutomationStepConfig{
-					Children: []*automation.Automation{},
-				},
-				Suffix: "xl",
-			}),
 			automation.NewResizer(&automation.ResizerConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{},
 				},
 				Size: types.Size{
-					Width:  300,
-					Height: 300,
+					Width:  250,
+					Height: 250,
 				},
 			}),
 		},
 	})
 	automationMd := automation.NewAutomation(&automation.AutomationConfig{
+		Namer: automation.NewNamerSuffix(&automation.NamerSuffixConfig{
+			Suffix: "md",
+		}),
 		Steps: []automation.AutomationStep{
-			automation.NewNamerSuffix(&automation.NamerSuffixConfig{
-				AutomationStepConfig: &automation.AutomationStepConfig{
-					Children: []*automation.Automation{},
-				},
-				Suffix: "md",
-			}),
 			automation.NewResizer(&automation.ResizerConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{},
 				},
 				Size: types.Size{
-					Width:  200,
-					Height: 200,
+					Width:  150,
+					Height: 150,
 				},
 			}),
 		},
 	})
-
 	automation1 := automation.NewAutomation(&automation.AutomationConfig{
+		ApplyToCurrentFiles: true,
+		Namer:               automation.NewNamerUuid(&automation.NamerUuidConfig{}),
 		Steps: []automation.AutomationStep{
-			automation.NewNamerUuid(&automation.NamerUuidConfig{
-				AutomationStepConfig: &automation.AutomationStepConfig{
-					Children: []*automation.Automation{},
-				},
-			}),
 			automation.NewJpegConverter(&automation.JpegConverterConfig{
 				AutomationStepConfig: &automation.AutomationStepConfig{
 					Children: []*automation.Automation{

@@ -25,3 +25,7 @@ func (s *Sinker) Do(ctx context.Context) (context.Context, error) {
 	s.Sink(actx)
 	return ctx, nil
 }
+
+func (s *Sinker) IsSync(ctx context.Context) (context.Context, error) {
+	return ctx, nil
+}

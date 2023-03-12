@@ -11,50 +11,62 @@ folders:
         mount_dir: ./data/backup
       automations:
         - automationconfig:
+            applytocurrentfiles: true
+            namer: {}
             steps:
-                - children: []
-                - children:
+                - namer: {}
+                  children:
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: xl
                         steps:
-                            - children: []
-                              suffix: xl
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 300
-                                height: 300
+                                width: 250
+                                height: 250
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: md
                         steps:
-                            - children: []
-                              suffix: md
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 200
-                                height: 200
+                                width: 150
+                                height: 150
     - dir: /houses/garden
       storage:
         type: filesystem
         mount_dir: ./data
       automations:
         - automationconfig:
+            applytocurrentfiles: true
+            namer: {}
             steps:
-                - children: []
-                - children:
+                - namer: {}
+                  children:
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: xl
                         steps:
-                            - children: []
-                              suffix: xl
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 300
-                                height: 300
+                                width: 250
+                                height: 250
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: md
                         steps:
-                            - children: []
-                              suffix: md
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 200
-                                height: 200
+                                width: 150
+                                height: 150
     - dir: /users
       storage:
         type: s3
@@ -62,46 +74,58 @@ folders:
         type: s3
       automations:
         - automationconfig:
+            applytocurrentfiles: true
+            namer: {}
             steps:
-                - children: []
-                - children:
+                - namer: {}
+                  children:
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: xl
                         steps:
-                            - children: []
-                              suffix: xl
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 300
-                                height: 300
+                                width: 250
+                                height: 250
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: md
                         steps:
-                            - children: []
-                              suffix: md
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 200
-                                height: 200
+                                width: 150
+                                height: 150
     - dir: /users/company
       storage:
         type: s3
       automations:
         - automationconfig:
+            applytocurrentfiles: true
+            namer: {}
             steps:
-                - children: []
-                - children:
+                - namer: {}
+                  children:
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: xl
                         steps:
-                            - children: []
-                              suffix: xl
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 300
-                                height: 300
+                                width: 250
+                                height: 250
                     - automationconfig:
+                        applytocurrentfiles: false
+                        namer:
+                            suffix: md
                         steps:
-                            - children: []
-                              suffix: md
-                            - children: []
+                            - namer: {}
+                              children: []
                               size:
-                                width: 200
-                                height: 200
+                                width: 150
+                                height: 150

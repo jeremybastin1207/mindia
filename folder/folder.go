@@ -24,22 +24,20 @@ func NewFolder(config *FolderConfig) *Folder {
 	f := &Folder{
 		FolderConfig: config,
 	}
-	/*
-		if config.Backup != nil {
-			go func() {
-				for {
-					f.backup()
-					f.sync()
-					time.Sleep(10 * time.Second)
-				}
-			}()
-		} */
-
+	f.ApplyToCurrentFiles()
 	return f
 }
 
 func (f *Folder) Upload(name string, bytes []byte) error {
 	var err error
+
+	source := automation.Source{
+		SourceConfig: &automation.SourceConfig{
+			Load: func(Name string) (automation.Body, error) {
+				return bytes, nil
+			},
+		},
+	}
 
 	sinker := automation.Sinker{
 		SinkerConfig: &automation.SinkerConfig{
@@ -58,7 +56,7 @@ func (f *Folder) Upload(name string, bytes []byte) error {
 			Name: name,
 			Body: bytes,
 		}
-		err = a.Run(actx, sinker)
+		err = a.Run(actx, a.AutomationConfig.Namer.NamerFunc, &source, &sinker)
 		if err != nil {
 			fmt.Printf("Error: %s", err)
 			continue
@@ -149,31 +147,49 @@ func (f *Folder) DeleteOne(name string) error {
 	}
 } */
 
-func (f *Folder) sync() {
-	/* 	for _, a := range f.Automations {
-		if a.Triggers.SyncCron != "" {
-			files, _ := f.ReadAll()
-			for _, file := range files {
-				if !a.Namer.Match(file.Name) {
-					continue
-				}
-				bytes, _ := f.Download(file.Name)
-				isSync, err := a.IsSync(file, bytes)
-				if err != nil {
-					continue
-				}
-				if !isSync {
-					fmt.Println("sync")
-					files2, _ := f.ReadPrefix(a.Namer.Prefix(file.Name))
-					for _, file2 := range files2 {
-						if types.IsSourceFile(file2) {
-							bytes, _ := f.Download(file2.Name)
-							f.Upload(file2.Name, bytes)
-							break
-						}
+func (f *Folder) ApplyToCurrentFiles() error {
+	files, err := f.ReadAll()
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if utils.IsValidUUID(utils.NameWithoutExt(file.Name)) {
+			for _, a := range f.Automations {
+				if a.ApplyToCurrentFiles {
+					source := automation.Source{
+						SourceConfig: &automation.SourceConfig{
+							Load: func(Name string) (automation.Body, error) {
+								return f.Download(Name)
+							},
+						},
 					}
+
+					sinker := automation.Sinker{
+						SinkerConfig: &automation.SinkerConfig{
+							Sink: func(actx automation.AutomationCtx) {
+								f.Storage.Upload(&storage.UploadInput{
+									Dir:   f.Dir,
+									Name:  actx.Name,
+									Bytes: actx.Body,
+								})
+							},
+						},
+					}
+
+					actx := automation.AutomationCtx{
+						Name: file.Name,
+					}
+					err = a.Run(actx, nil, &source, &sinker)
+					if err != nil {
+						fmt.Printf("Error: %s", err)
+						continue
+					}
+
 				}
 			}
 		}
-	} */
+	}
+
+	return nil
 }

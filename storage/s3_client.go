@@ -50,34 +50,6 @@ func (s *S3Client) createSession(config *S3ClientConfig) {
 	s.s3 = s3.New(newSession)
 }
 
-func (s *S3Client) CreateBucket(name string) error {
-	params := &s3.CreateBucketInput{
-		Bucket: aws.String(name),
-	}
-	_, err := s.s3.CreateBucket(params)
-	return err
-}
-
-func (s *S3Client) DeleteBucket(name string) error {
-	params := &s3.DeleteBucketInput{
-		Bucket: aws.String(name),
-	}
-	_, err := s.s3.DeleteBucket(params)
-	return err
-}
-
-func (s *S3Client) ListBucketNames() ([]string, error) {
-	result, err := s.s3.ListBuckets(nil)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, b := range result.Buckets {
-		names = append(names, *b.Name)
-	}
-	return names, nil
-}
-
 type ListObjectsParams struct {
 	Bucket string
 	Prefix string
