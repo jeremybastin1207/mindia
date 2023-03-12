@@ -100,36 +100,34 @@ func main() {
 			}),
 		},
 	})
+	automations := []folder.AutomationConfig{
+		{
+			Automation:          automation1,
+			ApplyToCurrentFiles: true,
+		},
+	}
 
 	folder1 := folder.NewFolder(&folder.FolderConfig{
-		Dir:     "/houses",
-		Storage: filesystemStorage,
-		Backup:  filesystemBackupStorage,
-		Automations: []*automation.Automation{
-			automation1,
-		},
+		Dir:         "/houses",
+		Storage:     filesystemStorage,
+		Backup:      filesystemBackupStorage,
+		Automations: automations,
 	})
 	folder2 := folder.NewFolder(&folder.FolderConfig{
-		Dir:     "/houses/garden",
-		Storage: filesystemStorage,
-		Automations: []*automation.Automation{
-			automation1,
-		},
+		Dir:         "/houses/garden",
+		Storage:     filesystemStorage,
+		Automations: automations,
 	})
 	folder3 := folder.NewFolder(&folder.FolderConfig{
-		Dir:     "/users",
-		Storage: s3Storage,
-		Backup:  s3BackupStorage,
-		Automations: []*automation.Automation{
-			automation1,
-		},
+		Dir:         "/users",
+		Storage:     s3Storage,
+		Backup:      s3BackupStorage,
+		Automations: automations,
 	})
 	folder4 := folder.NewFolder(&folder.FolderConfig{
-		Dir:     "/users/company",
-		Storage: s3Storage,
-		Automations: []*automation.Automation{
-			automation1,
-		},
+		Dir:         "/users/company",
+		Storage:     s3Storage,
+		Automations: automations,
 	})
 
 	apiServer := apiserver.NewApiServer(&apiserver.ApiServerConfig{

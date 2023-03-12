@@ -9,11 +9,16 @@ import (
 	"path/filepath"
 )
 
+type AutomationConfig struct {
+	Automation          *automation.Automation
+	ApplyToCurrentFiles bool
+}
+
 type FolderConfig struct {
-	Dir         string                   `yaml:"dir"`
-	Storage     storage.Storage          `yaml:"storage"`
-	Backup      storage.Storage          `yaml:"backup,omitempty"`
-	Automations []*automation.Automation `yaml:"automations"`
+	Dir         string             `yaml:"dir"`
+	Storage     storage.Storage    `yaml:"storage"`
+	Backup      storage.Storage    `yaml:"backup,omitempty"`
+	Automations []AutomationConfig `yaml:"automations"`
 }
 
 type Folder struct {
@@ -56,7 +61,7 @@ func (f *Folder) Upload(name string, bytes []byte) error {
 			Name: name,
 			Body: bytes,
 		}
-		err = a.Run(actx, a.AutomationConfig.Namer.NamerFunc, &source, &sinker)
+		err = a.Automation.Run(actx, a.Automation.AutomationConfig.Namer.NamerFunc, &source, &sinker)
 		if err != nil {
 			fmt.Printf("Error: %s", err)
 			continue
@@ -180,7 +185,7 @@ func (f *Folder) ApplyToCurrentFiles() error {
 					actx := automation.AutomationCtx{
 						Name: file.Name,
 					}
-					err = a.Run(actx, nil, &source, &sinker)
+					err = a.Automation.Run(actx, nil, &source, &sinker)
 					if err != nil {
 						fmt.Printf("Error: %s", err)
 						continue

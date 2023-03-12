@@ -10,122 +10,130 @@ folders:
         type: filesystem
         mount_dir: ./data/backup
       automations:
-        - automationconfig:
-            applytocurrentfiles: true
-            namer: {}
-            steps:
-                - namer: {}
-                  children:
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: xl
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 250
-                                height: 250
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: md
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 150
-                                height: 150
+        - automation:
+            automationconfig:
+                applytocurrentfiles: true
+                namer: {}
+                steps:
+                    - namer: {}
+                      children:
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: xl
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 250
+                                    height: 250
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: md
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 150
+                                    height: 150
+          applytocurrentfiles: true
     - dir: /houses/garden
       storage:
         type: filesystem
         mount_dir: ./data
       automations:
-        - automationconfig:
-            applytocurrentfiles: true
-            namer: {}
-            steps:
-                - namer: {}
-                  children:
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: xl
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 250
-                                height: 250
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: md
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 150
-                                height: 150
+        - automation:
+            automationconfig:
+                applytocurrentfiles: true
+                namer: {}
+                steps:
+                    - namer: {}
+                      children:
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: xl
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 250
+                                    height: 250
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: md
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 150
+                                    height: 150
+          applytocurrentfiles: true
     - dir: /users
       storage:
         type: s3
       backup:
         type: s3
       automations:
-        - automationconfig:
-            applytocurrentfiles: true
-            namer: {}
-            steps:
-                - namer: {}
-                  children:
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: xl
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 250
-                                height: 250
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: md
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 150
-                                height: 150
+        - automation:
+            automationconfig:
+                applytocurrentfiles: true
+                namer: {}
+                steps:
+                    - namer: {}
+                      children:
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: xl
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 250
+                                    height: 250
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: md
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 150
+                                    height: 150
+          applytocurrentfiles: true
     - dir: /users/company
       storage:
         type: s3
       automations:
-        - automationconfig:
-            applytocurrentfiles: true
-            namer: {}
-            steps:
-                - namer: {}
-                  children:
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: xl
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 250
-                                height: 250
-                    - automationconfig:
-                        applytocurrentfiles: false
-                        namer:
-                            suffix: md
-                        steps:
-                            - namer: {}
-                              children: []
-                              size:
-                                width: 150
-                                height: 150
+        - automation:
+            automationconfig:
+                applytocurrentfiles: true
+                namer: {}
+                steps:
+                    - namer: {}
+                      children:
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: xl
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 250
+                                    height: 250
+                        - automationconfig:
+                            applytocurrentfiles: false
+                            namer:
+                                suffix: md
+                            steps:
+                                - namer: {}
+                                  children: []
+                                  size:
+                                    width: 150
+                                    height: 150
+          applytocurrentfiles: true
