@@ -2,3 +2,4 @@
 - Autoclean files not outputed by existing automations
 - Put back backup
 - Add a scheduler with priority queues
+- Graceful shutdown

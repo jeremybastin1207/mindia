@@ -53,7 +53,12 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: false
+          applytocurrentfiles: true
+      policies:
+        - policyconfig:
+            content_types_allowed:
+                - image/jpeg
+            content_length_max: 10000000
     - dir: /houses/garden
       storage:
         type: filesystem
@@ -102,7 +107,8 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: false
+          applytocurrentfiles: true
+      policies: []
     - dir: /users
       storage:
         type: s3
@@ -152,7 +158,8 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: false
+          applytocurrentfiles: true
+      policies: []
     - dir: /users/company
       storage:
         type: s3
@@ -200,4 +207,5 @@ folders:
                                   size:
                                     width: 150
                                     height: 150
-          applytocurrentfiles: false
+          applytocurrentfiles: true
+      policies: []

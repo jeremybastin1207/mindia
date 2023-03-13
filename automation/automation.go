@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"fmt"
 	"mindia/automation/namer"
 )
 
@@ -20,12 +21,12 @@ type Automation struct {
 	*AutomationConfig
 }
 
-func (a *Automation) Run(actx AutomationCtx, namer namer.Namer, source *Source, sinker *Sinker) error {
-	var err error
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
+func (a *Automation) DryRun(actx AutomationCtx) ([]string, error) {
+	actx.Body = nil
+	return a.Run(actx, nil, nil, nil)
+}
 
-	steps := a.Steps
+func steps(steps []AutomationDoer, namer namer.Namer, source *Source, sinker *Sinker) []AutomationDoer {
 	if source != nil {
 		steps = append([]AutomationDoer{source}, steps...)
 	}
@@ -37,22 +38,45 @@ func (a *Automation) Run(actx AutomationCtx, namer namer.Namer, source *Source, 
 			Namer: namer,
 		}),
 	}, steps...)
-	steps = append(steps, sinker)
-
-	for _, step := range steps {
-		ctx, err = step.Do(ctx)
-		if err != nil {
-			return err
-		}
-		for _, child := range step.GetChildren() {
-			actx := ctx.Value(AutomationCtxKey{}).(AutomationCtx)
-			child.Run(actx, child.AutomationConfig.Namer, nil, sinker)
-		}
+	if sinker != nil {
+		steps = append(steps, sinker)
 	}
-	return nil
+	return steps
 }
 
-func (a *Automation) DryRun(actx AutomationCtx, namer namer.Namer) (context.Context, error) {
+func (a *Automation) Run(actx AutomationCtx, namer namer.Namer, source *Source, sinker *Sinker) ([]string, error) {
+	var (
+		outputs []string
+		err     error
+	)
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
+
+	for _, step := range steps(a.Steps, namer, source, sinker) {
+		ctx, err = step.Do(ctx)
+		if err != nil {
+			fmt.Printf("Error: %s", err)
+			return nil, err
+		}
+
+		actx = ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+		for _, child := range step.GetChildren() {
+			out, err := child.Run(actx, child.AutomationConfig.Namer, nil, sinker)
+			if err != nil {
+				fmt.Printf("Error: %s", err)
+				return nil, err
+			}
+			outputs = append(outputs, out...)
+		}
+	}
+
+	actx = ctx.Value(AutomationCtxKey{}).(AutomationCtx)
+	outputs = append(outputs, actx.Name)
+
+	return outputs, nil
+}
+
+/* func (a *Automation) DryRun(actx AutomationCtx, namer namer.Namer) (context.Context, error) {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
 
@@ -81,4 +105,4 @@ func (a *Automation) DryRun(actx AutomationCtx, namer namer.Namer) (context.Cont
 		}
 	}
 	return ctx, nil
-}
+} */

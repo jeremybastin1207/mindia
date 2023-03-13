@@ -31,7 +31,6 @@ func (n *Namer) Do(ctx context.Context) (context.Context, error) {
 	}
 
 	actx.Name = name
-	actx.Outputs = append(actx.Outputs, actx.Name)
 	ctx = context.WithValue(ctx, AutomationCtxKey{}, actx)
 
 	return ctx, nil

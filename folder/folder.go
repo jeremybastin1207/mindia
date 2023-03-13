@@ -3,21 +3,24 @@ package folder
 import (
 	"fmt"
 	"mindia/automation"
+	"mindia/policy"
 	"mindia/storage"
 	"mindia/types"
 	"mindia/utils"
+	"time"
 )
 
-type AutomationConfig struct {
+type Automation struct {
 	Automation          *automation.Automation
 	ApplyToCurrentFiles bool
 }
 
 type FolderConfig struct {
-	Dir         string             `yaml:"dir"`
-	Storage     storage.Storage    `yaml:"storage"`
-	Backup      storage.Storage    `yaml:"backup,omitempty"`
-	Automations []AutomationConfig `yaml:"automations"`
+	Dir         string           `yaml:"dir"`
+	Storage     storage.Storage  `yaml:"storage"`
+	Backup      storage.Storage  `yaml:"backup,omitempty"`
+	Automations []*Automation    `yaml:"automations"`
+	Policies    []*policy.Policy `yaml:"policies"`
 }
 
 type Folder struct {
@@ -28,7 +31,8 @@ func NewFolder(config *FolderConfig) *Folder {
 	f := &Folder{
 		FolderConfig: config,
 	}
-	f.ApplyToCurrentFiles()
+	f.ScheduleBackups()
+	f.ApplyAutomationsToCurrentFiles()
 	return f
 }
 
@@ -60,7 +64,7 @@ func (f *Folder) Upload(name string, bytes []byte) error {
 			Name: name,
 			Body: bytes,
 		}
-		err = a.Automation.Run(actx, a.Automation.AutomationConfig.Namer, &source, &sinker)
+		_, err = a.Automation.Run(actx, a.Automation.AutomationConfig.Namer, &source, &sinker)
 		if err != nil {
 			fmt.Printf("Error: %s", err)
 			continue
@@ -95,9 +99,8 @@ func (f *Folder) ReadAll() ([]*types.File, error) {
 				actx := automation.AutomationCtx{
 					Name: file.Name,
 				}
-				ctx, _ := a.Automation.DryRun(actx, nil)
-				actx = ctx.Value(automation.AutomationCtxKey{}).(automation.AutomationCtx)
-				file.Children = actx.Outputs
+				outputs, _ := a.Automation.DryRun(actx)
+				file.Children = outputs
 
 				for i, child := range file.Children {
 					if child == file.Name {
@@ -145,72 +148,79 @@ func (f *Folder) DeleteOne(name string) error {
 	return nil
 }
 
-/* func (f *Folder) backup() {
-	files, _ := f.ReadAll()
-	for _, file := range files {
-		if types.IsSourceFile(file) {
-			bytes, err := f.Download(file.Name)
-			if err != nil {
-				return
+func (f *Folder) ScheduleBackups() {
+	if f.Backup != nil {
+		go func() {
+			for {
+				files, _ := f.ReadAll()
+				for _, file := range files {
+					if types.IsSourceFile(file) {
+						bytes, err := f.Download(file.Name)
+						if err != nil {
+							return
+						}
+						doesExist, _ := f.Backup.DoesExist(&storage.DoesExistInput{
+							Dir:  f.Dir,
+							Name: file.Name,
+						})
+						if !doesExist {
+							f.Backup.Upload(&storage.UploadInput{
+								Dir:   f.Dir,
+								Name:  file.Name,
+								Bytes: bytes,
+							})
+						}
+					}
+				}
+				time.Sleep(60 * time.Second)
 			}
-			doesExist, _ := f.Backup.DoesExist(&storage.DoesExistInput{
-				Dir:  f.Dir,
-				Name: file.Name,
-			})
-			if !doesExist {
-				f.Backup.Upload(&storage.UploadInput{
-					Dir:   f.Dir,
-					Name:  file.Name,
-					Bytes: bytes,
-				})
-			}
+		}()
+	}
+}
+
+func (f *Folder) ApplyAutomationsToCurrentFiles() {
+	go func() {
+		files, err := f.ReadAll()
+		if err != nil {
+			return
 		}
-	}
-} */
 
-func (f *Folder) ApplyToCurrentFiles() error {
-	files, err := f.ReadAll()
-	if err != nil {
-		return err
-	}
-
-	for _, file := range files {
-		if utils.IsValidUUID(utils.NameWithoutExt(file.Name)) {
-			for _, a := range f.Automations {
-				if a.ApplyToCurrentFiles {
-					source := automation.Source{
-						SourceConfig: &automation.SourceConfig{
-							Load: func(Name string) (automation.Body, error) {
-								return f.Download(Name)
+		for _, file := range files {
+			if utils.IsValidUUID(utils.NameWithoutExt(file.Name)) {
+				for _, a := range f.Automations {
+					if a.ApplyToCurrentFiles {
+						source := automation.Source{
+							SourceConfig: &automation.SourceConfig{
+								Load: func(Name string) (automation.Body, error) {
+									return f.Download(Name)
+								},
 							},
-						},
-					}
+						}
 
-					sinker := automation.Sinker{
-						SinkerConfig: &automation.SinkerConfig{
-							Sink: func(actx automation.AutomationCtx) {
-								f.Storage.Upload(&storage.UploadInput{
-									Dir:   f.Dir,
-									Name:  actx.Name,
-									Bytes: actx.Body,
-								})
+						sinker := automation.Sinker{
+							SinkerConfig: &automation.SinkerConfig{
+								Sink: func(actx automation.AutomationCtx) {
+									f.Storage.Upload(&storage.UploadInput{
+										Dir:   f.Dir,
+										Name:  actx.Name,
+										Bytes: actx.Body,
+									})
+								},
 							},
-						},
-					}
+						}
 
-					actx := automation.AutomationCtx{
-						Name: file.Name,
-					}
-					err = a.Automation.Run(actx, nil, &source, &sinker)
-					if err != nil {
-						fmt.Printf("Error: %s", err)
-						continue
-					}
+						actx := automation.AutomationCtx{
+							Name: file.Name,
+						}
+						_, err = a.Automation.Run(actx, nil, &source, &sinker)
+						if err != nil {
+							fmt.Printf("Error: %s", err)
+							continue
+						}
 
+					}
 				}
 			}
 		}
-	}
-
-	return nil
+	}()
 }

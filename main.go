@@ -6,6 +6,7 @@ import (
 	"mindia/automation/namer"
 	"mindia/configurer"
 	"mindia/folder"
+	"mindia/policy"
 	"mindia/project"
 	"mindia/storage"
 	"mindia/types"
@@ -100,18 +101,25 @@ func main() {
 			}),
 		},
 	})
-	automations := []folder.AutomationConfig{
+	automations := []*folder.Automation{
 		{
 			Automation:          automation1,
-			ApplyToCurrentFiles: false,
+			ApplyToCurrentFiles: true,
 		},
 	}
+
+	policy1 := policy.NewPolicy(&policy.PolicyConfig{
+		ContentTypesAllowed: []string{"image/jpeg"},
+		ContentLengthMax:    10000000,
+	})
+	policies := []*policy.Policy{policy1}
 
 	folder1 := folder.NewFolder(&folder.FolderConfig{
 		Dir:         "/houses",
 		Storage:     filesystemStorage,
 		Backup:      filesystemBackupStorage,
 		Automations: automations,
+		Policies:    policies,
 	})
 	folder2 := folder.NewFolder(&folder.FolderConfig{
 		Dir:         "/houses/garden",
