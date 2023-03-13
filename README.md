@@ -4,7 +4,7 @@ Mindia is a flexible tool that helps you manage your media assets.
 
 Place your media assets in virtual folders which can be configured individually.
 
-### Define storage
+### Define storages
 
 ```go
 filesystemStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageConfig{
@@ -13,9 +13,9 @@ filesystemStorage := storage.NewFileSystemStorage(&storage.FilesystemStorageConf
 
 s3Storage := storage.NewS3Storage(&storage.S3StorageConfig{
   S3ClientConfig: &storage.S3ClientConfig{
-    Bucket:          "test-backup-mindia-bucket",
-    Region:          "ams3",
-    Endpoint:        "https://ams3.digitaloceanspaces.com",
+    Bucket:          os.Getenv("BUCKET"),
+    Region:          os.Getenv("REGION"),
+    Endpoint:        os.Getenv("ENDPOINT"),
     AccessKeyId:     os.Getenv("ACCESS_KEY_ID"),
     SecretAccessKey: os.Getenv("SECRET_ACCESS_KEY"),
   },
@@ -91,17 +91,17 @@ ContentLengthMax: 10000000,
 
 ```go
 folder1 := folder.NewFolder(&folder.FolderConfig{
-Dir: "/houses",
-Storage: filesystemStorage,
-Backup: s3BackupStorage,
-Automations: automations,
-Policies: policies,
+  Dir: "/houses",
+  Storage: filesystemStorage,
+  Backup: s3BackupStorage,
+  Automations: automations,
+  Policies: policies,
 })
 
 folder2 := folder.NewFolder(&folder.FolderConfig{
-Dir: "/houses/castle",
-Storage: filesystemStorage,
-Automations: automations,
+  Dir: "/users/profile",
+  Storage: filesystemStorage,
+  Automations: automations,
 })
 ```
 
@@ -109,13 +109,13 @@ Automations: automations,
 
 ```go
 apiServer := apiserver.NewApiServer(&apiserver.ApiServerConfig{
-Port: 3500,
+  Port: 3500,
 })
 
 project1 := project.NewProject(&project.ProjectConfig{
-Name: "my project",
-ApiServer: apiServer,
-Folders: []\*folder.Folder{ folder1, folder2 },
+  Name: "my project",
+  ApiServer: apiServer,
+  Folders: []\*folder.Folder{ folder1, folder2 },
 })
 
 configurer := configurer.NewConfigurer()
