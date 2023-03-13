@@ -82,8 +82,8 @@ automations := []*folder.Automation{
 
 ```go
 policy1 := policy.NewPolicy(&policy.PolicyConfig{
-ContentTypesAllowed: []string{"image/jpeg", "image/jpg", "image/png"},
-ContentLengthMax: 10000000,
+  ContentTypesAllowed: []string{"image/jpeg", "image/jpg", "image/png"},
+  ContentLengthMax: 10000000,
 })
 ```
 
