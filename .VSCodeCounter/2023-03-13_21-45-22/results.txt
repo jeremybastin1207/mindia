@@ -1,0 +1,88 @@
+Date : 2023-03-13 21:45:22
+Directory : c:\Users\Bastin\Documents\mindia
+Total : 44 files,  2032 codes, 30 comments, 367 blanks, all 2429 lines
+
+Languages
++------------------+------------+------------+------------+------------+------------+
+| language         | files      | code       | comment    | blank      | total      |
++------------------+------------+------------+------------+------------+------------+
+| Go               |         37 |      1,667 |         30 |        343 |      2,040 |
+| YAML             |          2 |        225 |          0 |          4 |        229 |
+| Go Checksum File |          1 |         93 |          0 |          1 |         94 |
+| Go Module File   |          1 |         21 |          0 |          4 |         25 |
+| Docker           |          1 |         19 |          0 |         11 |         30 |
+| Makefile         |          1 |          4 |          0 |          1 |          5 |
+| Markdown         |          1 |          3 |          0 |          3 |          6 |
++------------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                              | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                 |         44 |      2,032 |         30 |        367 |      2,429 |
+| . (Files)                                                         |          8 |        512 |          0 |         38 |        550 |
+| apiserver                                                         |          2 |        165 |          0 |         31 |        196 |
+| automation                                                        |         13 |        339 |         30 |         97 |        466 |
+| automation (Files)                                                |         10 |        286 |         30 |         80 |        396 |
+| automation\namer                                                  |          3 |         53 |          0 |         17 |         70 |
+| cli                                                               |          2 |         54 |          0 |         12 |         66 |
+| configurer                                                        |          1 |         25 |          0 |          8 |         33 |
+| folder                                                            |          2 |        199 |          0 |         32 |        231 |
+| iam                                                               |          6 |        100 |          0 |         31 |        131 |
+| policy                                                            |          1 |         13 |          0 |          4 |         17 |
+| project                                                           |          1 |         22 |          0 |          5 |         27 |
+| storage                                                           |          6 |        490 |          0 |         86 |        576 |
+| types                                                             |          1 |         81 |          0 |         15 |         96 |
+| utils                                                             |          1 |         32 |          0 |          8 |         40 |
++-------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| filename                                                          | language         | code       | comment    | blank      | total      |
++-------------------------------------------------------------------+------------------+------------+------------+------------+------------+
+| c:\Users\Bastin\Documents\mindia\Dockerfile                       | Docker           |         19 |          0 |         11 |         30 |
+| c:\Users\Bastin\Documents\mindia\Makefile                         | Makefile         |          4 |          0 |          1 |          5 |
+| c:\Users\Bastin\Documents\mindia\README.md                        | Markdown         |          3 |          0 |          3 |          6 |
+| c:\Users\Bastin\Documents\mindia\apiserver\apiserver.go           | Go               |        121 |          0 |         23 |        144 |
+| c:\Users\Bastin\Documents\mindia\apiserver\router.go              | Go               |         44 |          0 |          8 |         52 |
+| c:\Users\Bastin\Documents\mindia\automation\automation.go         | Go               |         66 |         30 |         13 |        109 |
+| c:\Users\Bastin\Documents\mindia\automation\context.go            | Go               |          7 |          0 |          4 |         11 |
+| c:\Users\Bastin\Documents\mindia\automation\jpeg_converter.go     | Go               |         20 |          0 |          6 |         26 |
+| c:\Users\Bastin\Documents\mindia\automation\namer.go              | Go               |         29 |          0 |          9 |         38 |
+| c:\Users\Bastin\Documents\mindia\automation\namer\namer.go        | Go               |          5 |          0 |          2 |          7 |
+| c:\Users\Bastin\Documents\mindia\automation\namer\namer_suffix.go | Go               |         25 |          0 |          7 |         32 |
+| c:\Users\Bastin\Documents\mindia\automation\namer\namer_uuid.go   | Go               |         23 |          0 |          8 |         31 |
+| c:\Users\Bastin\Documents\mindia\automation\resizer.go            | Go               |         49 |          0 |         14 |         63 |
+| c:\Users\Bastin\Documents\mindia\automation\sinker.go             | Go               |         26 |          0 |          6 |         32 |
+| c:\Users\Bastin\Documents\mindia\automation\source.go             | Go               |         26 |          0 |          9 |         35 |
+| c:\Users\Bastin\Documents\mindia\automation\step.go               | Go               |         27 |          0 |          7 |         34 |
+| c:\Users\Bastin\Documents\mindia\automation\tagger.go             | Go               |         18 |          0 |          6 |         24 |
+| c:\Users\Bastin\Documents\mindia\automation\watermarker.go        | Go               |         18 |          0 |          6 |         24 |
+| c:\Users\Bastin\Documents\mindia\cli\cli.go                       | Go               |         44 |          0 |          9 |         53 |
+| c:\Users\Bastin\Documents\mindia\cli\cli_test.go                  | Go               |         10 |          0 |          3 |         13 |
+| c:\Users\Bastin\Documents\mindia\config.yaml                      | YAML             |        211 |          0 |          1 |        212 |
+| c:\Users\Bastin\Documents\mindia\configurer\configurer.go         | Go               |         25 |          0 |          8 |         33 |
+| c:\Users\Bastin\Documents\mindia\docker-compose.yml               | YAML             |         14 |          0 |          3 |         17 |
+| c:\Users\Bastin\Documents\mindia\folder\folder.go                 | Go               |        197 |          0 |         30 |        227 |
+| c:\Users\Bastin\Documents\mindia\folder\types.go                  | Go               |          2 |          0 |          2 |          4 |
+| c:\Users\Bastin\Documents\mindia\go.mod                           | Go Module File   |         21 |          0 |          4 |         25 |
+| c:\Users\Bastin\Documents\mindia\go.sum                           | Go Checksum File |         93 |          0 |          1 |         94 |
+| c:\Users\Bastin\Documents\mindia\iam\group.go                     | Go               |          5 |          0 |          2 |          7 |
+| c:\Users\Bastin\Documents\mindia\iam\password.go                  | Go               |         11 |          0 |          5 |         16 |
+| c:\Users\Bastin\Documents\mindia\iam\permission.go                | Go               |         31 |          0 |          8 |         39 |
+| c:\Users\Bastin\Documents\mindia\iam\role.go                      | Go               |         24 |          0 |          5 |         29 |
+| c:\Users\Bastin\Documents\mindia\iam\user.go                      | Go               |         18 |          0 |          6 |         24 |
+| c:\Users\Bastin\Documents\mindia\iam\user_manager.go              | Go               |         11 |          0 |          5 |         16 |
+| c:\Users\Bastin\Documents\mindia\main.go                          | Go               |        147 |          0 |         14 |        161 |
+| c:\Users\Bastin\Documents\mindia\policy\policy.go                 | Go               |         13 |          0 |          4 |         17 |
+| c:\Users\Bastin\Documents\mindia\project\project.go               | Go               |         22 |          0 |          5 |         27 |
+| c:\Users\Bastin\Documents\mindia\storage\dropbox_client.go        | Go               |         60 |          0 |         16 |         76 |
+| c:\Users\Bastin\Documents\mindia\storage\s3_client.go             | Go               |        125 |          0 |         18 |        143 |
+| c:\Users\Bastin\Documents\mindia\storage\storage.go               | Go               |         47 |          0 |         12 |         59 |
+| c:\Users\Bastin\Documents\mindia\storage\storage_dropbox.go       | Go               |         25 |          0 |         10 |         35 |
+| c:\Users\Bastin\Documents\mindia\storage\storage_filesystem.go    | Go               |        108 |          0 |         14 |        122 |
+| c:\Users\Bastin\Documents\mindia\storage\storage_s3.go            | Go               |        125 |          0 |         16 |        141 |
+| c:\Users\Bastin\Documents\mindia\types\file.go                    | Go               |         81 |          0 |         15 |         96 |
+| c:\Users\Bastin\Documents\mindia\utils\utils.go                   | Go               |         32 |          0 |          8 |         40 |
+| Total                                                             |                  |      2,032 |         30 |        367 |      2,429 |
++-------------------------------------------------------------------+------------------+------------+------------+------------+------------+
