@@ -1,0 +1,60 @@
+meta {
+  name: Create Webhook
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/webhooks
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "url": "https://webhook.site/unique-id",
+    "event_type": "file.uploaded",
+    "signing_secret": "your-secret-key",
+    "description": "Webhook for file uploads"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("webhookId", res.body.id);
+    console.log("Webhook created:", res.body.id);
+  }
+}
+
+docs {
+  # Create Webhook
+  
+  Create a webhook to receive HTTP callbacks when events occur in the system.
+  
+  **Request Body**:
+  - `url` (required): HTTPS endpoint to receive webhook events
+  - `event_type` (optional): Single event type to subscribe to
+  - `events` (optional): Array of event types (creates one webhook per event)
+  - `signing_secret` (optional): Secret key for HMAC signature validation
+  - `secret` (optional): Alias for signing_secret
+  - `description` (optional): Human-readable description
+  
+  **Event Types**:
+  - `file.uploaded` - File was uploaded (covers all media types)
+  - `file.deleted` - File was deleted
+  - `file.processing_completed` - File processing completed or failed
+  - Media-specific aliases also supported: `image.uploaded`, `video.uploaded`, etc.
+  
+  **Response**:
+  - 201 Created: Webhook created successfully
+  - 400 Bad Request: Invalid URL or event type
+  - 500 Internal Server Error: Server error
+  
+  **Security**:
+  - URLs are validated for SSRF attacks (private/internal IPs rejected)
+  - signing_secret is used to generate HMAC signatures for webhook payloads
+}

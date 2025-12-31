@@ -1,0 +1,48 @@
+meta {
+  name: Update Document Metadata
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v0/documents/{{documentId}}/metadata
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  documentId: YOUR_DOCUMENT_ID_HERE
+}
+
+body:json {
+  {
+    "metadata": {
+      "title": "My Document",
+      "description": "Important document",
+      "tags": ["report", "2024"],
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Update Document Metadata
+  
+  Update custom metadata for a document. Metadata is stored as a JSON object with key-value pairs.
+  
+  ## Path Parameters
+  - `id`: UUID of the document
+  
+  ## Request Body
+  - `metadata`: JSON object with key-value pairs
+  
+  ## Response
+  - 200 OK: Metadata updated successfully
+  - 404 Not Found: Document not found
+  - 400 Bad Request: Invalid metadata format (must be a JSON object)
+}
+

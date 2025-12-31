@@ -1,0 +1,40 @@
+meta {
+  name: List Tasks
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/tasks?limit=50&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  limit: 50
+  offset: 0
+  status: 
+  task_type: 
+}
+
+docs {
+  # List Tasks
+  
+  List background tasks with optional filters.
+  
+  ## Query Parameters
+  - `limit`: Maximum number of results (default: 50)
+  - `offset`: Number of results to skip (default: 0)
+  - `status` (optional): Filter by status: `pending`, `scheduled`, `processing`, `completed`, `failed`, `cancelled`
+  - `task_type` (optional): Filter by task type: `VideoTranscoding`, `EmbeddingGeneration`, `PluginExecution`
+  
+  ## Response
+  Returns an object with:
+  - `tasks`: Array of task objects
+  - `count`: Number of tasks returned
+}
+

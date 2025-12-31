@@ -1,0 +1,100 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+Cargo.lock.msrv
+
+# Node.js
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials.json
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+*.code-workspace
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs & Debugging
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/
+postgres-data/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+*.orig
+*~
+.*.swp
+
+# Build & Distribution
+dist/
+build/
+*.tar.gz
+*.zip
+
+# Testing
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Cloud & Deployment
+.fly/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.vercel/
+.netlify/
+
+# Local Configuration
+config.local.*
+*.local
+
+# Bruno API Client (environment files with credentials)
+.bruno/**/environments/local.bru
+.bruno/**/environments/Local.bru
+.bruno/**/environments/dev.bru
+
+# Documentation Build
+_site/
+.jekyll-cache/
+.sass-cache/

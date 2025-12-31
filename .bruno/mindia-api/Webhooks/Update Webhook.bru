@@ -1,0 +1,49 @@
+meta {
+  name: Update Webhook
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v0/webhooks/{{webhookId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "url": "https://webhook.site/new-unique-id",
+    "signing_secret": "new-secret-key",
+    "is_active": true,
+    "description": "Updated webhook description"
+  }
+}
+
+docs {
+  # Update Webhook
+  
+  Update webhook configuration. All fields are optional.
+  
+  **Path Parameters**:
+  - `id`: Webhook UUID
+  
+  **Request Body** (all optional):
+  - `url`: New HTTPS endpoint
+  - `signing_secret`: New secret key
+  - `is_active`: Enable/disable webhook
+  - `description`: New description
+  
+  **Response**:
+  - 200 OK: Webhook updated successfully
+  - 400 Bad Request: Invalid URL
+  - 404 Not Found: Webhook not found
+  - 500 Internal Server Error: Server error
+  
+  **Security**:
+  - URLs are validated for SSRF attacks
+  - Webhook must belong to the current tenant
+}

@@ -1,0 +1,48 @@
+meta {
+  name: Update Video Metadata
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v0/videos/{{videoId}}/metadata
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  videoId: YOUR_VIDEO_ID_HERE
+}
+
+body:json {
+  {
+    "metadata": {
+      "title": "My Video",
+      "description": "A great video",
+      "tags": ["tutorial", "educational"],
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Update Video Metadata
+  
+  Update custom metadata for a video. Metadata is stored as a JSON object with key-value pairs.
+  
+  ## Path Parameters
+  - `id`: UUID of the video
+  
+  ## Request Body
+  - `metadata`: JSON object with key-value pairs
+  
+  ## Response
+  - 200 OK: Metadata updated successfully
+  - 404 Not Found: Video not found
+  - 400 Bad Request: Invalid metadata format (must be a JSON object)
+}
+

@@ -1,0 +1,45 @@
+meta {
+  name: Update Plugin Config
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v0/plugins/{{pluginName}}/config
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "enabled": true,
+    "config": {
+      "api_key": "your-api-key-here"
+    }
+  }
+}
+
+vars:pre-request {
+  pluginName: claude_vision
+}
+
+docs {
+  # Update Plugin Config
+  
+  Update configuration for a plugin.
+  
+  ## Path Parameters
+  - `plugin_name`: Name of the plugin (e.g., `assembly_ai`)
+  
+  ## Request Body
+  - `enabled` (required): Whether the plugin is enabled
+  - `config` (required): Plugin-specific configuration (JSON object)
+  
+  ## Response
+  - 200 OK: Plugin configuration updated
+  - 404 Not Found: Plugin configuration not found
+}

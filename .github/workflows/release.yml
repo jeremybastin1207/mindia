@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install NASM (for rav1e/AVIF)
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Run CI checks (fmt, clippy, tests, build)
+        run: |
+          make ci-full
+
+      - name: Build release binary
+        env:
+          RUSTFLAGS: "-C target-cpu=native"
+        run: |
+          cargo build --release -p mindia-api
+
+      - name: Compute checksums
+        run: |
+          mkdir -p dist
+          BIN_PATH=target/release/mindia-api
+          if [ ! -f "$BIN_PATH" ]; then
+            echo "Error: expected binary at $BIN_PATH" >&2
+            exit 1
+          fi
+          cp "$BIN_PATH" "dist/mindia-api-linux-amd64"
+          sha256sum "dist/mindia-api-linux-amd64" > "dist/mindia-api-linux-amd64.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/mindia-api-linux-amd64
+            dist/mindia-api-linux-amd64.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

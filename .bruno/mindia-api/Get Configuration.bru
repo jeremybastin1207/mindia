@@ -1,0 +1,27 @@
+meta {
+  name: Get Configuration
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/config
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  Returns the current server configuration including S3 settings, upload limits, database settings, and CORS configuration.
+  
+  This endpoint is useful for:
+  - Debugging configuration issues
+  - Verifying settings without checking environment variables
+  - Client applications discovering server capabilities
+  
+  Note: Sensitive information like credentials is not exposed.
+}
+

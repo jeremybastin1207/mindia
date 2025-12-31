@@ -1,0 +1,46 @@
+meta {
+  name: Create File Group
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/groups
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "files": [
+      "550e8400-e29b-41d4-a716-446655440000",
+      "660e8400-e29b-41d4-a716-446655440001"
+    ]
+  }
+}
+
+docs {
+  # Create File Group
+  
+  Create a file group to associate multiple media files together.
+  
+  ## Request Body
+  - `files` (required): Array of media UUIDs to include in the group
+  
+  ## Response
+  - 201 Created: File group created successfully
+  
+  **Note**: All file IDs must belong to your tenant and exist in the system.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("fileGroupId", res.body.id);
+    console.log("File group created:", res.body.id);
+  }
+}
+

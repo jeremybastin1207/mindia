@@ -1,0 +1,70 @@
+meta {
+  name: Get Storage Summary
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/analytics/storage
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Get Storage Summary
+  
+  Retrieve current storage usage metrics including file counts and bytes by type.
+  
+  **Response**:
+  - 200 OK: Storage summary object
+  - 500 Internal Server Error: Failed to retrieve metrics
+  
+  **Response Fields**:
+  - total_files: Total number of files (images + videos)
+  - total_storage_bytes: Total storage used in bytes
+  - image_count: Number of image files
+  - image_bytes: Storage used by images
+  - video_count: Number of video files
+  - video_bytes: Storage used by videos
+  - by_content_type: Breakdown by MIME type
+  
+  **Content Type Breakdown**:
+  Each content type entry contains:
+  - count: Number of files
+  - bytes: Storage used in bytes
+  
+  **Common Content Types**:
+  - image/jpeg
+  - image/png
+  - image/gif
+  - image/webp
+  - video/mp4
+  - video/webm
+  - video/quicktime
+  
+  **Note**: Storage metrics are cached and refreshed every 6 hours.
+  Use the "Refresh Storage Metrics" endpoint to force an update.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    const toMB = (bytes) => (bytes / 1024 / 1024).toFixed(2);
+    const toGB = (bytes) => (bytes / 1024 / 1024 / 1024).toFixed(2);
+    
+    console.log("=== Storage Summary ===");
+    console.log("Total files:", res.body.total_files);
+    console.log("Total storage:", toGB(res.body.total_storage_bytes), "GB");
+    console.log("\nImages:", res.body.image_count, "files,", toMB(res.body.image_bytes), "MB");
+    console.log("Videos:", res.body.video_count, "files,", toMB(res.body.video_bytes), "MB");
+    
+    console.log("\nBy Content Type:");
+    Object.entries(res.body.by_content_type).forEach(([type, stats]) => {
+      console.log(`  ${type}: ${stats.count} files, ${toMB(stats.bytes)} MB`);
+    });
+  }
+}
+

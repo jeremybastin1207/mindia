@@ -1,0 +1,55 @@
+meta {
+  name: List Webhook Events
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/webhooks/{{webhookId}}/events?limit=50&offset=0
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 50
+  offset: 0
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Webhook Events
+  
+  List delivery events (success/failure logs) for a specific webhook.
+  
+  **Path Parameters**:
+  - `id`: Webhook UUID
+  
+  **Query Parameters**:
+  - `limit` (optional): Number of events to return (1-100, default: 50)
+  - `offset` (optional): Number of events to skip (default: 0)
+  
+  **Response**:
+  - 200 OK: Array of webhook event logs
+  - 404 Not Found: Webhook not found
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `id`: Event log UUID
+  - `webhook_id`: Parent webhook UUID
+  - `event_type`: Type of event that triggered the webhook
+  - `payload`: The payload that was sent
+  - `status_code`: HTTP response code (if delivered)
+  - `response_body`: Response from webhook endpoint
+  - `error`: Error message (if delivery failed)
+  - `retry_count`: Number of retry attempts
+  - `delivered_at`: Timestamp of delivery attempt
+  - `created_at`: Timestamp when event was created
+  
+  **Use Cases**:
+  - Debug webhook delivery issues
+  - Monitor webhook reliability
+  - Audit webhook activity
+}

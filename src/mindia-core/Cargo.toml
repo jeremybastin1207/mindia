@@ -1,0 +1,33 @@
+[package]
+name = "mindia-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+sqlx = { workspace = true, optional = true, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "rust_decimal",
+] }
+utoipa = { workspace = true }
+validator = { workspace = true }
+pgvector = { workspace = true, optional = true }
+dotenvy = { workspace = true }
+async-trait = { workspace = true }
+rust_decimal = { workspace = true }
+regex = { workspace = true }
+aes-gcm = { workspace = true }
+base64 = { workspace = true }
+
+[features]
+default = ["sqlx", "semantic-search"]
+sqlx = ["dep:sqlx"]
+semantic-search = ["dep:pgvector"]

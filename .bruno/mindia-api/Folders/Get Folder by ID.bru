@@ -1,0 +1,36 @@
+meta {
+  name: Get Folder by ID
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v0/folders/{{folderId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  folderId: YOUR_FOLDER_ID_HERE
+}
+
+docs {
+  # Get Folder by ID
+  
+  Retrieve details for a specific folder including media and subfolder counts.
+  
+  ## Path Parameters
+  - `id`: UUID of the folder
+  
+  ## Response
+  Returns folder details including:
+  - ID, name, parent_id
+  - Creation/update timestamps
+  - Media count (number of files in folder)
+  - Subfolder count (number of nested folders)
+}
+

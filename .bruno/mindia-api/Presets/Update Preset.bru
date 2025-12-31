@@ -1,0 +1,42 @@
+meta {
+  name: Update Preset
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v0/presets/{{presetName}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  presetName: thumbnail
+}
+
+body:json {
+  {
+    "operations": "/-/resize/800x600/-/format/jpeg/-/quality/normal"
+  }
+}
+
+docs {
+  # Update Preset
+  
+  Update the operations for an existing named preset.
+  
+  **Path Parameters**:
+  - `presetName`: name of the preset
+  
+  **Request Body**:
+  - `operations`: new transformation operations string
+  
+  **Response**:
+  - 200 OK: Updated preset
+  - 404 Not Found: Preset does not exist
+}
+

@@ -1,0 +1,33 @@
+# Cargo audit configuration
+# https://docs.rs/cargo-audit/latest/cargo_audit/config/struct.AuditConfig.html
+
+[advisories]
+# RUSTSEC-2023-0071: rsa 0.9.10 - Marvin Attack timing sidechannel
+# No fixed upgrade available. Comes from sqlx-mysql (transitive via sqlx-macros).
+# Project uses PostgreSQL only; mysql support is not used.
+#
+# RUSTSEC-2025-0058: custom_derive crate is unmaintained (INFO advisory)
+# Transitive via conv -> imageproc -> mindia-processing.
+# This project does not directly depend on custom_derive; we will track this
+# and upgrade imageproc or its replacements once upstream support is available.
+#
+# RUSTSEC-2024-0436: paste crate is unmaintained (INFO advisory)
+# Transitive via utoipa-axum, nalgebra/simba, and rav1e -> ravif -> image.
+# This project does not directly use paste; we will rely on upstream crates
+# to migrate to maintained alternatives (e.g. pastey / with_builtin_macros).
+#
+# RUSTSEC-2025-0134: rustls-pemfile is unmaintained (INFO advisory)
+# Transitive via reqwest. Migration path is for HTTP/TLS libraries to adopt
+# rustls-pki-types directly; this project is not in a position to fix reqwest.
+#
+# RUSTSEC-2026-0002: lru IterMut unsoundness
+# Transitive via aws-sdk-s3. Our code does not use IterMut from lru directly
+# and uses AWS SDK caches in a read/lookup fashion only; we accept this risk
+# while tracking upstream fixes in aws-sdk-s3.
+ignore = [
+  "RUSTSEC-2023-0071",
+  "RUSTSEC-2025-0058",
+  "RUSTSEC-2024-0436",
+  "RUSTSEC-2025-0134",
+  "RUSTSEC-2026-0002",
+]

@@ -1,0 +1,38 @@
+meta {
+  name: Create Preset
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v0/presets
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "thumbnail",
+    "operations": "/-/resize/400x300/-/format/webp/-/quality/better"
+  }
+}
+
+docs {
+  # Create Preset
+  
+  Create a named transformation preset.
+  
+  **Request Body**:
+  - `name`: unique preset name
+  - `operations`: transformation URL operations string
+  
+  **Response**:
+  - 201 Created: Preset created
+  - 400 Bad Request: Invalid preset data
+  - 409 Conflict: Preset with this name already exists
+}
+

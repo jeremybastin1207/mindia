@@ -1,0 +1,38 @@
+meta {
+  name: Semantic Search
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/search?q=house&type=image&limit=20
+  body: none
+  auth: bearer
+}
+
+params:query {
+  q: house
+  type: image
+  limit: 20
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Semantic Search
+  
+  Search media files using natural language queries. Requires semantic search to be enabled.
+  
+  ## Query Parameters
+  - `q` (required): Natural language search query
+  - `type` (optional): Filter by media type: `image`, `video`, `audio`, or `document`
+  - `limit` (optional): Number of results (1-100, default: 20)
+  
+  ## Response
+  - 200 OK: Search results with similarity scores
+  - 400 Bad Request: Invalid request or semantic search not enabled
+  
+  **Note**: Semantic search uses vector embeddings to find semantically similar content, not just keyword matching.
+}

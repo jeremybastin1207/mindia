@@ -1,0 +1,37 @@
+meta {
+  name: Download Archive - TAR
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/groups/{{fileGroupId}}/archive/tar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  fileGroupId: YOUR_FILE_GROUP_ID_HERE
+}
+
+docs {
+  # Download Archive - TAR
+  
+  Download the entire file group as a TAR archive.
+  
+  ## Path Parameters
+  - `id`: UUID of the file group
+  - `format`: Archive format (`zip` or `tar`)
+  
+  ## Response
+  - 200 OK: TAR archive file
+  - Content-Type: `application/x-tar`
+  - Content-Disposition: `attachment; filename="group.tar"`
+  
+  **Note**: The response body contains the binary TAR file (uncompressed).
+}
+

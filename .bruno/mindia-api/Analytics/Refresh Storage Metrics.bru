@@ -1,0 +1,49 @@
+meta {
+  name: Refresh Storage Metrics
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v0/analytics/storage/refresh
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Refresh Storage Metrics
+  
+  Manually trigger a recalculation of storage metrics.
+  
+  **Response**:
+  - 200 OK: Metrics refreshed successfully
+  - 500 Internal Server Error: Failed to refresh metrics
+  
+  **When to Use**:
+  - After bulk file uploads/deletions
+  - When you need real-time storage statistics
+  - Before generating reports
+  
+  **Note**: 
+  - Storage metrics are automatically refreshed every 6 hours
+  - This operation queries the database to recalculate totals
+  - The updated metrics are cached for future requests
+  - This operation may be slow for large databases
+  
+  **Background Process**:
+  The system automatically runs this calculation every 6 hours,
+  so manual refresh is only needed for real-time accuracy.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("✓", res.body.message);
+    console.log("Storage metrics have been refreshed");
+    console.log("Tip: Use 'Get Storage Summary' to see the updated metrics");
+  }
+}
+

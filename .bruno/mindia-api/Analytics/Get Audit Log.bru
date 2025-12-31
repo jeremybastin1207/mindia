@@ -1,0 +1,35 @@
+meta {
+  name: Get Audit Log by ID
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/audit-logs/{{auditLogId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  auditLogId: YOUR_AUDIT_LOG_ID_HERE
+}
+
+docs {
+  # Get Audit Log by ID
+  
+  Fetch a single audit log entry by its ID.
+  
+  **Path Parameters**:
+  - `auditLogId`: UUID of the audit log entry
+  
+  **Response**:
+  - 200 OK: Audit log entry details
+  - 404 Not Found: No audit log found with that ID
+  - 401 Unauthorized: Invalid or missing API key
+  - 500 Internal Server Error: Failed to fetch audit log
+}
+

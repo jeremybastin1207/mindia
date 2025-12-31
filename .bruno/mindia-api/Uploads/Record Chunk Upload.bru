@@ -1,0 +1,49 @@
+meta {
+  name: Record Chunk Upload
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/v0/uploads/chunked/{{sessionId}}/chunk/0
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  sessionId: YOUR_SESSION_ID_HERE
+}
+
+params:path {
+  chunk_index: 0
+}
+
+body:json {
+  {
+    "chunk_index": 0
+  }
+}
+
+docs {
+  # Record Chunk Upload
+  
+  Record that a chunk has been successfully uploaded to S3.
+  
+  ## Path Parameters
+  - `session_id`: Upload session ID
+  - `chunk_index`: Zero-based index of the chunk
+  
+  ## Request Body
+  - `chunk_index` (required): Chunk index (must match path parameter)
+  
+  ## Response
+  - 200 OK: Chunk upload recorded successfully
+  - 404 Not Found: Session not found
+  
+  **Note**: Call this after uploading each chunk to S3 using its presigned URL.
+}
+

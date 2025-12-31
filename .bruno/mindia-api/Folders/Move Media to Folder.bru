@@ -1,0 +1,42 @@
+meta {
+  name: Move Media to Folder
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}/folder
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+}
+
+body:json {
+  {
+    "folder_id": null
+  }
+}
+
+docs {
+  # Move Media to Folder
+  
+  Move a media file (image, video, audio, or document) to a folder.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  
+  ## Request Body
+  - `folder_id`: UUID of target folder, or `null` to remove from folder
+  
+  ## Response
+  - 200 OK: Media moved successfully
+  - 404 Not Found: Media or folder not found
+}
+

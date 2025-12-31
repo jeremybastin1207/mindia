@@ -1,0 +1,47 @@
+meta {
+  name: Update Folder
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/v0/folders/{{folderId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  folderId: YOUR_FOLDER_ID_HERE
+}
+
+body:json {
+  {
+    "name": "Updated Folder Name",
+    "parent_id": null
+  }
+}
+
+docs {
+  # Update Folder
+  
+  Update folder name or move it to a different parent.
+  
+  ## Path Parameters
+  - `id`: UUID of the folder
+  
+  ## Request Body
+  - `name` (optional): New folder name
+  - `parent_id` (optional): New parent folder ID. Use `null` to move to root.
+  
+  ## Response
+  - 200 OK: Folder updated successfully
+  - 400 Bad Request: Invalid request
+  - 404 Not Found: Folder not found
+  
+  **Note**: Moving a folder cannot create cycles (cannot move into its own descendants).
+}
+

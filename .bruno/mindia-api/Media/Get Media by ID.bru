@@ -1,0 +1,42 @@
+meta {
+  name: Get Media by ID
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+}
+
+docs {
+  # Get Media by ID
+  
+  Retrieve metadata for any media file (image, video, audio, or document) using its UUID.
+  This is a unified endpoint that works for all media types.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  
+  ## Response
+  - 200 OK: Media metadata (type-specific response)
+  - 404 Not Found: Media not found
+  - 500 Internal Server Error: Server error
+  
+  The response structure depends on the media type:
+  - **Images**: Returns image-specific fields (width, height, url)
+  - **Videos**: Returns video-specific fields (duration, width, height, processing_status, hls_url, variants)
+  - **Audios**: Returns audio-specific fields (duration, url)
+  - **Documents**: Returns document-specific fields (page_count, url)
+  
+  **Note**: Use this endpoint when you don't know the media type, or use type-specific endpoints like `/api/v0/images/:id` for better type safety.
+}

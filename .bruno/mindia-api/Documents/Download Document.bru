@@ -1,0 +1,36 @@
+meta {
+  name: Download Document
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v0/documents/{{documentId}}/file
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  documentId: YOUR_DOCUMENT_ID_HERE
+}
+
+docs {
+  # Download Document
+  
+  Download the original document file (PDF).
+  
+  ## Path Parameters
+  - `id`: UUID of the document file
+  
+  ## Response
+  - 200 OK: Document file bytes (Content-Type: application/pdf)
+  - 404 Not Found: Document not found
+  - 500 Internal Server Error: Server error
+  
+  The response body contains the raw PDF file bytes.
+}
+

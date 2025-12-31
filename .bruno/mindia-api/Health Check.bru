@@ -1,0 +1,22 @@
+meta {
+  name: Health Check
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/health
+  body: none
+  auth: none
+}
+
+docs {
+  # Health Check
+  
+  Verify that the server is running and key dependencies are healthy.
+  
+  **Response**:
+  - 200 OK: JSON object with `status`, `database`, `storage`, and optional health fields
+  - 503 Service Unavailable: JSON object indicating which dependency is unhealthy
+}
+

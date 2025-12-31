@@ -1,0 +1,40 @@
+meta {
+  name: Delete Video
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_VIDEO_MEDIA_ID_HERE
+}
+
+docs {
+  # Delete Video
+  
+  Delete a **video** and all its HLS variants via the unified media delete endpoint.
+  
+  **URL Parameters**:
+  - id: UUID of the media entry (video) to delete
+  
+  **Response**:
+  - 204 No Content: Video deleted successfully
+  - 404 Not Found: Video not found
+  - 500 Internal Server Error: Deletion failed
+  
+  **Note**: This operation:
+  - Deletes the original video from S3
+  - Deletes all HLS variants and playlists from S3
+  - Removes the video record from the database
+  - Cannot be undone
+}
+

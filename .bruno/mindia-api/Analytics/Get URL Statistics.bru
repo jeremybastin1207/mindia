@@ -1,0 +1,67 @@
+meta {
+  name: Get URL Statistics
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/analytics/urls?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  limit: 20
+  ~start_date: 
+  ~end_date: 
+}
+
+docs {
+  # Get URL Statistics
+  
+  Get detailed statistics for all URLs without the overall summary.
+  
+  **Query Parameters** (all optional):
+  - limit: Number of URLs to return (default: 20)
+  - start_date: Filter from date (ISO 8601 format)
+  - end_date: Filter to date (ISO 8601 format)
+  
+  **Response**:
+  - 200 OK: Array of URL statistics objects
+  - 500 Internal Server Error: Failed to retrieve statistics
+  
+  **URL Statistics Fields**:
+  - path: Normalized URL path
+  - request_count: Number of requests
+  - total_bytes_sent: Response bytes
+  - total_bytes_received: Request bytes
+  - avg_response_time_ms: Average response time
+  - min_duration_ms: Fastest response
+  - max_duration_ms: Slowest response
+  - status_2xx: Successful responses
+  - status_3xx: Redirects
+  - status_4xx: Client errors
+  - status_5xx: Server errors
+  
+  **Use Cases**:
+  - Identify most popular endpoints
+  - Find slow-performing URLs
+  - Detect high error rates on specific endpoints
+  - Analyze bandwidth usage per endpoint
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("URLs analyzed:", res.body.length);
+    res.body.forEach((url, i) => {
+      if (i < 5) {
+        console.log(`${i+1}. ${url.path}: ${url.request_count} requests`);
+      }
+    });
+  }
+}
+

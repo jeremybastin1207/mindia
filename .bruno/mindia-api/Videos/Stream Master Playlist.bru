@@ -1,0 +1,43 @@
+meta {
+  name: Stream Master Playlist
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v0/videos/{{videoId}}/stream/master.m3u8
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Stream Master Playlist
+  
+  Get the HLS master playlist for adaptive bitrate streaming.
+  
+  **URL Parameters**:
+  - videoId: UUID of the video
+  
+  **Response**:
+  - 200 OK: HLS master playlist (m3u8 format)
+  - 404 Not Found: Video not found or not yet transcoded
+  - 500 Internal Server Error: Failed to retrieve playlist
+  
+  **Usage**:
+  The master playlist contains links to variant playlists for different quality levels.
+  Use this URL in video players that support HLS (e.g., Video.js, HLS.js, native Safari).
+  
+  **Example**:
+  ```html
+  <video controls>
+    <source src="{{baseUrl}}/api/videos/{{videoId}}/stream/master.m3u8" type="application/x-mpegURL">
+  </video>
+  ```
+  
+  **Note**: Video must have processing_status = 'completed'
+}
+

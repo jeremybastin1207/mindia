@@ -1,0 +1,26 @@
+meta {
+  name: List Presets
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/presets
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Presets
+  
+  List all named transformation presets.
+  
+  **Response**:
+  - 200 OK: Array of preset definitions
+  - 401 Unauthorized: Invalid or missing API key
+}
+

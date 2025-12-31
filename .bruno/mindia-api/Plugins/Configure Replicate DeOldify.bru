@@ -1,0 +1,99 @@
+meta {
+  name: Configure Replicate DeOldify
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/api/v0/plugins/replicate_deoldify/config
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "enabled": true,
+    "config": {
+      "api_token": "r8_your_replicate_api_token_here",
+      "render_factor": 35
+    }
+  }
+}
+
+docs {
+  # Configure Replicate DeOldify Plugin
+  
+  Configure the Replicate DeOldify plugin with your API token and settings.
+  
+  ## Path Parameters
+  - Plugin name is `replicate_deoldify`
+  
+  ## Request Body
+  - `enabled` (required): Whether the plugin is enabled (true/false)
+  - `config` (required): Plugin configuration object
+  
+  ## Configuration Fields
+  - `api_token` (required): Your Replicate API token
+    - Get your token from https://replicate.com/account/api-tokens
+    - Format: `r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+  
+  - `render_factor` (optional): Image quality factor
+    - Range: 1-40
+    - Default: 35 (artistic mode for vibrant colors)
+    - Lower values (10-20) = faster processing, more natural colors
+    - Higher values (30-40) = better quality, more artistic/vibrant
+    - Recommended: 30-35 for best artistic results
+  
+  - `model_version` (optional): Specific DeOldify model version
+    - If not specified, uses the latest version
+    - Format: Version hash string from Replicate
+  
+  ## Example Configurations
+  
+  ### Basic (Default Quality)
+  ```json
+  {
+    "enabled": true,
+    "config": {
+      "api_token": "r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  }
+  ```
+  
+  ### High Quality
+  ```json
+  {
+    "enabled": true,
+    "config": {
+      "api_token": "r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "render_factor": 30
+    }
+  }
+  ```
+  
+  ### Fast Processing
+  ```json
+  {
+    "enabled": true,
+    "config": {
+      "api_token": "r8_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "render_factor": 15
+    }
+  }
+  ```
+  
+  ## Response
+  - 200 OK: Plugin configuration updated successfully
+  - 400 Bad Request: Invalid configuration
+  - 404 Not Found: Plugin not found
+  
+  ## Notes
+  - API tokens are encrypted before storage
+  - Changes take effect immediately
+  - You need a Replicate account with credits to use this plugin
+  - Pricing is based on Replicate's DeOldify model pricing
+}

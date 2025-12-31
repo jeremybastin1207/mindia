@@ -1,0 +1,96 @@
+[package]
+name = "mindia-infra"
+version.workspace = true
+edition.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["opentelemetry-aws", "opentelemetry-http", "sqlx"]  # Optional deps used via features
+
+[lib]
+name = "mindia_infra"
+path = "src/lib.rs"
+
+[dependencies]
+mindia-core = { path = "../mindia-core" }
+mindia-db = { path = "../mindia-db", optional = true }
+mindia-storage = { path = "../mindia-storage", optional = true }
+axum = { workspace = true }
+uuid = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+hostname = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true, optional = true }
+utoipa = { workspace = true }
+hex = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+subtle = { workspace = true, optional = true }
+sysinfo = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+tar = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+
+# Optional dependencies
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+opentelemetry-semantic-conventions = { workspace = true, optional = true }
+opentelemetry-http = { workspace = true, optional = true }
+opentelemetry-aws = { workspace = true, optional = true }
+
+[features]
+default = [
+    "middleware",
+    "webhook",
+    "analytics",
+    "rate-limit",
+    "cleanup",
+    "capacity",
+    "archive",
+    "observability-basic",
+]
+
+# Infrastructure components
+middleware = ["dep:hex", "dep:hmac", "dep:sha2", "dep:subtle"]
+webhook = ["dep:reqwest", "dep:mindia-db", "dep:hex", "dep:hmac", "dep:sha2"]
+analytics = ["dep:mindia-db", "dep:sqlx"]
+rate-limit = []
+cleanup = ["dep:mindia-db", "dep:mindia-storage"]
+capacity = ["dep:sysinfo", "dep:tokio-util"]
+archive = ["dep:mindia-storage", "dep:zip", "dep:tar"]
+
+# Media type features (passed through to mindia-db for cleanup service)
+audio = ["dep:mindia-db", "mindia-db/audio"]
+video = ["dep:mindia-db", "mindia-db/video"]
+document = ["dep:mindia-db", "mindia-db/document"]
+
+# Observability
+observability-opentelemetry = [
+    "dep:tracing-opentelemetry",
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-semantic-conventions",
+    "dep:opentelemetry-http",
+    "dep:opentelemetry-aws",
+]
+observability-basic = []
+
+# Convenience features
+full = [
+    "middleware",
+    "webhook",
+    "analytics",
+    "rate-limit",
+    "cleanup",
+    "capacity",
+    "archive",
+    "observability-opentelemetry",
+]

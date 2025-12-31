@@ -1,0 +1,67 @@
+meta {
+  name: Upload Image - EICAR Test
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v0/images?store=auto
+  body: multipartForm
+  auth: bearer
+}
+
+params:query {
+  store: auto
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  file: @file(/home/jba/Documents/mindia/eicer_test.jpeg)
+}
+
+assert {
+  res.status: in [400, 403]
+}
+
+script:post-response {
+  if (res.status === 400 || res.status === 403) {
+    console.log("EICAR test file correctly blocked:", res.body.error);
+  } else if (res.status === 201) {
+    console.log("WARNING: EICAR file was uploaded (ClamAV may be disabled)");
+    bru.setVar("eicarImageId", res.body.id);
+  }
+}
+
+docs {
+  # Upload Image - EICAR Test
+  
+  Test malware detection by uploading the EICAR test file.
+  
+  **About EICAR**:
+  The EICAR (European Institute for Computer Antivirus Research) test file is a standard test file used to verify antivirus/malware scanners. It's not actually malicious but is designed to be detected by all antivirus software.
+  
+  **Expected Behavior**:
+  - **With ClamAV enabled**: Should return 400 or 403 with an error message indicating malware detected
+  - **Without ClamAV enabled**: File will upload successfully (returns 201)
+  
+  **Request**: Multipart form data with EICAR test file
+  
+  **Query Parameters**:
+  - `store` (optional): Controls file storage behavior (same as regular upload)
+  
+  **Expected Response (ClamAV enabled)**:
+  - 400 Bad Request or 403 Forbidden: Malware detected
+  - Error message should indicate the file was blocked by security scanning
+  
+  **Expected Response (ClamAV disabled)**:
+  - 201 Created: File uploaded (security warning in logs)
+  
+  **Configuration**:
+  - Set `CLAMAV_ENABLED=true` in environment to enable malware scanning
+  - Set `CLAMAV_HOST` to ClamAV daemon address (default: localhost:3310)
+  
+  **Note**: This test is used to verify the security scanning functionality is working correctly.
+}

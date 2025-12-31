@@ -1,0 +1,265 @@
+//! Plugin API handlers
+
+use crate::auth::models::TenantContext;
+use crate::error::{ErrorResponse, HttpAppError};
+use crate::state::AppState;
+use axum::{
+    extract::{Path, Query, State},
+    response::IntoResponse,
+    Json,
+};
+use chrono::{DateTime, Utc};
+use mindia_core::models::{
+    ExecutePluginRequest, ExecutePluginResponse, PluginConfigResponse, PluginCostSummaryResponse,
+    PluginCostsResponse, PluginInfoResponse, UpdatePluginConfigRequest,
+};
+use mindia_core::AppError;
+use serde::Deserialize;
+use std::sync::Arc;
+
+#[utoipa::path(
+    get,
+    path = "/api/v0/plugins",
+    tag = "plugins",
+    responses(
+        (status = 200, description = "List of available plugins", body = Vec<PluginInfoResponse>),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+pub async fn list_plugins(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let plugins = state
+        .plugin_service
+        .list_plugins()
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to list plugins: {}", e)))?;
+
+    let response: Vec<PluginInfoResponse> = plugins
+        .into_iter()
+        .map(|info| PluginInfoResponse {
+            name: info.name,
+            description: info.description,
+            supported_media_types: info.supported_media_types,
+        })
+        .collect();
+
+    Ok(Json(response))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v0/plugins/{plugin_name}/execute",
+    tag = "plugins",
+    params(
+        ("plugin_name" = String, Path, description = "Plugin name (e.g., 'assembly_ai')")
+    ),
+    request_body = ExecutePluginRequest,
+    responses(
+        (status = 200, description = "Plugin execution started", body = ExecutePluginResponse),
+        (status = 400, description = "Invalid request", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "Plugin not found", body = ErrorResponse),
+    )
+)]
+pub async fn execute_plugin(
+    tenant_context: TenantContext,
+    Path(plugin_name): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ExecutePluginRequest>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let tenant_id = tenant_context.tenant_id;
+
+    let task_id = state
+        .plugin_service
+        .execute_plugin(tenant_id, &plugin_name, request.media_id)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to execute plugin: {}", e)))?;
+
+    Ok(Json(ExecutePluginResponse {
+        task_id,
+        status: "pending".to_string(),
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v0/plugins/{plugin_name}/config",
+    tag = "plugins",
+    params(
+        ("plugin_name" = String, Path, description = "Plugin name (e.g., 'assembly_ai')")
+    ),
+    responses(
+        (status = 200, description = "Plugin configuration", body = PluginConfigResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "Plugin configuration not found", body = ErrorResponse),
+    )
+)]
+pub async fn get_plugin_config(
+    State(state): State<Arc<AppState>>,
+    tenant_context: TenantContext,
+    Path(plugin_name): Path<String>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let tenant_id = tenant_context.tenant_id;
+
+    let config = state
+        .plugin_service
+        .get_plugin_config(tenant_id, &plugin_name)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to get plugin config: {}", e)))?
+        .ok_or_else(|| AppError::NotFound("Plugin configuration not found".to_string()))?;
+
+    Ok(Json(PluginConfigResponse::from(config)))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v0/plugins/{plugin_name}/config",
+    tag = "plugins",
+    params(
+        ("plugin_name" = String, Path, description = "Plugin name (e.g., 'assembly_ai')")
+    ),
+    request_body = UpdatePluginConfigRequest,
+    responses(
+        (status = 200, description = "Plugin configuration updated", body = PluginConfigResponse),
+        (status = 400, description = "Invalid configuration", body = ErrorResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+pub async fn update_plugin_config(
+    State(state): State<Arc<AppState>>,
+    tenant_context: TenantContext,
+    Path(plugin_name): Path<String>,
+    Json(request): Json<UpdatePluginConfigRequest>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let tenant_id = tenant_context.tenant_id;
+
+    let config = state
+        .plugin_service
+        .update_plugin_config(tenant_id, &plugin_name, request.enabled, request.config)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to update plugin config: {}", e)))?;
+
+    Ok(Json(PluginConfigResponse::from(config)))
+}
+
+/// Query parameters for plugin costs endpoints
+#[derive(Debug, Deserialize)]
+pub struct PluginCostsQuery {
+    /// Filter by plugin name
+    pub plugin_name: Option<String>,
+    /// Start of date range (ISO 8601)
+    pub period_start: Option<DateTime<Utc>>,
+    /// End of date range (ISO 8601)
+    pub period_end: Option<DateTime<Utc>>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v0/plugins/costs",
+    tag = "plugins",
+    params(
+        ("plugin_name" = Option<String>, Query, description = "Filter by plugin name"),
+        ("period_start" = Option<String>, Query, description = "Start of date range (ISO 8601)"),
+        ("period_end" = Option<String>, Query, description = "End of date range (ISO 8601)"),
+    ),
+    responses(
+        (status = 200, description = "Plugin usage/cost summary", body = PluginCostsResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+pub async fn get_plugin_costs(
+    tenant_context: TenantContext,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PluginCostsQuery>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let tenant_id = tenant_context.tenant_id;
+
+    let summary = state
+        .plugin_execution_repository
+        .get_usage_summary(
+            tenant_id,
+            params.plugin_name.as_deref(),
+            params.period_start,
+            params.period_end,
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to get plugin costs: {}", e)))?;
+
+    // Use filter period for response when provided, otherwise use current time
+    let now = Utc::now();
+    let period_start = params.period_start.unwrap_or(now);
+    let period_end = params.period_end.unwrap_or(now);
+
+    let costs: Vec<PluginCostSummaryResponse> = summary
+        .into_iter()
+        .map(
+            |(plugin_name, execution_count, total_units, unit_type)| PluginCostSummaryResponse {
+                plugin_name,
+                execution_count,
+                total_units,
+                unit_type,
+                period_start,
+                period_end,
+            },
+        )
+        .collect();
+
+    let total_executions = costs.iter().map(|c| c.execution_count).sum();
+
+    Ok(Json(PluginCostsResponse {
+        costs,
+        total_executions,
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v0/plugins/costs/summary",
+    tag = "plugins",
+    params(
+        ("plugin_name" = Option<String>, Query, description = "Filter by plugin name"),
+        ("period_start" = Option<String>, Query, description = "Start of date range (ISO 8601)"),
+        ("period_end" = Option<String>, Query, description = "End of date range (ISO 8601)"),
+    ),
+    responses(
+        (status = 200, description = "Aggregated plugin usage summary", body = PluginCostsResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+pub async fn get_plugin_costs_summary(
+    tenant_context: TenantContext,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PluginCostsQuery>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    // Same as get_plugin_costs - both return aggregated summary
+    get_plugin_costs(tenant_context, State(state), Query(params)).await
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v0/plugins/{plugin_name}/costs",
+    tag = "plugins",
+    params(
+        ("plugin_name" = String, Path, description = "Plugin name (e.g., 'assembly_ai')"),
+        ("period_start" = Option<String>, Query, description = "Start of date range (ISO 8601)"),
+        ("period_end" = Option<String>, Query, description = "End of date range (ISO 8601)"),
+    ),
+    responses(
+        (status = 200, description = "Plugin usage/cost for specific plugin", body = PluginCostsResponse),
+        (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+pub async fn get_plugin_costs_by_name(
+    tenant_context: TenantContext,
+    Path(plugin_name): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<PluginCostsQuery>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let query_params = PluginCostsQuery {
+        plugin_name: Some(plugin_name),
+        period_start: params.period_start,
+        period_end: params.period_end,
+    };
+    get_plugin_costs(tenant_context, State(state), Query(query_params)).await
+}

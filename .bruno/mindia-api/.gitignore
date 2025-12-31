@@ -1,0 +1,10 @@
+# Bruno environment-specific files
+*.local.bru
+
+# Response cache
+.bruno/
+
+# OS files
+.DS_Store
+Thumbs.db
+

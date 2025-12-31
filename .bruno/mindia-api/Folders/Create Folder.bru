@@ -1,0 +1,46 @@
+meta {
+  name: Create Folder
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/folders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "Histoire",
+    "parent_id": null
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("folderId", res.body.id);
+    console.log("Folder created:", res.body.id);
+  }
+}
+
+docs {
+  # Create Folder
+  
+  Create a new folder for organizing media files. Folders can be nested hierarchically.
+  
+  ## Request Body
+  - `name` (required): Folder name (1-255 characters)
+  - `parent_id` (optional): UUID of parent folder. Use `null` for root folder.
+  
+  ## Response
+  - 201 Created: Folder created successfully
+  - 400 Bad Request: Invalid request (empty name, name too long, parent not found)
+  - 409 Conflict: Folder with same name already exists in parent
+  
+  **Note**: Folder names must be unique within the same parent folder.
+}

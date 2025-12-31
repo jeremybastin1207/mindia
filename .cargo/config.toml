@@ -1,0 +1,8 @@
+# Cargo configuration for the mindia workspace.
+#
+# Linker workaround: On some systems the default linker (lld) can crash with
+# "ld terminated with signal 7 [Bus error]" when linking the mindia-api test
+# binary. Using the GNU BFD linker avoids that. If you prefer lld and it works
+# on your machine, you can comment out or remove the [target...] section below.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=bfd"]

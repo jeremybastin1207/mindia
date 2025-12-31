@@ -1,0 +1,64 @@
+[package]
+name = "mindia-processing"
+version.workspace = true
+edition.workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["imageproc", "kamadak-exif"]  # Optional deps used via features
+
+[lib]
+name = "mindia_processing"
+path = "src/lib.rs"
+
+[dependencies]
+mindia-core = { path = "../mindia-core" }
+mindia-storage = { path = "../mindia-storage" }
+mindia-db = { path = "../mindia-db", features = ["video"] }
+mindia-infra = { path = "../mindia-infra", optional = true, features = ["capacity"] }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+bytes = { workspace = true }
+tempfile = { workspace = true }
+
+# Optional dependencies
+image = { workspace = true, optional = true }
+imageproc = { workspace = true, optional = true }
+ravif = { workspace = true, optional = true }
+rgb = { workspace = true, optional = true }
+webp = { workspace = true, optional = true }
+mozjpeg = { workspace = true, optional = true }
+img-parts = { workspace = true, optional = true }
+kamadak-exif = { workspace = true, optional = true }
+
+[features]
+default = [
+    "image",
+    "video",
+    "audio",
+    "document",
+]
+
+# Media type features
+image = [
+    "dep:image",
+    "dep:imageproc",
+    "dep:ravif",
+    "dep:rgb",
+    "dep:webp",
+    "dep:mozjpeg",
+    "dep:img-parts",
+    "dep:kamadak-exif",
+]
+video = ["dep:mindia-infra"]  # FFmpeg + orchestration
+audio = []  # Audio metadata extraction
+document = []  # Document processing
+
+# Convenience features
+full = ["image", "video", "audio", "document"]

@@ -1,0 +1,48 @@
+meta {
+  name: Update Audio Metadata
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v0/audios/{{audioId}}/metadata
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  audioId: YOUR_AUDIO_ID_HERE
+}
+
+body:json {
+  {
+    "metadata": {
+      "title": "My Audio",
+      "description": "A podcast episode",
+      "tags": ["podcast", "interview"],
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Update Audio Metadata
+  
+  Update custom metadata for an audio file. Metadata is stored as a JSON object with key-value pairs.
+  
+  ## Path Parameters
+  - `id`: UUID of the audio file
+  
+  ## Request Body
+  - `metadata`: JSON object with key-value pairs
+  
+  ## Response
+  - 200 OK: Metadata updated successfully
+  - 404 Not Found: Audio not found
+  - 400 Bad Request: Invalid metadata format (must be a JSON object)
+}
+

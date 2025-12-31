@@ -1,0 +1,27 @@
+meta {
+  name: List Audit Logs
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v0/audit-logs
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Audit Logs
+  
+  List audit log entries for your account.
+  
+  **Response**:
+  - 200 OK: Array of audit log entries
+  - 401 Unauthorized: Invalid or missing API key
+  - 500 Internal Server Error: Failed to fetch audit logs
+}
+

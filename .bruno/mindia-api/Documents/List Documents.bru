@@ -1,0 +1,45 @@
+meta {
+  name: List Documents
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/documents?limit=50&offset=0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  limit: 50
+  offset: 0
+  folder_id: 
+}
+
+docs {
+  # List Documents
+  
+  Retrieve a paginated list of uploaded document files.
+  
+  ## Query Parameters
+  - `limit`: Maximum number of results (1-100, default: 50)
+  - `offset`: Number of results to skip (default: 0)
+  - `folder_id` (optional): Filter documents by folder ID
+  
+  ## Response
+  Returns an array of document objects with metadata including:
+  - ID
+  - Filename
+  - URL
+  - Content type
+  - File size
+  - Page count
+  - Upload timestamp
+  - Storage behavior
+  - Folder information (if in a folder)
+}
+

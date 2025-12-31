@@ -1,0 +1,39 @@
+meta {
+  name: Get Chunked Upload Progress
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/uploads/chunked/{{sessionId}}/progress
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  sessionId: YOUR_SESSION_ID_HERE
+}
+
+docs {
+  # Get Chunked Upload Progress
+  
+  Get upload progress for a chunked upload session.
+  
+  ## Path Parameters
+  - `session_id`: Upload session ID
+  
+  ## Response
+  - 200 OK: Upload progress information
+  - 404 Not Found: Session not found
+  
+  Returns progress including:
+  - Total size and uploaded size
+  - Number of chunks uploaded vs total
+  - Progress percentage
+  - Session status
+}
+

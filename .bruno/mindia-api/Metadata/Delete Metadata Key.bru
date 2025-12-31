@@ -1,0 +1,42 @@
+meta {
+  name: Delete Metadata Key
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}/metadata/{{metadataKey}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+  metadataKey: your_metadata_key
+}
+
+docs {
+  # Delete Metadata Key
+  
+  Delete a single metadata key from a media file.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  - `key`: Metadata key name to delete
+  
+  ## Response
+  - 204 No Content: Metadata key deleted successfully
+  - 404 Not Found: Media or key not found
+  - 500 Internal Server Error: Server error
+  
+  **Note**: 
+  - Only user metadata keys can be deleted. Plugin metadata is read-only.
+  - After deletion, the key will no longer appear in the metadata object.
+  - Other metadata keys remain unchanged.
+  
+  **Warning**: This action is irreversible. The metadata key and its value will be permanently removed.
+}

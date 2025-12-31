@@ -1,0 +1,35 @@
+meta {
+  name: Cancel Task
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v0/tasks/{{taskId}}/cancel
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  taskId: YOUR_TASK_ID_HERE
+}
+
+docs {
+  # Cancel Task
+  
+  Cancel a pending or scheduled task.
+  
+  ## Path Parameters
+  - `id`: UUID of the task
+  
+  ## Response
+  - 200 OK: Task cancelled successfully
+  - 400 Bad Request: Task not found or not in cancellable state
+  
+  **Note**: Only tasks with status `pending` or `scheduled` can be cancelled. Processing tasks cannot be cancelled.
+}
+

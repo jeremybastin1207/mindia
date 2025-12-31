@@ -1,0 +1,57 @@
+meta {
+  name: Delete Media
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+}
+
+docs {
+  # Delete Media
+  
+  Delete any media file (image, video, audio, or document) and all associated data.
+  This is a unified endpoint that works for all media types.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  
+  ## Response
+  - 204 No Content: Media deleted successfully
+  - 404 Not Found: Media not found
+  - 500 Internal Server Error: Server error
+  
+  ## Behavior by Media Type
+  
+  ### Images & Documents
+  - Deletes the file from S3/storage
+  - Removes metadata from database
+  - Triggers webhook event (if configured)
+  
+  ### Videos
+  - Deletes original video file from S3
+  - Deletes all HLS transcoded variants (360p, 480p, 720p, 1080p)
+  - Deletes all HLS segments (.ts files)
+  - Deletes master and variant playlists (.m3u8 files)
+  - Removes metadata from database
+  - Triggers webhook event (if configured)
+  
+  ### Audio
+  - Deletes the audio file from S3
+  - Deletes associated embeddings (if semantic search was enabled)
+  - Removes metadata from database
+  - Triggers webhook event (if configured)
+  
+  **Warning**: This action is irreversible. All associated files and data will be permanently deleted.
+}

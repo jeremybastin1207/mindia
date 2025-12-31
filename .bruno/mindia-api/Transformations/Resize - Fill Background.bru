@@ -1,0 +1,43 @@
+meta {
+  name: Resize - Fill Background
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/stretch/fill/-/resize/320x240/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 550e8400-e29b-41d4-a716-446655440000
+}
+
+docs {
+  # Resize with Background Fill
+  
+  Resize to fit within 320x240, filling extra space with white background.
+  
+  **URL Format**: `/api/images/:id/-/stretch/fill/-/resize/WxH/`
+  
+  **Stretch Mode: fill**
+  - No upscaling (preserves quality)
+  - Image centered in canvas
+  - Remaining space filled with white
+  - Maintains aspect ratio
+  
+  **Use Case**: 
+  - Thumbnails with consistent dimensions
+  - Gallery displays requiring uniform sizes
+  
+  **Example**:
+  - Target: 320x240
+  - Original: 100x100 → Result: 100x100 centered with white borders
+  - Original: 640x360 → Result: 320x240 with white top/bottom bars
+}
+

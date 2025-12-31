@@ -1,0 +1,38 @@
+meta {
+  name: Download File
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/file
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 88689a3a-8487-408b-9347-8142fbbf9e7b
+}
+
+docs {
+  # Download Image File
+  
+  Download the actual image file from S3.
+  
+  **Path Parameters**:
+  - id: UUID of the image
+  
+  **Response**:
+  - 200 OK: Image file (binary data)
+  - 404 Not Found: Image does not exist
+  - 500 Internal Server Error: S3 or database error
+  
+  **Headers**:
+  - Content-Type: Original image MIME type
+  - Content-Disposition: inline; filename="original_filename.jpg"
+  - Cache-Control: public, max-age=31536000, immutable
+}

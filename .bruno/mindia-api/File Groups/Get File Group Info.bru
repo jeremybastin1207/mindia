@@ -1,0 +1,35 @@
+meta {
+  name: Get File Group Info
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/groups/{{fileGroupId}}/info
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  fileGroupId: YOUR_FILE_GROUP_ID_HERE
+}
+
+docs {
+  # Get File Group Info
+  
+  Get summary information about a file group without full file details.
+  
+  ## Path Parameters
+  - `id`: UUID of the file group
+  
+  ## Response
+  Returns summary including:
+  - ID
+  - Creation timestamp
+  - File count
+}
+

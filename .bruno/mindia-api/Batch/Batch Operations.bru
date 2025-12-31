@@ -1,0 +1,46 @@
+meta {
+  name: Batch Operations
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/batch
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "operations": [
+      {
+        "method": "GET",
+        "path": "/api/v0/images",
+        "id": "list-images"
+      }
+    ]
+  }
+}
+
+docs {
+  # Batch Operations
+  
+  Execute multiple API operations in a single HTTP request.
+  
+  **Request Body**:
+  - `operations`: array of operations with:
+    - `id`: client-defined operation ID
+    - `method`: HTTP method (GET, POST, etc.)
+    - `path`: full API path (e.g. `/api/v0/images`)
+    - `body` (optional): request body for the operation
+  
+  **Response**:
+  - 200 OK: Array of per-operation results, keyed by `id`
+  - 400 Bad Request: Invalid batch payload
+  - 401 Unauthorized: Invalid or missing API key
+}
+

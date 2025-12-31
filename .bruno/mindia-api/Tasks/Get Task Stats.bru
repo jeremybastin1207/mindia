@@ -1,0 +1,30 @@
+meta {
+  name: Get Task Stats
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/tasks/stats
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Get Task Stats
+  
+  Get aggregated statistics about tasks.
+  
+  ## Response
+  Returns statistics including:
+  - Total task count
+  - Counts by status (pending, running, completed, failed, etc.)
+  - Counts by task type
+  - Average duration
+  - Success rate
+}
+

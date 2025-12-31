@@ -1,0 +1,36 @@
+meta {
+  name: List Webhooks
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/webhooks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Webhooks
+  
+  List all webhooks configured for the current tenant.
+  
+  **Response**:
+  - 200 OK: Array of webhook configurations
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `id`: Webhook UUID
+  - `tenant_id`: Owner tenant ID
+  - `url`: Webhook endpoint URL
+  - `event_type`: Event type this webhook subscribes to
+  - `signing_secret`: Secret key (if configured)
+  - `is_active`: Whether webhook is enabled
+  - `description`: Human-readable description
+  - `created_at`: Creation timestamp
+  - `updated_at`: Last update timestamp
+}

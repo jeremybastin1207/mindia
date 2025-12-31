@@ -1,0 +1,34 @@
+meta {
+  name: Resize - Height Only
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/resize/x240/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 550e8400-e29b-41d4-a716-446655440000
+}
+
+docs {
+  # Resize to Height (Preserve Aspect Ratio)
+  
+  Resize the image to 240px height, width calculated to preserve aspect ratio.
+  
+  **URL Format**: `/api/images/:id/-/resize/xH/`
+  
+  **Response**: Transformed image with proportional dimensions
+  
+  **Example**:
+  - Original: 1920x1080
+  - Result: 427x240 (maintains 16:9 ratio)
+}
+

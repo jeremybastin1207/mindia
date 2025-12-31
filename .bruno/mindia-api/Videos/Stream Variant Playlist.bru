@@ -1,0 +1,53 @@
+meta {
+  name: Stream Variant Playlist
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v0/videos/{{videoId}}/stream/{{variant}}/index.m3u8
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:path {
+  videoId: replace-with-video-id
+  variant: 720p
+}
+
+docs {
+  # Stream Variant Playlist
+  
+  Get the HLS playlist for a specific video variant (quality level).
+  
+  ## Parameters
+  - `videoId` - The UUID of the video
+  - `variant` - The quality variant (360p, 480p, 720p, 1080p)
+  
+  ## Response
+  Returns an M3U8 playlist file with references to video segments.
+  
+  ## Example
+  ```
+  GET /api/videos/123e4567-e89b-12d3-a456-426614174000/stream/720p/index.m3u8
+  ```
+  
+  Response (Content-Type: application/vnd.apple.mpegurl):
+  ```
+  #EXTM3U
+  #EXT-X-VERSION:3
+  #EXT-X-TARGETDURATION:6
+  #EXT-X-MEDIA-SEQUENCE:0
+  #EXTINF:6.0,
+  segment_000.ts
+  #EXTINF:6.0,
+  segment_001.ts
+  ...
+  #EXT-X-ENDLIST
+  ```
+}
+

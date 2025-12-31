@@ -1,0 +1,43 @@
+meta {
+  name: Get Audio by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/audios/{{audio_id}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  audio_id: YOUR_AUDIO_ID_HERE
+}
+
+docs {
+  # Get Audio by ID
+  
+  Retrieve metadata for a specific audio file.
+  
+  ## Path Parameters
+  - `id`: UUID of the audio file
+  
+  ## Response
+  Returns audio metadata including:
+  - ID
+  - Filename
+  - URL
+  - Content type
+  - File size
+  - Duration
+  - Bitrate
+  - Sample rate
+  - Channels
+  - Upload timestamp
+  - Storage behavior
+}
+

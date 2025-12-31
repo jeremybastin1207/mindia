@@ -1,0 +1,51 @@
+meta {
+  name: Upload Audio
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/audios?store=auto
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  store: auto
+}
+
+body:multipart-form {
+  file: @file(./test-audio.mp3)
+}
+
+docs {
+  # Upload Audio
+  
+  Upload an audio file to the server.
+  
+  ## Query Parameters
+  - `store`: Storage behavior
+    - `0`: Temporary (24 hours)
+    - `1`: Permanent
+    - `auto`: Use server default (default)
+  
+  ## Response
+  Returns audio metadata including:
+  - ID
+  - Filename
+  - URL
+  - Content type
+  - File size
+  - Duration (if extracted)
+  - Bitrate (if extracted)
+  - Sample rate (if extracted)
+  - Channels (if extracted)
+  - Upload timestamp
+  - Storage behavior
+  - Expiration time (if temporary)
+}
+

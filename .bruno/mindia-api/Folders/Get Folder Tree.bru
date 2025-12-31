@@ -1,0 +1,27 @@
+meta {
+  name: Get Folder Tree
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/folders/tree
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Get Folder Tree
+  
+  Get the complete hierarchical folder structure as a tree.
+  
+  ## Response
+  Returns an array of root folders, each containing nested `children` arrays for subfolders.
+  
+  This provides a complete tree view of all folders and their relationships.
+}
+

@@ -1,0 +1,36 @@
+meta {
+  name: Delete Folder
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/folders/{{folderId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  folderId: YOUR_FOLDER_ID_HERE
+}
+
+docs {
+  # Delete Folder
+  
+  Delete a folder. The folder must be empty (no media files or subfolders).
+  
+  ## Path Parameters
+  - `id`: UUID of the folder
+  
+  ## Response
+  - 204 No Content: Folder deleted successfully
+  - 400 Bad Request: Folder is not empty
+  - 404 Not Found: Folder not found
+  
+  **Note**: Move or delete all contents before deleting a folder.
+}
+

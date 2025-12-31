@@ -1,0 +1,47 @@
+meta {
+  name: Complete Chunked Upload
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v0/uploads/chunked/{{sessionId}}/complete
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  sessionId: YOUR_SESSION_ID_HERE
+}
+
+body:json {
+  {
+    "metadata": {
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Complete Chunked Upload
+  
+  Complete a chunked upload after all chunks have been uploaded and recorded.
+  
+  ## Path Parameters
+  - `session_id`: Upload session ID
+  
+  ## Request Body
+  - `metadata` (optional): Additional metadata to update
+  
+  ## Response
+  - 200 OK: Upload completed successfully
+  - 400 Bad Request: Not all chunks uploaded
+  - 404 Not Found: Session not found
+  
+  **Note**: All chunks must be uploaded and recorded before completing the upload.
+}
+

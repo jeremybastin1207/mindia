@@ -1,0 +1,35 @@
+meta {
+  name: Delete Image
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: 025bdcdc-09b3-4eaf-8fbc-6046d6b81237
+}
+
+docs {
+  # Delete Image
+  
+  Delete an **image** via the unified media delete endpoint.
+  
+  **Path Parameters**:
+  - id: UUID of the media entry (image)
+  
+  **Response**:
+  - 204 No Content: Image deleted successfully
+  - 404 Not Found: Image does not exist
+  - 500 Internal Server Error: Failed to delete from storage or database
+  
+  **Note**: This operation deletes both the file from storage and the metadata from the database.
+}

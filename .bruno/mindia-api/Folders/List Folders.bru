@@ -1,0 +1,40 @@
+meta {
+  name: List Folders
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/folders
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~parent_id: 
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Folders
+  
+  List all folders or filter by parent folder.
+  
+  ## Query Parameters
+  - `parent_id` (optional): 
+    - Omit or leave empty: List all folders
+    - `null`: List only root folders (no parent)
+    - UUID: List folders in specific parent folder
+  
+  ## Response
+  Returns an array of folder objects with metadata including:
+  - ID
+  - Name
+  - Parent ID
+  - Creation/update timestamps
+  - Media count
+  - Subfolder count
+}

@@ -1,0 +1,48 @@
+meta {
+  name: Stream Segment
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/videos/{{videoId}}/stream/{{variant}}/{{segment}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:path {
+  videoId: replace-with-video-id
+  variant: 720p
+  segment: segment_000.ts
+}
+
+docs {
+  # Stream Segment
+  
+  Get a specific video segment file for HLS streaming.
+  
+  ## Parameters
+  - `videoId` - The UUID of the video
+  - `variant` - The quality variant (360p, 480p, 720p, 1080p)
+  - `segment` - The segment filename (e.g., segment_000.ts)
+  
+  ## Response
+  Returns the video segment as a binary MPEG-TS file (Content-Type: video/MP2T).
+  
+  ## Example
+  ```
+  GET /api/videos/123e4567-e89b-12d3-a456-426614174000/stream/720p/segment_000.ts
+  ```
+  
+  Response: Binary video segment data
+  
+  ## Notes
+  - Segments are typically 6 seconds long (configurable via HLS_SEGMENT_DURATION)
+  - Segments are automatically generated during video transcoding
+  - Video players fetch segments sequentially based on the variant playlist
+}
+

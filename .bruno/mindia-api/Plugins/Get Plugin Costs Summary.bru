@@ -1,0 +1,26 @@
+meta {
+  name: Get Plugin Costs Summary
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/plugins/costs/summary
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Get Plugin Costs Summary
+  
+  Get a high-level summary of plugin usage and costs.
+  
+  **Response**:
+  - 200 OK: Summary object with totals/aggregates
+  - 401 Unauthorized: Invalid or missing API key
+}
+

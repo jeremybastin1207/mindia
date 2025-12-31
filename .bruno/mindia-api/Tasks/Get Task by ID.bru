@@ -1,0 +1,36 @@
+meta {
+  name: Get Task by ID
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/tasks/{{taskId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  taskId: YOUR_TASK_ID_HERE
+}
+
+docs {
+  # Get Task by ID
+  
+  Retrieve detailed information about a specific task.
+  
+  ## Path Parameters
+  - `id`: UUID of the task
+  
+  ## Response
+  Returns task details including:
+  - ID, type, status, priority
+  - Payload and result
+  - Timestamps (created, started, completed)
+  - Retry information
+}
+

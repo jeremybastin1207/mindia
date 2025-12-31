@@ -1,0 +1,67 @@
+meta {
+  name: Get Media Metadata
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}/metadata
+  body: none
+  auth: bearer
+}
+
+params:query {
+  ~namespace: 
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: 6c102f0f-2da6-41ae-9cbf-b25e628b1d88
+}
+
+docs {
+  # Get Media Metadata
+  
+  Retrieve metadata for any media file (image, video, audio, or document).
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  
+  ## Query Parameters
+  - `namespace` (optional): Filter by namespace
+    - `user` - Returns only user metadata
+    - `plugins` - Returns only plugin metadata
+    - Omit for all metadata (user + plugins)
+  
+  ## Response
+  - 200 OK: Metadata retrieved successfully
+  - 404 Not Found: Media not found
+  - 400 Bad Request: Invalid namespace value
+  
+  Returns the metadata as a JSON object. Metadata is organized by namespace:
+  - `user`: Custom metadata set by the user (can be modified)
+  - `plugins`: Metadata added by plugins (read-only)
+  
+  **Example Response**:
+  ```json
+  {
+    "id": "uuid",
+    "metadata": {
+      "user": {
+        "category": "photos",
+        "tags": ["vacation", "2024"]
+      },
+      "plugins": {
+        "google_vision": {
+          "labels": ["beach", "sunset"]
+        }
+      }
+    }
+  }
+  ```
+  
+  **Note**: If namespace query parameter is provided, only that namespace's metadata is returned.
+}

@@ -1,0 +1,50 @@
+meta {
+  name: Execute Plugin
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v0/plugins/{{pluginName}}/execute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "media_id": "6c102f0f-2da6-41ae-9cbf-b25e628b1d88"
+  }
+}
+
+vars:pre-request {
+  pluginName: claude_vision
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("taskId", res.body.task_id);
+    console.log("Plugin execution started, task ID:", res.body.task_id);
+  }
+}
+
+docs {
+  # Execute Plugin
+  
+  Execute a plugin on a media file. Execution runs asynchronously.
+  
+  ## Path Parameters
+  - `plugin_name`: Name of the plugin (e.g., `assembly_ai`)
+  
+  ## Request Body
+  - `media_id` (required): UUID of the media file to process
+  
+  ## Response
+  - 200 OK: Plugin execution started
+  - Returns `task_id` for tracking execution status
+  
+  **Note**: Use the Tasks API to check execution status.
+}

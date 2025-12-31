@@ -1,0 +1,28 @@
+meta {
+  name: List Plugins
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/plugins
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Plugins
+  
+  List all available plugins.
+  
+  ## Response
+  Returns an array of plugin information including:
+  - Name
+  - Description
+  - Supported media types
+}
+

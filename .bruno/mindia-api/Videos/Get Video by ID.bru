@@ -1,0 +1,50 @@
+meta {
+  name: Get Video by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/videos/{{videoId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  ~videoId: 
+}
+
+docs {
+  # Get Video by ID
+  
+  Retrieve metadata for a specific video by its UUID.
+  
+  **URL Parameters**:
+  - videoId: UUID of the video
+  
+  **Response**:
+  - 200 OK: Video metadata object
+  - 404 Not Found: Video not found
+  - 500 Internal Server Error: Database error
+  
+  **Response Fields**:
+  - id: Video UUID
+  - filename: Original filename
+  - url: S3 URL for original video
+  - content_type: MIME type
+  - file_size: Size in bytes
+  - duration: Video duration in seconds
+  - width: Video width in pixels
+  - height: Video height in pixels
+  - processing_status: pending/processing/completed/failed
+  - hls_url: URL to HLS master playlist (if completed)
+  - variants: Available quality variants (if completed)
+  - uploaded_at: Upload timestamp
+  
+  **Note**: Use the videoId variable set by "Upload Video" or "List Videos"
+}
+

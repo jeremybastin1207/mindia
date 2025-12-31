@@ -1,0 +1,37 @@
+meta {
+  name: Resize - Exact Dimensions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/resize/320x240/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 385c9eb2-070a-4f93-a4b4-2b421f975085
+}
+
+docs {
+  # Resize to Exact Dimensions
+  
+  Resize the image to exactly 320x240 pixels (may stretch/distort).
+  
+  **URL Format**: `/api/images/:id/-/resize/WxH/`
+  
+  **Response**:
+  - 200 OK: Transformed image (binary)
+  - 400 Bad Request: Invalid dimensions format
+  - 404 Not Found: Image does not exist
+  - 500 Internal Server Error: Transformation failed
+  
+  **Cache Headers**: Results cached for 1 year (immutable)
+  
+  **Tip**: Use a CDN to cache transformed images for better performance.
+}

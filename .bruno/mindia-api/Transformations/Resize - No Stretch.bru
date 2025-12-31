@@ -1,0 +1,38 @@
+meta {
+  name: Resize - No Stretch
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/stretch/off/-/resize/800x/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 550e8400-e29b-41d4-a716-446655440000
+}
+
+docs {
+  # Resize Without Upscaling
+  
+  Resize to 800px width but won't upscale if original is smaller.
+  
+  **URL Format**: `/api/images/:id/-/stretch/off/-/resize/dimensions/`
+  
+  **Stretch Mode: off**
+  - If original < target: Returns original size (no upscaling)
+  - If original > target: Downscales to target size
+  
+  **Use Case**: Prevent small images from becoming pixelated
+  
+  **Example**:
+  - Original: 640x480 → Result: 640x480 (unchanged)
+  - Original: 1920x1080 → Result: 800x450 (downscaled)
+}
+

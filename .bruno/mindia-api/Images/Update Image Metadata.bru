@@ -1,0 +1,50 @@
+meta {
+  name: Update Image Metadata
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/metadata
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: YOUR_IMAGE_ID_HERE
+}
+
+body:json {
+  {
+    "metadata": {
+      "title": "My Image",
+      "description": "A beautiful image",
+      "tags": ["nature", "landscape"],
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Update Image Metadata
+  
+  Update custom metadata for an image. Metadata is stored as a JSON object with key-value pairs.
+  
+  ## Path Parameters
+  - `id`: UUID of the image
+  
+  ## Request Body
+  - `metadata`: JSON object with key-value pairs
+  
+  ## Response
+  - 200 OK: Metadata updated successfully
+  - 404 Not Found: Image not found
+  - 400 Bad Request: Invalid metadata format (must be a JSON object)
+  
+  **Note**: Metadata must be a valid JSON object. You can store any custom key-value pairs.
+}
+

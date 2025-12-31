@@ -1,0 +1,40 @@
+meta {
+  name: Get Webhook by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/webhooks/{{webhookId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Get Webhook by ID
+  
+  Retrieve details of a specific webhook configuration.
+  
+  **Path Parameters**:
+  - `id`: Webhook UUID
+  
+  **Response**:
+  - 200 OK: Webhook details
+  - 404 Not Found: Webhook not found
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `id`: Webhook UUID
+  - `tenant_id`: Owner tenant ID
+  - `url`: Webhook endpoint URL
+  - `event_type`: Event type this webhook subscribes to
+  - `signing_secret`: Secret key (if configured)
+  - `is_active`: Whether webhook is enabled
+  - `description`: Human-readable description
+  - `created_at`: Creation timestamp
+  - `updated_at`: Last update timestamp
+}

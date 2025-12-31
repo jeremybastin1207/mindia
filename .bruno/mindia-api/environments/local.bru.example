@@ -1,0 +1,6 @@
+vars {
+  baseUrl: http://localhost:3001
+  # Replace with your actual API key (MASTER_API_KEY or tenant API key)
+  # Get this from your .env file or generate a new tenant API key
+  accessToken: your-api-key-here
+}

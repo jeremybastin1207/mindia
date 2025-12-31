@@ -1,0 +1,127 @@
+[workspace]
+members = [
+  "src/mindia-core",
+  "src/mindia-db",
+  "src/mindia-services",
+  "src/mindia-plugins",
+  "src/mindia-infra",
+  "src/mindia-storage",
+  "src/mindia-processing",
+  "src/mindia-worker",
+  "src/mindia-api",
+  "src/mindia-cli",
+  "src/mindia-mcp",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[workspace.dependencies]
+# Common dependencies shared across crates
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.9"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", default-features = false, features = [
+  "runtime-tokio-rustls",
+  "postgres",
+  "uuid",
+  "chrono",
+  "migrate",
+  "rust_decimal",
+  "macros",
+] }
+rust_decimal = { version = "1.33", features = ["serde-float"] }
+bytes = "1.11.1"
+async-trait = "0.1"
+base64 = "0.21"
+dotenvy = "0.15"
+hostname = "0.4"
+tempfile = "3.8"
+
+# Optional dependencies (feature-gated)
+aws-config = { version = "1.1" }
+aws-sdk-s3 = { version = "1.13" }
+aws-sdk-sqs = { version = "1.13" }
+aws-sdk-rekognition = { version = "1.13" }
+aws-sdk-transcribe = { version = "1.13" }
+image = { version = "0.24", features = ["jpeg", "png", "webp", "gif"] }
+imageproc = { version = "0.24" }
+ravif = { version = "0.11" }
+rgb = { version = "0.8" }
+webp = { version = "0.3" }
+mozjpeg = { version = "0.10" }
+img-parts = { version = "0.3" }
+kamadak-exif = { version = "0.5" }
+clamav-client = { version = "0.5", features = ["tokio"] }
+pgvector = { version = "0.4", features = ["sqlx"] }
+reqwest = { version = "0.11", features = ["json"] }
+tracing-opentelemetry = { version = "0.27" }
+opentelemetry = { version = "0.27", features = ["trace", "metrics", "logs"] }
+opentelemetry_sdk = { version = "0.27", features = [
+  "trace",
+  "metrics",
+  "logs",
+  "rt-tokio",
+] }
+opentelemetry-otlp = { version = "0.27", default-features = false, features = [
+  "trace",
+  "metrics",
+  "logs",
+  "http-proto",
+] }
+opentelemetry-semantic-conventions = { version = "0.27" }
+opentelemetry-http = { version = "0.27" }
+opentelemetry-aws = { version = "0.14", features = ["trace"] }
+
+# HTTP/API dependencies (for api crate)
+axum = { version = "0.7", features = ["multipart"] }
+tower = { version = "0.4", features = ["limit"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
+utoipa = { version = "5.2", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-rapidoc = { version = "5.0", features = ["axum"] }
+utoipa-axum = "0.1"
+
+# Auth dependencies
+jsonwebtoken = "9"
+bcrypt = "0.15"
+validator = { version = "0.19", features = ["derive"] }
+hex = "0.4"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.9"
+rand_core = "0.6"
+argon2 = "0.5"
+aes-gcm = "0.10"
+
+# Utility dependencies
+zip = "0.6"
+tar = "0.4"
+flate2 = "1.0"
+sysinfo = "0.30"
+tokio-util = "0.7"
+regex = "1.10"
+lru = "0.16.3"
+percent-encoding = "2.3"
+subtle = "2.5"
+lettre = { version = "0.11", default-features = false, features = [
+  "tokio1-native-tls",
+  "builder",
+  "smtp-transport",
+] }
+pdf-extract = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

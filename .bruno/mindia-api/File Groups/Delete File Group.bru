@@ -1,0 +1,35 @@
+meta {
+  name: Delete File Group
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/groups/{{fileGroupId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  fileGroupId: YOUR_FILE_GROUP_ID_HERE
+}
+
+docs {
+  # Delete File Group
+  
+  Delete a file group. This only removes the association, not the actual media files.
+  
+  ## Path Parameters
+  - `id`: UUID of the file group
+  
+  ## Response
+  - 204 No Content: File group deleted successfully
+  - 404 Not Found: File group not found
+  
+  **Note**: Deleting a group only removes the association. The actual media files remain in storage.
+}
+

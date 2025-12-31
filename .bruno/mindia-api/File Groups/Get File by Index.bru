@@ -1,0 +1,39 @@
+meta {
+  name: Get File by Index
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v0/groups/{{fileGroupId}}/nth/0
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  fileGroupId: YOUR_FILE_GROUP_ID_HERE
+}
+
+params:path {
+  index: 0
+}
+
+docs {
+  # Get File by Index
+  
+  Get a redirect to a specific file in the group by its index.
+  
+  ## Path Parameters
+  - `id`: UUID of the file group
+  - `index`: Zero-based index of the file (0 = first file)
+  
+  ## Response
+  - 302 Found: Redirect to the file URL
+  
+  **Note**: Index is 0-based. The first file is at index 0.
+}
+

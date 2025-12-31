@@ -1,0 +1,34 @@
+meta {
+  name: Delete Webhook
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/webhooks/{{webhookId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # Delete Webhook
+  
+  Delete a webhook configuration.
+  
+  **Path Parameters**:
+  - `id`: Webhook UUID
+  
+  **Response**:
+  - 200 OK: Webhook deleted successfully
+  - 404 Not Found: Webhook not found
+  - 500 Internal Server Error: Server error
+  
+  **Notes**:
+  - Webhook must belong to the current tenant
+  - This action cannot be undone
+  - Associated webhook event logs are NOT automatically deleted
+}

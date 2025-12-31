@@ -1,0 +1,69 @@
+meta {
+  name: Update Metadata Key
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}/metadata/{{metadataKey}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+  metadataKey: your_metadata_key
+}
+
+body:json {
+  "your_value_here"
+}
+
+docs {
+  # Update Metadata Key
+  
+  Update or create a single metadata key for a media file.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  - `key`: Metadata key name (must match pattern: lowercase letters, numbers, underscores, hyphens, max 100 chars)
+  
+  ## Request Body
+  - Any JSON value: string, number, boolean, object, array, or null
+  - Value must be valid JSON and within size limits (max 10KB per value)
+  
+  ## Response
+  - 200 OK: Updated metadata object (all metadata keys for the media)
+  - 400 Bad Request: Invalid key name or value
+  - 404 Not Found: Media not found
+  - 500 Internal Server Error: Server error
+  
+  **Validation Rules**:
+  - Key: lowercase letters, numbers, underscores, hyphens only (max 100 chars)
+  - Value: Any valid JSON (max 10KB)
+  - Total keys: Max 50 keys per media file
+  - Total metadata size: Max 100KB per media file
+  
+  **Example Values**:
+  ```json
+  "string_value"
+  123
+  true
+  ["array", "of", "values"]
+  {"nested": "object"}
+  null
+  ```
+  
+  **Note**: This operation merges/updates only the specified key. Other metadata keys remain unchanged.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Metadata key updated successfully");
+    console.log("Full metadata:", JSON.stringify(res.body.metadata, null, 2));
+  }
+}

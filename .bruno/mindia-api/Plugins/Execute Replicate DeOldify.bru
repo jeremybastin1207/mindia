@@ -1,0 +1,96 @@
+meta {
+  name: Execute Replicate DeOldify
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v0/plugins/replicate_deoldify/execute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "media_id": "efccda86-129b-47ff-956e-2b586fd3776f"
+  }
+}
+
+vars:pre-request {
+  imageMediaId: your-image-media-id-here
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("deoldifyTaskId", res.body.task_id);
+    console.log("Replicate DeOldify execution started, task ID:", res.body.task_id);
+  }
+}
+
+docs {
+  # Execute Replicate DeOldify Plugin
+  
+  Colorize old black and white images using Replicate's DeOldify model.
+  This plugin processes image files asynchronously and generates a colorized version.
+  
+  ## Path Parameters
+  - Plugin name is `replicate_deoldify`
+  
+  ## Request Body
+  - `media_id` (required): UUID of the image file to colorize
+  
+  ## Response
+  - 200 OK: Plugin execution started
+  - Returns `task_id` for tracking execution status
+  
+  ## Configuration
+  Before using this plugin, you need to configure it with your Replicate API token:
+  
+  ```bash
+  # Set plugin configuration (replace with your Replicate API token)
+  POST /api/v0/plugins/replicate_deoldify/config
+  {
+    "config": {
+      "api_token": "r8_your_replicate_api_token_here",
+      "render_factor": 35
+    }
+  }
+  ```
+  
+  ## Configuration Options
+  - `api_token` (required): Your Replicate API token (get from https://replicate.com/account/api-tokens)
+  - `render_factor` (optional): Quality factor (1-40, default: 35 for artistic results, higher = better quality)
+  - `model_version` (optional): Specific model version to use (default: latest)
+  
+  ## Output
+  The plugin creates a new colorized image and stores:
+  - `colorized_media_id`: UUID of the newly created colorized image
+  - `colorized_storage_key`: Storage key for the colorized image
+  - `colorized_storage_url`: URL to access the colorized image
+  - `file_group_id`: UUID of the file group linking original and colorized images
+  - `prediction_id`: Replicate prediction ID for tracking
+  - `replicate_output_url`: Direct URL from Replicate API
+  
+  ## File Grouping
+  The plugin automatically creates a file group that links:
+  - The original black and white image
+  - The colorized version
+  
+  This makes it easy to see related images together.
+  
+  **Note**: 
+  - Only works with image files (JPG, PNG, WebP)
+  - Use the Tasks API to check execution status
+  - Processing typically takes 5-10 seconds
+  - Check the plugin metadata in the media item to access the colorized image
+  
+  ## Model Information
+  - Model: arielreplicate/deoldify_image
+  - Purpose: Add colors to old black and white images
+  - Rendering modes: Artistic (vibrant) and Stable (natural)
+  - Documentation: https://replicate.com/arielreplicate/deoldify_image
+}

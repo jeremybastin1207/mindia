@@ -1,0 +1,33 @@
+meta {
+  name: Delete Preset
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/presets/{{presetName}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  presetName: thumbnail
+}
+
+docs {
+  # Delete Preset
+  
+  Delete a named transformation preset.
+  
+  **Path Parameters**:
+  - `presetName`: name of the preset to delete
+  
+  **Response**:
+  - 204 No Content: Preset deleted successfully
+  - 404 Not Found: Preset does not exist
+}
+

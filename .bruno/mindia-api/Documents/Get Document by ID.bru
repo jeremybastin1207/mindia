@@ -1,0 +1,41 @@
+meta {
+  name: Get Document by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v0/documents/{{documentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  documentId: YOUR_DOCUMENT_ID_HERE
+}
+
+docs {
+  # Get Document by ID
+  
+  Retrieve metadata for a specific document file.
+  
+  ## Path Parameters
+  - `id`: UUID of the document file
+  
+  ## Response
+  Returns document metadata including:
+  - ID
+  - Filename
+  - URL
+  - Content type
+  - File size
+  - Page count
+  - Upload timestamp
+  - Storage behavior
+  - Folder information (if in a folder)
+}
+

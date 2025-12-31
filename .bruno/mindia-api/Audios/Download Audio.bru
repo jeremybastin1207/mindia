@@ -1,0 +1,32 @@
+meta {
+  name: Download Audio
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/api/audios/{{audio_id}}/file
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  audio_id: YOUR_AUDIO_ID_HERE
+}
+
+docs {
+  # Download Audio
+  
+  Download the actual audio file content.
+  
+  ## Path Parameters
+  - `id`: UUID of the audio file
+  
+  ## Response
+  Returns the audio file with appropriate Content-Type and Content-Disposition headers.
+}
+

@@ -1,0 +1,36 @@
+# fly.toml app configuration file generated for mindia on 2025-12-31T14:49:15+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'mindia'
+primary_region = 'ams'
+
+[build]
+
+[env]
+PORT = '8080'
+RUST_LOG = 'mindia=info,tower_http=info'
+CLAMAV_ENABLED = 'true'
+CLAMAV_HOST = '127.0.0.1'
+CLAMAV_PORT = '3310'
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = 'stop'
+auto_start_machines = true
+min_machines_running = 1  # Keep at least 1 machine running to avoid cold starts with ClamAV
+processes = ['app']
+
+[[http_service.checks]]
+interval = '30s'
+timeout = '5s'
+grace_period = '10s'
+method = 'GET'
+path = '/health'
+
+[[vm]]
+cpu_kind = 'shared'
+cpus = 2
+memory_mb = 2048    # ClamAV requires at least 2GB RAM

@@ -1,0 +1,65 @@
+meta {
+  name: Upload Document
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/documents?store=auto
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  store: auto
+}
+
+body:multipart-form {
+  file: @file(/path/to/your/document.pdf)
+}
+
+docs {
+  # Upload Document
+  
+  Upload a document file (PDF) to S3 and store metadata in PostgreSQL.
+  
+  **Request**: Multipart form data with a "file" field
+  
+  **Query Parameters**:
+  - `store` (optional): Controls file storage behavior
+    - `0` - File will be deleted after 24 hours
+    - `1` - File will be stored permanently until explicitly deleted
+    - `auto` (default) - Defers to project's auto-store setting (configurable via AUTO_STORE_ENABLED)
+  
+  **Response**:
+  - 200 OK: Document uploaded successfully
+  - 400 Bad Request: Invalid file or validation error
+  - 413 Payload Too Large: File exceeds maximum size
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `store_behavior`: Original store parameter value ("0", "1", or "auto")
+  - `store_permanently`: Resolved boolean indicating if file will be kept permanently
+  - `expires_at`: Timestamp when file will expire (null if permanent)
+  
+  **Features**:
+  - Validates document file type and size
+  - Optional ClamAV virus scanning
+  - Uploads to S3
+  - Stores metadata in database
+  - Automatic cleanup of expired files (runs hourly)
+  - Supports semantic search (if enabled)
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("documentId", res.body.id);
+    bru.setVar("documentUrl", res.body.url);
+    console.log("Document uploaded:", res.body.id);
+  }
+}
+

@@ -1,0 +1,44 @@
+meta {
+  name: List Images
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  # List Images
+  
+  Returns a list of all uploaded images (limited to 50 results).
+  
+  **Response**:
+  - 200 OK: Array of image metadata objects
+  - 500 Internal Server Error: Database error
+  
+  Each image object contains:
+  - id: UUID of the image
+  - filename: Stored filename (UUID.extension)
+  - original_filename: Original filename from upload
+  - url: Public S3 URL
+  - content_type: MIME type
+  - file_size: Size in bytes
+  - width: Image width in pixels
+  - height: Image height in pixels
+  - uploaded_at: Upload timestamp
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.length > 0) {
+    bru.setVar("imageId", res.body[0].id);
+    console.log("First image ID:", res.body[0].id);
+  }
+}
+

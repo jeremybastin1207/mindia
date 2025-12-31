@@ -1,0 +1,70 @@
+meta {
+  name: Get Traffic Summary
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v0/analytics/traffic?limit=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  limit: 20
+  ~start_date: 2024-01-01T00:00:00Z
+  ~end_date: 2024-12-31T23:59:59Z
+}
+
+docs {
+  # Get Traffic Summary
+  
+  Retrieve comprehensive traffic statistics including popular URLs and request metrics.
+  
+  **Query Parameters** (all optional):
+  - limit: Number of popular URLs to return (default: 20)
+  - start_date: Filter from date (ISO 8601 format)
+  - end_date: Filter to date (ISO 8601 format)
+  
+  **Response**:
+  - 200 OK: Traffic summary object
+  - 500 Internal Server Error: Failed to retrieve statistics
+  
+  **Response Fields**:
+  - total_requests: Total number of API requests
+  - total_bytes_sent: Total response bytes (downloads)
+  - total_bytes_received: Total request bytes (uploads)
+  - avg_response_time_ms: Average response time in milliseconds
+  - requests_per_method: Request counts by HTTP method (GET, POST, DELETE)
+  - requests_per_status: Request counts by status code
+  - popular_urls: Array of most-accessed URLs with statistics
+  
+  **Popular URL Statistics**:
+  - path: Normalized URL path (UUIDs replaced with :id)
+  - request_count: Number of requests to this URL
+  - total_bytes_sent: Total bytes sent in responses
+  - total_bytes_received: Total bytes received in requests
+  - avg_response_time_ms: Average response time
+  - min_duration_ms: Fastest response time
+  - max_duration_ms: Slowest response time
+  - status_2xx/3xx/4xx/5xx: Count of responses by status class
+  
+  **Examples**:
+  - Last 7 days: ?start_date=2024-01-24T00:00:00Z
+  - Top 10 URLs: ?limit=10
+  - Date range: ?start_date=2024-01-01T00:00:00Z&end_date=2024-01-31T23:59:59Z
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Total requests:", res.body.total_requests);
+    console.log("Total bytes sent:", (res.body.total_bytes_sent / 1024 / 1024).toFixed(2), "MB");
+    console.log("Avg response time:", res.body.avg_response_time_ms.toFixed(2), "ms");
+    console.log("Top URL:", res.body.popular_urls[0]?.path);
+  }
+}
+

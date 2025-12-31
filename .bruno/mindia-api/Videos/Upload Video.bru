@@ -1,0 +1,72 @@
+meta {
+  name: Upload Video
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/videos?store=auto
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+params:query {
+  store: auto
+}
+
+body:multipart-form {
+  file: @file(/path/to/your/video.mp4)
+}
+
+docs {
+  # Upload Video
+  
+  Upload a video file to S3 and queue for HLS transcoding.
+  
+  **Request**: Multipart form data with a "file" field
+  
+  **Query Parameters**:
+  - `store` (optional): Controls file storage behavior
+    - `0` - File will be deleted after 24 hours
+    - `1` - File will be stored permanently until explicitly deleted
+    - `auto` (default) - Defers to project's auto-store setting (configurable via AUTO_STORE_ENABLED)
+  
+  **Response**:
+  - 201 Created: Video uploaded and queued for processing
+  - 400 Bad Request: Invalid file or validation error
+  - 413 Payload Too Large: File exceeds maximum size
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `store_behavior`: Original store parameter value ("0", "1", or "auto")
+  - `store_permanently`: Resolved boolean indicating if file will be kept permanently
+  - `expires_at`: Timestamp when file will expire (null if permanent)
+  
+  **Features**:
+  - Validates video file type and size
+  - Optional ClamAV virus scanning
+  - Uploads to S3
+  - Queues for HLS transcoding (background processing)
+  - Extracts video metadata (duration, dimensions)
+  - Automatic cleanup of expired files (runs hourly)
+  
+  **Processing Status**:
+  - pending: Video uploaded, waiting for transcoding
+  - processing: Currently transcoding to HLS
+  - completed: HLS variants ready for streaming
+  - failed: Transcoding failed
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("videoId", res.body.id);
+    bru.setVar("videoUrl", res.body.url);
+    console.log("Video uploaded:", res.body.id);
+    console.log("Processing status:", res.body.processing_status);
+  }
+}
+

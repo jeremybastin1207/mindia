@@ -1,0 +1,59 @@
+meta {
+  name: Start Chunked Upload
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v0/uploads/chunked/start
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "filename": "largefile.mp4",
+    "content_type": "video/mp4",
+    "file_size": 104857600,
+    "media_type": "video",
+    "chunk_size": 5242880,
+    "store": "auto",
+    "metadata": {
+      "custom_field": "value"
+    }
+  }
+}
+
+docs {
+  # Start Chunked Upload
+  
+  Start a chunked upload session for large files. Files are split into chunks and uploaded separately.
+  
+  ## Request Body
+  - `filename` (required): Original filename
+  - `content_type` (required): MIME type
+  - `file_size` (required): Total file size in bytes
+  - `media_type` (required): Type of media (`image`, `video`, `audio`, `document`)
+  - `chunk_size` (required): Size of each chunk in bytes
+  - `store` (optional): Storage behavior (`0`, `1`, or `auto`, default: `auto`)
+  - `metadata` (optional): Custom metadata (JSON object)
+  
+  ## Response
+  - 200 OK: Chunked upload session started
+  - Returns `session_id`, `chunk_count`, and presigned URLs for each chunk
+  
+  **Note**: Upload each chunk to its presigned URL, then record each chunk upload, and finally complete the upload.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("sessionId", res.body.session_id);
+    console.log("Chunked upload started, session ID:", res.body.session_id);
+    console.log("Chunk count:", res.body.chunk_count);
+  }
+}
+

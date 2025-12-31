@@ -1,0 +1,41 @@
+meta {
+  name: Resize - Stretch On (Default)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/stretch/on/-/resize/800x600/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 550e8400-e29b-41d4-a716-446655440000
+}
+
+docs {
+  # Resize with Upscaling Allowed
+  
+  Resize to 800x600, allowing upscaling if original is smaller.
+  
+  **URL Format**: `/api/images/:id/-/stretch/on/-/resize/WxH/`
+  
+  **Stretch Mode: on (default)**
+  - Images can be upscaled
+  - May reduce quality for small originals
+  - Default behavior when no stretch mode specified
+  
+  **Note**: These two URLs are equivalent:
+  - `/api/images/:id/-/resize/800x600/`
+  - `/api/images/:id/-/stretch/on/-/resize/800x600/`
+  
+  **Example**:
+  - Original: 400x300 → Result: 800x600 (upscaled)
+  - Original: 1600x1200 → Result: 800x600 (downscaled)
+}
+

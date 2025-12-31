@@ -1,0 +1,64 @@
+meta {
+  name: Upload Image
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v0/images?store=auto
+  body: multipartForm
+  auth: bearer
+}
+
+params:query {
+  store: auto
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  file: @file(/home/jba/Pictures/019_001.jpg)
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("imageId", res.body.id);
+    bru.setVar("imageUrl", res.body.url);
+    console.log("Image uploaded:", res.body.id);
+  }
+}
+
+docs {
+  # Upload Image
+  
+  Upload an image file to S3 and store metadata in PostgreSQL.
+  
+  **Request**: Multipart form data with a "file" field
+  
+  **Query Parameters**:
+  - `store` (optional): Controls file storage behavior
+    - `0` - File will be deleted after 24 hours
+    - `1` - File will be stored permanently until explicitly deleted
+    - `auto` (default) - Defers to project's auto-store setting (configurable via AUTO_STORE_ENABLED)
+  
+  **Response**:
+  - 201 Created: Image uploaded successfully
+  - 400 Bad Request: Invalid file or validation error
+  - 413 Payload Too Large: File exceeds maximum size
+  - 500 Internal Server Error: Server error
+  
+  **Response Fields**:
+  - `store_behavior`: Original store parameter value ("0", "1", or "auto")
+  - `store_permanently`: Resolved boolean indicating if file will be kept permanently
+  - `expires_at`: Timestamp when file will expire (null if permanent)
+  
+  **Features**:
+  - Validates file type and size
+  - Generates UUID for storage
+  - Extracts image dimensions
+  - Uploads to S3
+  - Stores metadata in database
+  - Automatic cleanup of expired files (runs hourly)
+}

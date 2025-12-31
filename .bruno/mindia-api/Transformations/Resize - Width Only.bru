@@ -1,0 +1,33 @@
+meta {
+  name: Resize - Width Only
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/images/{{imageId}}/-/resize/300x/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  imageId: 88689a3a-8487-408b-9347-8142fbbf9e7b
+}
+
+docs {
+  # Resize to Width (Preserve Aspect Ratio)
+  
+  Resize the image to 320px width, height calculated to preserve aspect ratio.
+  
+  **URL Format**: `/api/images/:id/-/resize/Wx/`
+  
+  **Response**: Transformed image with proportional dimensions
+  
+  **Example**: 
+  - Original: 1920x1080
+  - Result: 320x180 (maintains 16:9 ratio)
+}

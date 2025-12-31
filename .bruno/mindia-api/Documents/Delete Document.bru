@@ -1,0 +1,36 @@
+meta {
+  name: Delete Document
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_DOCUMENT_ID_HERE
+}
+
+docs {
+  # Delete Document
+  
+  Delete a **document** via the unified media delete endpoint.
+  
+  ## Path Parameters
+  - `id`: UUID of the media entry (document)
+  
+  ## Response
+  - 204 No Content: Document deleted successfully
+  - 404 Not Found: Document not found
+  - 500 Internal Server Error: Server error
+  
+  **Note**: This permanently deletes the document file from storage and removes its metadata from the database.
+}
+

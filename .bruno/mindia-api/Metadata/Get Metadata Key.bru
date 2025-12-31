@@ -1,0 +1,46 @@
+meta {
+  name: Get Metadata Key
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v0/media/{{mediaId}}/metadata/{{metadataKey}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  mediaId: YOUR_MEDIA_ID_HERE
+  metadataKey: your_metadata_key
+}
+
+docs {
+  # Get Metadata Key
+  
+  Retrieve a single metadata key's value for a media file.
+  
+  ## Path Parameters
+  - `id`: UUID of the media file
+  - `key`: Metadata key name (must match pattern: lowercase letters, numbers, underscores, hyphens)
+  
+  ## Query Parameters
+  - `namespace` (optional): Filter by namespace ("user" or "plugins"). If omitted, searches user namespace first.
+  
+  ## Response
+  - 200 OK: Metadata key value (any JSON value: string, number, boolean, object, array, null)
+  - 404 Not Found: Media or key not found
+  - 500 Internal Server Error: Server error
+  
+  **Note**: Only user metadata keys can be retrieved. Plugin metadata is read-only.
+  
+  **Example Keys**:
+  - `category`
+  - `tags`
+  - `custom_field`
+  - `project_id`
+}

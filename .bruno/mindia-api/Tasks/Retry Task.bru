@@ -1,0 +1,35 @@
+meta {
+  name: Retry Task
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v0/tasks/{{taskId}}/retry
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  taskId: YOUR_TASK_ID_HERE
+}
+
+docs {
+  # Retry Task
+  
+  Retry a failed task.
+  
+  ## Path Parameters
+  - `id`: UUID of the task
+  
+  ## Response
+  - 200 OK: Task scheduled for retry
+  - 400 Bad Request: Task not found or not in failed state
+  
+  **Note**: Tasks can only be retried if they have not exceeded `max_retries`.
+}
+

@@ -1,0 +1,37 @@
+meta {
+  name: Download Archive - ZIP
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v0/groups/{{fileGroupId}}/archive/zip
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+vars:pre-request {
+  fileGroupId: YOUR_FILE_GROUP_ID_HERE
+}
+
+docs {
+  # Download Archive - ZIP
+  
+  Download the entire file group as a ZIP archive.
+  
+  ## Path Parameters
+  - `id`: UUID of the file group
+  - `format`: Archive format (`zip` or `tar`)
+  
+  ## Response
+  - 200 OK: ZIP archive file
+  - Content-Type: `application/zip`
+  - Content-Disposition: `attachment; filename="group.zip"`
+  
+  **Note**: The response body contains the binary ZIP file.
+}
+

@@ -1,0 +1,82 @@
+# Build stage - Install cargo-chef
+FROM rust:1-slim-bookworm AS chef
+WORKDIR /app
+RUN cargo install cargo-chef
+
+# Prepare recipe
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Build dependencies (cached layer)
+FROM chef AS builder
+WORKDIR /app
+
+# Install build dependencies (nasm required by rav1e for AV1/AVIF)
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build dependencies - this is the cached layer!
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Copy source code and build application
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY migrations ./migrations
+
+# Build with SIMD optimizations for modern x86_64 CPUs
+ENV RUSTFLAGS="-C target-cpu=x86-64-v2"
+RUN cargo build --release -p mindia-api
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+# Use classic sources so apt can find packages (bookworm-slim may have minimal DEB822 config)
+RUN echo 'deb http://deb.debian.org/debian bookworm main' > /etc/apt/sources.list \
+    && echo 'deb http://deb.debian.org/debian bookworm-updates main' >> /etc/apt/sources.list \
+    && echo 'deb http://security.debian.org/debian-security bookworm-security main' >> /etc/apt/sources.list
+
+# Install runtime dependencies including ClamAV (clamav meta-package pulls in daemon + freshclam)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    ffmpeg \
+    clamav \
+    clamav-daemon \
+    clamav-freshclam \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure ClamAV
+RUN mkdir -p /var/run/clamav /var/lib/clamav && \
+    chown -R clamav:clamav /var/run/clamav /var/lib/clamav && \
+    chmod 755 /var/run/clamav
+
+# Update ClamAV database (freshclam)
+# This can take several minutes and increases image size significantly (~200MB)
+# Comment out this line to speed up builds and update at runtime instead
+RUN freshclam || echo "Warning: freshclam failed, will retry at runtime"
+
+# Copy binary from builder
+COPY --from=builder /app/target/release/mindia-api /usr/local/bin/mindia-api
+
+# Copy migrations
+COPY --from=builder /app/migrations /app/migrations
+
+# Copy and set up entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Expose ports
+EXPOSE 3000
+EXPOSE 8080
+
+# Use entrypoint script to start both ClamAV and the application
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
