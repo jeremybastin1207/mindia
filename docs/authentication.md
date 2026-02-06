@@ -1,6 +1,6 @@
 # Authentication
 
-Mindia uses a master API key for authentication. All API requests must include this key in the Authorization header.
+Mindia authenticates requests using a **master API key** or **generated API keys**. Every request must include one of these in the Authorization header; all data access is scoped to the authenticated tenant.
 
 ## Table of Contents
 
@@ -11,7 +11,7 @@ Mindia uses a master API key for authentication. All API requests must include t
 
 ## Authentication Overview
 
-Mindia is a single-tenant media processing system that uses a simple master API key for authentication. There is no user registration or login system - all authenticated requests use the same master key.
+Mindia is a **multi-tenant** media processing system: it manages tenancy and isolates data per tenant. Authentication is by **master API key** (admin) or **generated API keys** (per-tenant). There is no user registration or login system—each request is authenticated by key and automatically scoped to that key’s tenant. See [Multi-Tenancy](multi-tenancy.md) and [API Keys](api-keys.md) for details.
 
 ## Setting Up Authentication
 
@@ -33,11 +33,11 @@ The master API key must be at least 32 characters long. The server will not star
 
 ## Using the API Key
 
-All API endpoints (except health checks) require authentication using the master API key.
+All API endpoints (except health checks) require authentication using the master API key or a generated API key.
 
 ### Header Format
 
-All requests must include the master API key in the Authorization header:
+Include the API key (master or generated) in the Authorization header:
 
 ```
 Authorization: Bearer YOUR_MASTER_API_KEY
@@ -78,12 +78,23 @@ const api = axios.create({
 const images = await api.get('/api/images');
 ```
 
+### Master Key vs Generated API Key
+
+| | Master API key | Generated API key |
+|--|----------------|-------------------|
+| **Format** | Any string (32+ chars) | `mk_live_` + 40 hex chars |
+| **Source** | `MASTER_API_KEY` env var | Created via `POST /api/v0/api-keys` |
+| **Tenant** | Default tenant | Tenant scoped when created |
+| **Use case** | Admin, CI/CD, initial setup | Per-app, per-tenant, revocable |
+
+Use the master key for server-side admin tasks and to create generated keys. Use generated keys for applications, integrations, and per-tenant access. See [API Keys](api-keys.md) to create and manage keys.
+
 ### Authentication Validation
 
 On each request, Mindia:
 1. Extracts the token from the `Authorization` header
-2. Verifies it matches the configured `MASTER_API_KEY`
-3. Allows the request to proceed if valid
+2. Verifies it matches the master API key, or is a valid generated API key (starts with `mk_live_`)
+3. Resolves the tenant for that key and scopes the request to that tenant
 
 If authentication fails, you'll receive a `401 Unauthorized` response.
 
@@ -206,6 +217,7 @@ async function makeAuthenticatedRequest(endpoint, options = {}) {
 
 ## Next Steps
 
+- [Multi-Tenancy](multi-tenancy.md) - Tenants, API keys, and isolation
 - [API Reference](api-reference.md) - Complete API documentation
 - [Best Practices](best-practices.md) - Security and performance tips
 - [Quick Start](quick-start.md) - Get started with Mindia

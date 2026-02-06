@@ -299,6 +299,8 @@ pub async fn setup_test_app() -> TestApp {
             webhook_service: webhook_service.clone(),
             webhook_retry_service: webhook_retry_service.clone(),
             folder_repository: folder_db.clone(),
+            api_key_repository: api_key_db.clone(),
+            tenant_repository: tenant_db.clone(),
             #[cfg(feature = "plugin")]
             plugin_registry: Arc::new(mindia::plugins::PluginRegistry::new()),
             #[cfg(feature = "plugin")]
@@ -326,11 +328,9 @@ pub async fn setup_test_app() -> TestApp {
 
     let auth_middleware_state = mindia::auth::middleware::AuthState {
         master_api_key: "test-master-api-key-at-least-32-characters-long".to_string(),
-    };
-
-    let api_key_service_state = Arc::new(handlers::api_keys::ApiKeyServiceState {
         api_key_repository: api_key_db.clone(),
-    });
+        tenant_repository: tenant_db.clone(),
+    };
 
     // Create router
     let public_routes = Router::new().route(
@@ -355,7 +355,7 @@ pub async fn setup_test_app() -> TestApp {
             "/api/v0/api-keys/:id",
             axum::routing::delete(handlers::api_keys::revoke_api_key),
         )
-        .with_state(api_key_service_state);
+        .with_state(state.clone());
 
     let protected_routes = Router::new()
         .route(

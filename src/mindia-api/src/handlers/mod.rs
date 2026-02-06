@@ -1,4 +1,5 @@
 pub mod analytics;
+pub mod api_keys;
 #[cfg(feature = "audio")]
 pub mod audio_download;
 #[cfg(feature = "audio")]

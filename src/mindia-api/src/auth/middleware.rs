@@ -1,3 +1,4 @@
+use crate::auth::api_key::{extract_key_prefix, verify_api_key};
 use crate::auth::models::TenantContext;
 use crate::error::HttpAppError;
 use crate::middleware::audit;
@@ -8,12 +9,18 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use mindia_core::AppError;
+use mindia_db::{ApiKeyRepository, TenantRepository};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
+
+/// Generated API key prefix (keys start with mk_live_)
+const API_KEY_PREFIX: &str = "mk_live_";
 
 #[derive(Clone)]
 pub struct AuthState {
     pub master_api_key: String,
+    pub api_key_repository: ApiKeyRepository,
+    pub tenant_repository: TenantRepository,
 }
 
 /// Constant-time comparison of two strings to prevent timing attacks on API key validation.
@@ -90,56 +97,156 @@ pub async fn auth_middleware(
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
-    // Check if token matches master API key (constant-time comparison to prevent timing attacks)
-    if !secure_compare(token, &auth_state.master_api_key) {
+    // First check: master API key (constant-time comparison to prevent timing attacks)
+    if secure_compare(token, &auth_state.master_api_key) {
+        // Master key: use default tenant context
+        use crate::auth::models::UserRole;
+        use mindia_core::constants::{DEFAULT_TENANT_ID, DEFAULT_USER_ID};
+        use mindia_core::models::{Tenant, TenantStatus};
+
+        let default_tenant_id = DEFAULT_TENANT_ID;
+        let default_user_id = DEFAULT_USER_ID;
+        let now = chrono::Utc::now();
+
+        let tenant_context = TenantContext {
+            tenant_id: default_tenant_id,
+            user_id: default_user_id,
+            role: UserRole::Admin,
+            tenant: Tenant {
+                id: default_tenant_id,
+                name: "default".to_string(),
+                status: TenantStatus::Active,
+                created_at: now,
+                updated_at: now,
+            },
+        };
+
         audit::log_authentication_attempt(
-            None,
-            None,
+            Some(tenant_context.tenant_id),
+            Some(tenant_context.user_id),
             None,
             client_ip,
             user_agent,
-            false,
-            Some("Invalid API key".to_string()),
+            true,
+            None,
         );
-        return HttpAppError(AppError::Unauthorized("Invalid API key".to_string())).into_response();
+
+        request.extensions_mut().insert(tenant_context);
+        return next.run(request).await;
     }
 
-    // Create default tenant context (deterministic UUID, not nil, for security and clarity)
-    use crate::auth::models::UserRole;
-    use mindia_core::constants::{DEFAULT_TENANT_ID, DEFAULT_USER_ID};
-    use mindia_core::models::{Tenant, TenantStatus};
+    // Second check: generated API key (mk_live_* format)
+    if token.starts_with(API_KEY_PREFIX) {
+        match authenticate_generated_key(
+            token,
+            &auth_state.api_key_repository,
+            &auth_state.tenant_repository,
+            client_ip.clone(),
+            user_agent.clone(),
+        )
+        .await
+        {
+            Ok((tenant_context, api_key_id)) => {
+                // Update last_used_at asynchronously (best-effort, don't block)
+                let api_key_repo = auth_state.api_key_repository.clone();
+                tokio::spawn(async move {
+                    let _ = api_key_repo.update_last_used(api_key_id).await;
+                });
 
-    let default_tenant_id = DEFAULT_TENANT_ID;
-    let default_user_id = DEFAULT_USER_ID;
-    let now = chrono::Utc::now();
+                audit::log_authentication_attempt(
+                    Some(tenant_context.tenant_id),
+                    Some(tenant_context.user_id),
+                    Some(api_key_id),
+                    client_ip,
+                    user_agent,
+                    true,
+                    None,
+                );
 
-    let tenant_context = TenantContext {
-        tenant_id: default_tenant_id,
-        user_id: default_user_id,
-        role: UserRole::Admin,
-        tenant: Tenant {
-            id: default_tenant_id,
-            name: "default".to_string(),
-            status: TenantStatus::Active,
-            created_at: now,
-            updated_at: now,
-        },
-    };
+                request.extensions_mut().insert(tenant_context);
+                return next.run(request).await;
+            }
+            Err(e) => {
+                audit::log_authentication_attempt(
+                    None,
+                    None,
+                    None,
+                    client_ip,
+                    user_agent,
+                    false,
+                    Some(e.to_string()),
+                );
+                return HttpAppError(AppError::Unauthorized(e.to_string())).into_response();
+            }
+        }
+    }
 
-    // Log successful authentication
+    // Neither master key nor valid generated key
     audit::log_authentication_attempt(
-        Some(tenant_context.tenant_id),
-        Some(tenant_context.user_id),
+        None,
+        None,
         None,
         client_ip,
         user_agent,
-        true,
-        None,
+        false,
+        Some("Invalid API key".to_string()),
     );
+    HttpAppError(AppError::Unauthorized("Invalid API key".to_string())).into_response()
+}
 
-    // Insert tenant context into request extensions
-    request.extensions_mut().insert(tenant_context);
+/// Authenticate using a generated API key (mk_live_*). Returns TenantContext and api_key_id on success.
+async fn authenticate_generated_key(
+    token: &str,
+    api_key_repo: &ApiKeyRepository,
+    tenant_repo: &TenantRepository,
+    _client_ip: Option<String>,
+    _user_agent: Option<String>,
+) -> Result<(TenantContext, uuid::Uuid), AppError> {
+    use crate::auth::models::UserRole;
+    use mindia_core::models::{Tenant, TenantStatus};
 
-    // Continue to next middleware/handler
-    next.run(request).await
+    let prefix = extract_key_prefix(token);
+    let candidates = api_key_repo.get_by_key_prefix(&prefix).await?;
+
+    for api_key in candidates {
+        if !api_key.is_active {
+            continue;
+        }
+        if ApiKeyRepository::is_expired(&api_key) {
+            return Err(AppError::Unauthorized("API key has expired".to_string()));
+        }
+        if verify_api_key(token, &api_key.key_hash)
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            let tenant = tenant_repo
+                .get_tenant_by_id(api_key.tenant_id)
+                .await?
+                .ok_or_else(|| {
+                    AppError::Internal("Tenant not found for API key".to_string())
+                })?;
+
+            if tenant.status != TenantStatus::Active {
+                return Err(AppError::Unauthorized(
+                    "Tenant is not active".to_string(),
+                ));
+            }
+
+            let tenant_context = TenantContext {
+                tenant_id: api_key.tenant_id,
+                user_id: api_key.id, // Use api_key id as user identifier for generated keys
+                role: UserRole::Admin,
+                tenant: Tenant {
+                    id: tenant.id,
+                    name: tenant.name,
+                    status: tenant.status,
+                    created_at: tenant.created_at,
+                    updated_at: tenant.updated_at,
+                },
+            };
+
+            return Ok((tenant_context, api_key.id));
+        }
+    }
+
+    Err(AppError::Unauthorized("Invalid API key".to_string()))
 }

@@ -11,8 +11,12 @@ pub struct TestUser {
     pub token: String,
 }
 
+/// Test master API key used by the test app setup (must match setup_test_app).
+pub const TEST_MASTER_API_KEY: &str = "test-master-api-key-at-least-32-characters-long";
+
 /// Register a new test user and tenant via API key flow.
 /// Creates a tenant and returns test user struct (use API key auth for requests).
+/// The token is the test master API key for authenticating with the test app.
 pub async fn register_test_user(
     _client: &TestServer,
     email: Option<&str>,
@@ -29,7 +33,7 @@ pub async fn register_test_user(
         password,
         tenant_id,
         user_id,
-        token: String::new(), // Use API key header instead
+        token: TEST_MASTER_API_KEY.to_string(),
     }
 }
 

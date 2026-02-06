@@ -6,11 +6,18 @@ export default defineConfig({
   ignoreDeadLinks: true,
   description:
     'High-performance media management API. Upload and manage images, videos, documents, and audio with S3 storage, on-the-fly transformations, HLS streaming, and semantic search.',
+  appearance: 'dark',
   themeConfig: {
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Quick Start', link: '/quick-start' },
       { text: 'API Reference', link: '/api-reference' },
+    ],
+    socialLinks: [
+      {
+        icon: 'github',
+        link: 'https://github.com/jeremybastin1207/mindia',
+      },
     ],
     sidebar: [
       {

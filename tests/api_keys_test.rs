@@ -14,8 +14,7 @@ async fn test_create_api_key() {
         .post("/api/v0/api-keys")
         .add_header("Authorization", format!("Bearer {}", user.token))
         .json(&serde_json::json!({
-            "name": "Test API Key",
-            "expires_at": null
+            "name": "Test API Key"
         }))
         .await;
 
@@ -38,8 +37,7 @@ async fn test_list_api_keys() {
         .post("/api/v0/api-keys")
         .add_header("Authorization", format!("Bearer {}", user.token))
         .json(&serde_json::json!({
-            "name": "Test Key",
-            "expires_at": null
+            "name": "Test Key"
         }))
         .await;
 
@@ -69,8 +67,7 @@ async fn test_get_api_key() {
         .post("/api/v0/api-keys")
         .add_header("Authorization", format!("Bearer {}", user.token))
         .json(&serde_json::json!({
-            "name": "Test Key",
-            "expires_at": null
+            "name": "Test Key"
         }))
         .await;
 
@@ -102,8 +99,7 @@ async fn test_revoke_api_key() {
         .post("/api/v0/api-keys")
         .add_header("Authorization", format!("Bearer {}", user.token))
         .json(&serde_json::json!({
-            "name": "Test Key",
-            "expires_at": null
+            "name": "Test Key"
         }))
         .await;
 

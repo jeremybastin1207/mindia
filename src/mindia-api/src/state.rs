@@ -4,8 +4,8 @@ use crate::plugins::{PluginRegistry, PluginService};
 use crate::task_handlers::{ContentModerationTaskHandler, PluginTaskHandler};
 use mindia_core::Config;
 use mindia_db::{
-    EmbeddingRepository, FileGroupRepository, FolderRepository, MediaRepository,
-    MetadataSearchRepository, NamedTransformationRepository, TaskRepository,
+    ApiKeyRepository, EmbeddingRepository, FileGroupRepository, FolderRepository, MediaRepository,
+    MetadataSearchRepository, NamedTransformationRepository, TaskRepository, TenantRepository,
     WebhookEventRepository, WebhookRepository, WebhookRetryRepository,
 };
 #[cfg(feature = "plugin")]
@@ -185,6 +185,9 @@ pub struct AppState {
     #[allow(dead_code)]
     pub webhook_retry_service: WebhookRetryService,
     pub folder_repository: FolderRepository,
+    // API keys and tenants (for auth with generated keys)
+    pub api_key_repository: ApiKeyRepository,
+    pub tenant_repository: TenantRepository,
     // Named transformations (presets)
     pub named_transformation_repository: NamedTransformationRepository,
     // Plugin system

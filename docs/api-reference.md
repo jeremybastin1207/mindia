@@ -12,7 +12,7 @@ All endpoints use the versioned prefix **`/api/v0`** (e.g. `POST /api/v0/images`
 
 ## Authentication
 
-All endpoints (except `/health`) require authentication using the **master API key** or a **tenant API key**.
+All endpoints (except `/health`) require authentication using the **master API key** or a **generated API key**.
 
 **Header**:
 ```

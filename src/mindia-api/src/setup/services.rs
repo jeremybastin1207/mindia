@@ -101,8 +101,8 @@ pub async fn initialize_services(
     let webhook_retry_db = WebhookRetryRepository::new(pool.clone());
 
     // Initialize authentication repositories
-    let _tenant_db = TenantRepository::new(pool.clone());
-    let _api_key_db = ApiKeyRepository::new(pool.clone());
+    let tenant_db = TenantRepository::new(pool.clone());
+    let api_key_db = ApiKeyRepository::new(pool.clone());
 
     // Auth/tenant repositories (API keys, tenants)
     // NOTE: User/OAuth authentication removed - using API keys and master key only
@@ -622,6 +622,8 @@ pub async fn initialize_services(
         webhook_service: webhook_service.clone(),
         webhook_retry_service: webhook_retry_service.clone(),
         folder_repository: folder_db.clone(),
+        api_key_repository: api_key_db.clone(),
+        tenant_repository: tenant_db.clone(),
         named_transformation_repository: named_transformation_db.clone(),
         #[cfg(feature = "plugin")]
         plugin_registry: plugin_registry_init.clone(),
@@ -737,6 +739,8 @@ pub async fn initialize_services(
         webhook_service,
         webhook_retry_service,
         folder_repository: folder_db,
+        api_key_repository: api_key_db,
+        tenant_repository: tenant_db,
         named_transformation_repository: named_transformation_db,
         #[cfg(feature = "plugin")]
         plugin_registry: plugin_registry_init.clone(),

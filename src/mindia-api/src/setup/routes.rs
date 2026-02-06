@@ -168,7 +168,7 @@ fn setup_cors(config: &Config) -> Result<CorsLayer, anyhow::Error> {
 /// Setup authentication middleware state
 fn setup_auth_middleware(
     _config: &Config,
-    _state: &Arc<AppState>,
+    state: &Arc<AppState>,
 ) -> Result<AuthState, anyhow::Error> {
     // Get master API key from environment
     let master_api_key = std::env::var("MASTER_API_KEY")
@@ -180,7 +180,11 @@ fn setup_auth_middleware(
         ));
     }
 
-    Ok(AuthState { master_api_key })
+    Ok(AuthState {
+        master_api_key,
+        api_key_repository: state.api_key_repository.clone(),
+        tenant_repository: state.tenant_repository.clone(),
+    })
 }
 
 /// Setup rate limiter with periodic cleanup task
@@ -314,6 +318,7 @@ fn protected_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(plugin_routes(state.clone()))
         .merge(upload_routes(state.clone()))
         .merge(webhook_routes(state.clone()))
+        .merge(api_key_routes(state.clone()))
         .with_state(state)
 }
 
@@ -656,6 +661,20 @@ fn webhook_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .route(
             &format!("{}/webhooks/:id/events", API_PREFIX),
             get(handlers::webhooks::list_webhook_events),
+        )
+        .with_state(state)
+}
+
+/// API key management routes
+fn api_key_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            &format!("{}/api-keys", API_PREFIX),
+            post(handlers::api_keys::create_api_key).get(handlers::api_keys::list_api_keys),
+        )
+        .route(
+            &format!("{}/api-keys/:id", API_PREFIX),
+            get(handlers::api_keys::get_api_key).delete(handlers::api_keys::revoke_api_key),
         )
         .with_state(state)
 }

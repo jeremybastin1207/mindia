@@ -6,12 +6,11 @@ Get Mindia running in 5 minutes! This guide will help you deploy Mindia and star
 
 Before you begin, you'll need:
 - A PostgreSQL database (we recommend [Neon](https://neon.tech) for serverless)
-- An S3-compatible storage bucket (AWS S3, MinIO, etc.)
-- AWS credentials with S3 access
+- An AWS S3 bucket and AWS credentials with S3 access (other storage providers are not supported)
 
-## Option 1: Deploy to Fly.io (Recommended)
+## Option 1: Deploy to Fly.io
 
-The fastest way to get Mindia running in production.
+One way to run Mindia in production.
 
 ### Step 1: Install Fly CLI
 
@@ -235,9 +234,26 @@ Once you're up and running, try these common operations:
 ### Set Your API Key
 
 ```bash
-# Set your master API key
+# Use master API key or a generated key (see [API Keys](api-keys.md))
 MASTER_API_KEY="your-master-api-key-here"
 API_URL="http://localhost:3000"  # or your deployed URL
+```
+
+### Create and Use a Generated API Key (Optional)
+
+Create a revocable API key with the master key, then use it for subsequent requests:
+
+```bash
+# Create a new API key (save the returned api_key value—it's shown only once)
+curl -X POST $API_URL/api/v0/api-keys \
+  -H "Authorization: Bearer $MASTER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My App", "expires_in_days": 365}'
+
+# Use the generated key (e.g., mk_live_abc123...) instead of master key
+API_KEY="mk_live_abc123def456..."
+curl $API_URL/api/images \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ### Images
@@ -338,8 +354,8 @@ Now that you have Mindia running:
 **Error**: `Invalid API key` or `Missing authorization header`
 
 **Solution**:
-- Ensure `MASTER_API_KEY` is set in your `.env` file
-- Must be at least 32 characters long
+- Ensure `MASTER_API_KEY` is set in your `.env` file (or use a generated API key)
+- Master key must be at least 32 characters long
 - Generate with: `openssl rand -hex 32`
 - Include the key in your requests: `Authorization: Bearer YOUR_KEY`
 

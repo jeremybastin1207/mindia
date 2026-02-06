@@ -427,15 +427,16 @@ Keys with `last_used_at` as `null` or very old dates should be reviewed and pote
 ### Authentication Flow
 
 1. Extract token from `Authorization: Bearer <token>` header
-2. Check if token starts with `mk_live_` (API key) or not (JWT)
-3. For API keys:
+2. If token matches master API key → use default tenant context
+3. Else if token starts with `mk_live_` (generated API key):
    - Extract key prefix for efficient lookup
    - Find matching keys in database
    - Verify key against stored hash
    - Check if key is active and not expired
    - Load tenant information
    - Update `last_used_at` timestamp (async)
-4. Create tenant context and proceed with request
+4. Else → return 401 Unauthorized
+5. Create tenant context and proceed with request
 
 ---
 
