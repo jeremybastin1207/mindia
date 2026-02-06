@@ -88,8 +88,13 @@ impl ApiClient {
         use std::fs::File;
         use std::io::Read;
 
+        // Prevent path traversal attacks by rejecting paths containing '..'
+        let path = std::path::Path::new(file_path);
+        if path.components().any(|c| c == std::path::Component::ParentDir) {
+            return Err(anyhow::anyhow!("Invalid input: {}", path.display()));
+        }
         let mut file =
-            File::open(file_path).with_context(|| format!("Failed to open file: {}", file_path))?;
+            File::open(path).with_context(|| format!("Failed to open file: {}", file_path))?;
 
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)

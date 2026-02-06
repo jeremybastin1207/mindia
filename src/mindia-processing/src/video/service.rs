@@ -231,6 +231,10 @@ impl FFmpegService {
             },
         };
 
+        // Prevent path traversal attacks by rejecting paths containing '..'
+        if video_path.components().any(|c| c == std::path::Component::ParentDir) {
+            return Err(anyhow!("Invalid input: {}", video_path.display()));
+        }
         // Read video data
         let video_data = tokio::fs::read(video_path).await?;
         let thumbnail_data = transformer.transform(&video_data, options).await?;
