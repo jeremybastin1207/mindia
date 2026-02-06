@@ -1,7 +1,7 @@
 .PHONY: help build build-release check test test-watch run run-release clean format lint clippy clippy-fix \
 	docker-build docker-up docker-down docker-logs docker-shell \
 	db-migrate db-reset db-seed validate-env setup dev \
-	docs docs-open install-deps check-deps
+	docs docs-open docs-dev docs-build docs-preview install-deps check-deps
 
 # Default target
 .DEFAULT_GOAL := help
@@ -207,13 +207,22 @@ clean-all: clean ## Clean everything including Docker volumes
 
 ##@ Documentation
 
-docs: ## Generate documentation
+docs: ## Generate Rust documentation
 	@echo "$(BLUE)Generating documentation...$(NC)"
 	$(CARGO) doc --no-deps
 
-docs-open: ## Generate and open documentation in browser
+docs-open: ## Generate and open Rust documentation in browser
 	@echo "$(BLUE)Generating documentation...$(NC)"
 	$(CARGO) doc --no-deps --open
+
+docs-dev: ## Start VitePress docs dev server
+	npm run docs:dev
+
+docs-build: ## Build VitePress docs for production
+	npm run docs:build
+
+docs-preview: ## Preview VitePress docs build
+	npm run docs:preview
 
 ##@ Utilities
 

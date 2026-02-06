@@ -98,3 +98,5 @@ config.local.*
 _site/
 .jekyll-cache/
 .sass-cache/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

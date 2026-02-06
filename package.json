@@ -1,0 +1,15 @@
+{
+  "name": "mindia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mindia - High-performance Rust-based media management service",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.0.0"
+  }
+}
