@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Mindia Docs',
+  base: '/mindia/', // required for GitHub Pages project site (https://<user>.github.io/mindia/)
   ignoreDeadLinks: true,
   description:
     'High-performance media management API. Upload and manage images, videos, documents, and audio with S3 storage, on-the-fly transformations, HLS streaming, and semantic search.',
