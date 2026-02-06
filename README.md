@@ -1,5 +1,7 @@
 # Mindia
 
+[Documentation](https://jeremybastin1207.github.io/mindia/)
+
 > **Warning: This repository is under active development and should not be used in production.**
 
 > **Note:** This codebase was built with the assistance of AI tools.
@@ -24,17 +26,6 @@ cargo run -p mindia-api
 - Webhooks for event notifications
 - OpenTelemetry observability
 - Optional ClamAV virus scanning
-
-## Documentation
-
-| Audience | Link |
-|----------|------|
-| API Users | [User Documentation](doc/user/README.md) |
-| Developers | [Developer Documentation](doc/developer/README.md) |
-
-## Tech Stack
-
-Rust, Axum, Tokio, PostgreSQL, AWS S3, FFmpeg
 
 ## License
 
