@@ -1,87 +1,182 @@
 # Plugins
 
-Mindia's plugin system allows you to extend functionality by processing media files with third-party services. Currently, plugins support audio transcription through Assembly AI.
+Mindia's plugin system extends functionality by processing media files with third-party AI and cloud services. Plugins run asynchronously via the task queue—you trigger execution, and results are stored when processing completes.
 
 ## Overview
 
-Plugins are executed asynchronously via the task queue. When you trigger a plugin execution, it creates a background task that processes your media file and stores the results.
+| Plugin | Media Type | Purpose |
+|--------|------------|---------|
+| [Assembly AI](#assembly-ai-audio-transcription) | Audio | Speech-to-text transcription with word-level timestamps |
+| [AWS Transcribe](#aws-transcribe-audio-transcription) | Audio | Amazon transcription with diarization, medical/legal support |
+| [AWS Rekognition](#aws-rekognition-image-analysis) | Image | Object and label detection (AWS ecosystem) |
+| [Google Cloud Vision](#google-cloud-vision-image-analysis) | Image | Labels, OCR, faces, landmarks, content moderation |
+| [Claude Vision](#claude-vision-image-analysis) | Image | Natural language image analysis (Anthropic Claude) |
+| [Replicate DeOldify](#replicate-deoldify-image-colorization) | Image | Colorize black & white photos |
 
-## Available Plugins
+## Available Plugins & How to Use
 
 ### Assembly AI (Audio Transcription)
 
-The Assembly AI plugin transcribes audio files into text with word-level timestamps.
+Transcribes audio files into text with word-level timestamps. Ideal for podcasts, meetings, and voice content.
 
-**Supported Media Types:**
-- Audio files (MP3, M4A, WAV, FLAC, OGG)
+**Supported formats:** MP3, M4A, WAV, FLAC, OGG
 
-**Features:**
-- Automatic language detection
-- Word-level timestamps
-- Full transcript text
-- Status tracking
+**Features:** Automatic language detection, word-level timestamps, full transcript
+
+**Configure:**
+```bash
+PUT /api/v0/plugins/assembly_ai/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "api_key": "your-assembly-ai-api-key",
+    "language_code": "en"   // Optional: omit for auto-detect
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/assembly_ai/execute` with `{"media_id": "<audio-id>"}`
 
 ### AWS Transcribe (Audio Transcription)
 
-The AWS Transcribe plugin transcribes audio files using Amazon's transcription service. This plugin is ideal for AWS ecosystem users and supports specialized domains like medical and legal transcription.
+Uses Amazon's transcription service. Best for AWS users who need diarization, custom vocabularies, or medical/legal transcription.
 
-**Supported Media Types:**
-- Audio files (MP3, MP4, WAV, FLAC, OGG, AMR, WebM)
+**Supported formats:** MP3, MP4, WAV, FLAC, OGG, AMR, WebM
 
-**Features:**
-- Multi-language support (100+ languages)
-- Speaker identification (diarization)
-- Custom vocabularies
-- Medical and legal domain support
-- Channel identification for multi-channel audio
+**Features:** 100+ languages, speaker labels, custom vocabularies, medical/legal domains
 
-**Note:** Requires the `plugin-aws-transcribe` feature flag and AWS credentials configured.
+**Configure:**
+```bash
+PUT /api/v0/plugins/aws_transcribe/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "region": "us-east-1",
+    "s3_bucket": "your-transcription-bucket",
+    "language_code": "en-US",        // Optional
+    "show_speaker_labels": true      // Optional: diarization
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/aws_transcribe/execute` with `{"media_id": "<audio-id>"}`
+
+**Note:** Requires `plugin-aws-transcribe` feature and AWS credentials. Audio must be in the configured S3 bucket.
+
+### AWS Rekognition (Image Analysis)
+
+Detects objects and labels in images using Amazon Rekognition.
+
+**Supported formats:** JPEG, PNG, GIF, WebP, BMP
+
+**Features:** Label detection, text detection, custom labels, bounding boxes
+
+**Configure:**
+```bash
+PUT /api/v0/plugins/aws_rekognition/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "region": "us-east-1",
+    "min_confidence": 70.0,
+    "detect_labels": true,
+    "detect_text": true
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/aws_rekognition/execute` with `{"media_id": "<image-id>"}`
+
+**Note:** Requires `content-moderation` feature and AWS credentials.
 
 ### Google Cloud Vision (Image Analysis)
 
-The Google Cloud Vision API plugin provides comprehensive image analysis including object detection, OCR, face detection, and content moderation.
+Comprehensive image analysis: labels, OCR, faces, landmarks, content moderation.
 
-**Supported Media Types:**
-- Image files (JPEG, PNG, GIF, WebP, BMP, TIFF)
+**Supported formats:** JPEG, PNG, GIF, WebP, BMP, TIFF
 
-**Features:**
-- Label detection (general objects and scenes)
-- OCR (text extraction from images)
-- Face detection and analysis (emotions, landmarks)
-- Object localization with bounding boxes
-- Safe search (content moderation)
-- Landmark detection
-- Logo detection
-- Web entity detection
+**Features:** Labels, text extraction, face analysis, object localization, safe search
+
+**Configure:**
+```bash
+PUT /api/v0/plugins/google_vision/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "api_key": "your-google-cloud-api-key",
+    "features": ["LABEL_DETECTION", "TEXT_DETECTION", "FACE_DETECTION", "SAFE_SEARCH_DETECTION"],
+    "min_score": 0.5
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/google_vision/execute` with `{"media_id": "<image-id>"}`
 
 ### Claude Vision (Image Analysis)
 
-The Claude Vision plugin uses Anthropic's Claude AI to provide detailed image analysis with natural language understanding. Claude excels at understanding context, relationships, and providing comprehensive descriptions.
+Uses Anthropic Claude for natural language image analysis with context and relationships.
 
-**Supported Media Types:**
-- Image files (JPEG, PNG, GIF, WebP)
+**Supported formats:** JPEG, PNG, GIF, WebP
 
-**Features:**
-- Object and scene detection with context
-- Text extraction (OCR)
-- Color palette analysis
-- Scene and context understanding
-- Content safety assessment
-- Detailed natural language descriptions
-- Support for multiple Claude models (Sonnet, Opus)
+**Features:** Objects, text, colors, scene understanding, content moderation, descriptions
 
-**Advantages:**
-- Natural language analysis (not just labels)
-- Better context understanding
-- Flexible feature selection
-- No separate vision API setup needed (uses existing Anthropic API key)
+**Configure:**
+```bash
+PUT /api/v0/plugins/claude_vision/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "api_key": "your-anthropic-api-key",
+    "model": "claude-sonnet-4-20250514",
+    "features": ["objects", "text", "colors", "scene", "content_moderation"]
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/claude_vision/execute` with `{"media_id": "<image-id>"}`
+
+### Replicate DeOldify (Image Colorization)
+
+Colorizes black and white images using Replicate's DeOldify model.
+
+**Supported formats:** JPEG, PNG, GIF, WebP
+
+**Features:** AI-powered colorization, configurable render quality
+
+**Configure:**
+```bash
+PUT /api/v0/plugins/replicate_deoldify/config
+Content-Type: application/json
+
+{
+  "enabled": true,
+  "config": {
+    "api_token": "your-replicate-api-token",
+    "render_factor": 35
+  }
+}
+```
+
+**Execute:** `POST /api/v0/plugins/replicate_deoldify/execute` with `{"media_id": "<image-id>"}`
+
+**Note:** `render_factor` (1–40) controls quality vs speed. Higher = better quality, slower.
 
 ## Getting Started
 
 ### 1. List Available Plugins
 
 ```bash
-GET /api/plugins
+GET /api/v0/plugins
 ```
 
 **Response:**
@@ -110,7 +205,7 @@ GET /api/plugins
 Before using a plugin, you must configure it with your API credentials:
 
 ```bash
-PUT /api/plugins/{plugin_name}/config
+PUT /api/v0/plugins/{plugin_name}/config
 Content-Type: application/json
 
 {
@@ -140,7 +235,7 @@ Content-Type: application/json
 ### 3. Get Plugin Configuration
 
 ```bash
-GET /api/plugins/{plugin_name}/config
+GET /api/v0/plugins/{plugin_name}/config
 ```
 
 **Response:**
@@ -163,7 +258,7 @@ GET /api/plugins/{plugin_name}/config
 Execute a plugin on a media file:
 
 ```bash
-POST /api/plugins/{plugin_name}/execute
+POST /api/v0/plugins/{plugin_name}/execute
 Content-Type: application/json
 
 {
@@ -187,7 +282,7 @@ The plugin execution runs asynchronously. Use the `task_id` to check the task st
 Query the task status to see when the plugin execution completes:
 
 ```bash
-GET /api/tasks/{task_id}
+GET /api/v0/tasks/{task_id}
 ```
 
 Once the task status is `completed`, the plugin results are stored in the database and can be retrieved via the plugin execution record.
@@ -257,7 +352,7 @@ If plugin execution fails:
 
 ```javascript
 // 1. Configure plugin
-await fetch('/api/plugins/assembly_ai/config', {
+await fetch('/api/v0/plugins/assembly_ai/config', {
   method: 'PUT',
   headers: {
     'Authorization': `Bearer ${apiKey}`,
@@ -273,7 +368,7 @@ await fetch('/api/plugins/assembly_ai/config', {
 });
 
 // 2. Upload audio file
-const uploadResponse = await fetch('/api/audios', {
+const uploadResponse = await fetch('/api/v0/audios', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${apiKey}`
@@ -283,7 +378,7 @@ const uploadResponse = await fetch('/api/audios', {
 const { id: audioId } = await uploadResponse.json();
 
 // 3. Execute plugin
-const executeResponse = await fetch(`/api/plugins/assembly_ai/execute`, {
+const executeResponse = await fetch(`/api/v0/plugins/assembly_ai/execute`, {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${apiKey}`,
@@ -297,7 +392,7 @@ const { task_id } = await executeResponse.json();
 let task;
 do {
   await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-  const taskResponse = await fetch(`/api/tasks/${task_id}`, {
+  const taskResponse = await fetch(`/api/v0/tasks/${task_id}`, {
     headers: { 'Authorization': `Bearer ${apiKey}` }
   });
   task = await taskResponse.json();
@@ -389,6 +484,29 @@ Common errors:
 - Unsupported audio format
 - Transcription job timeout (default: 10 minutes)
 - Insufficient permissions for AWS Transcribe
+
+## AWS Rekognition Plugin Details
+
+### Configuration Options
+
+- **`region`** (required): AWS region (e.g., "us-east-1", "eu-west-1")
+- **`min_confidence`** (optional, default: 70.0): Minimum confidence threshold (0-100) for detections
+- **`detect_labels`** (optional, default: true): Enable general label detection
+- **`detect_text`** (optional, default: true): Enable text detection (OCR)
+- **`detect_custom_labels`** (optional, default: false): Enable custom model labels
+- **`custom_model_arn`** (optional): ARN of custom Rekognition model
+
+### Execution Flow
+
+1. **Download**: Image is downloaded from storage
+2. **Detection**: Image is sent to AWS Rekognition for analysis
+3. **Storage**: Labels, text, and bounding boxes are stored in media metadata
+
+### Prerequisites
+
+- AWS account with Rekognition enabled
+- AWS credentials (environment variables, IAM role, or credentials file)
+- `content-moderation` feature flag enabled in Mindia build
 
 ## Google Cloud Vision Plugin Details
 
@@ -491,7 +609,7 @@ Common errors:
 ### Configuration Example
 
 ```bash
-PUT /api/plugins/claude_vision/config
+PUT /api/v0/plugins/claude_vision/config
 Content-Type: application/json
 
 {
@@ -519,6 +637,35 @@ Content-Type: application/json
 3. **Flexible Output**: Can format results based on your specific needs
 4. **Combined Analysis**: Single API call for multiple analysis types
 5. **Better for Complex Scenes**: Excels at understanding complex scenes with multiple elements
+
+## Replicate DeOldify Plugin Details
+
+### Configuration Options
+
+- **`api_token`** (required): Replicate API token from [replicate.com](https://replicate.com)
+- **`model_version`** (optional): Model version to use (default: latest)
+- **`render_factor`** (optional, default: 35): Quality factor 1-40. Higher = better quality, slower processing
+
+### Execution Flow
+
+1. **URL**: Image is made accessible to Replicate (public URL from Mindia storage)
+2. **Prediction**: Replicate DeOldify model processes the image
+3. **Polling**: Plugin polls until colorization completes (up to ~5 minutes)
+4. **Storage**: Colorized image URL is stored in media metadata
+
+### Use Cases
+
+- Restoring old black and white photographs
+- Colorizing historical images
+- Adding color to scanned documents or sketches
+
+### Error Handling
+
+Common errors:
+- Invalid Replicate API token
+- Image URL not accessible (check CORS and storage permissions)
+- Prediction timeout
+- Replicate service unavailable
 
 ## Related Documentation
 

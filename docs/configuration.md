@@ -398,8 +398,9 @@ sudo systemctl start clamav-daemon
 
 **Notes**:
 - Adds ~100-500ms latency per upload
-- Fails open (allows upload if ClamAV unavailable)
+- Fail-open vs fail-closed controlled by `CLAMAV_FAIL_CLOSED`
 - Recommended for public-facing applications
+- See [ClamAV](clamav.md) for full documentation
 
 ### CONTENT_MODERATION_ENABLED
 

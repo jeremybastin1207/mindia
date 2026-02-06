@@ -12,6 +12,12 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Quick Start', link: '/quick-start' },
       { text: 'API Reference', link: '/api-reference' },
+      {
+        text: 'License',
+        link: 'https://github.com/jeremybastin1207/mindia/blob/main/LICENSE',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      },
     ],
     socialLinks: [
       {
@@ -35,6 +41,7 @@ export default defineConfig({
           { text: 'API Keys', link: '/api-keys' },
           { text: 'Multi-Tenancy', link: '/multi-tenancy' },
           { text: 'Authorization', link: '/authorization' },
+          { text: 'ClamAV Virus Scanning', link: '/clamav' },
         ],
       },
       {
@@ -72,6 +79,10 @@ export default defineConfig({
     ],
     search: {
       provider: 'local',
+    },
+    footer: {
+      message: 'Released under the <a href="https://github.com/jeremybastin1207/mindia/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>.',
+      copyright: 'Copyright © 2026',
     },
   },
 })
