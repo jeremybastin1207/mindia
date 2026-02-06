@@ -1,6 +1,8 @@
 # Mindia
 
-[Documentation](https://jeremybastin1207.github.io/mindia/)
+[Documentation](https://jeremybastin1207.github.io/mindia/) · [License](LICENSE)
+
+[![dependency status](https://deps.rs/repo/github/jeremybastin1207/mindia/status.svg)](https://deps.rs/repo/github/jeremybastin1207/mindia) [![License](https://img.shields.io/github/license/jeremybastin1207/mindia)](LICENSE) [![Rust](https://img.shields.io/badge/rust-lang-orange)](https://www.rust-lang.org/)
 
 > **Warning: This repository is under active development and should not be used in production.**
 
@@ -26,6 +28,18 @@ cargo run -p mindia-api
 - Webhooks for event notifications
 - OpenTelemetry observability
 - Optional ClamAV virus scanning
+
+## Documentation
+
+Full documentation is available at [https://jeremybastin1207.github.io/mindia/](https://jeremybastin1207.github.io/mindia/) including quick start, API reference, configuration, and feature guides.
+
+## Contributing
+
+Contributions are welcome! Please open an [issue](https://github.com/jeremybastin1207/mindia/issues) for bugs and feature requests, or submit a pull request.
+
+## Versioning
+
+Releases are published as [GitHub releases](https://github.com/jeremybastin1207/mindia/releases) and tagged following [SemVer](https://semver.org/). See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## License
 
