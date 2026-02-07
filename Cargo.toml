@@ -1,16 +1,16 @@
 [workspace]
 members = [
-  "src/mindia-core",
-  "src/mindia-db",
-  "src/mindia-services",
-  "src/mindia-plugins",
-  "src/mindia-infra",
-  "src/mindia-storage",
-  "src/mindia-processing",
-  "src/mindia-worker",
-  "src/mindia-api",
-  "src/mindia-cli",
-  "src/mindia-mcp",
+  "crates/mindia-core",
+  "crates/mindia-db",
+  "crates/mindia-services",
+  "crates/mindia-plugins",
+  "crates/mindia-infra",
+  "crates/mindia-storage",
+  "crates/mindia-processing",
+  "crates/mindia-worker",
+  "crates/mindia-api",
+  "crates/mindia-cli",
+  "crates/mindia-mcp",
 ]
 resolver = "2"
 

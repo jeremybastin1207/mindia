@@ -1,0 +1,191 @@
+[package]
+name = "mindia-api"
+version.workspace = true
+edition.workspace = true
+build = "build.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "aws-config",
+  "opentelemetry-aws",
+  "opentelemetry-http",
+  "utoipa-axum",
+  "validator",
+] # Optional deps/macros
+
+[[bin]]
+name = "mindia-api"
+path = "src/main.rs"
+
+[dependencies]
+mindia-core = { path = "../mindia-core" }
+mindia-db = { path = "../mindia-db" }
+mindia-services = { path = "../mindia-services" }
+mindia-storage = { path = "../mindia-storage" }
+mindia-processing = { path = "../mindia-processing" }
+mindia-worker = { path = "../mindia-worker" }
+mindia-infra = { path = "../mindia-infra", features = [
+  "analytics",
+  "webhook",
+  "rate-limit",
+  "cleanup",
+  "capacity",
+  "archive",
+  "video",
+  "document",
+  "audio",
+] }
+mindia-plugins = { path = "../mindia-plugins", optional = true }
+mindia-cache = { path = "../mindia-cache", optional = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+utoipa = { workspace = true }
+utoipa-rapidoc = { workspace = true }
+utoipa-axum = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+jsonwebtoken = { workspace = true }
+validator = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+urlencoding = "2.1"
+rand_core = { workspace = true }
+argon2 = { workspace = true }
+hostname = { workspace = true }
+async-trait = { workspace = true }
+sqlx = { workspace = true }
+bytes = { workspace = true }
+futures = "0.3"
+tempfile = { workspace = true }
+reqwest = { workspace = true, optional = true, features = ["stream"] }
+percent-encoding = { workspace = true }
+subtle = { workspace = true }
+pdf-extract = { workspace = true, optional = true }
+
+# Optional dependencies
+tracing-opentelemetry = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+opentelemetry-semantic-conventions = { workspace = true, optional = true }
+opentelemetry-http = { workspace = true, optional = true }
+opentelemetry-aws = { workspace = true, optional = true }
+base64 = { workspace = true }
+lettre = { workspace = true }
+aws-config = { workspace = true, optional = true }
+
+[features]
+default = [
+  "api",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "storage-s3",
+  "storage-local",
+  "clamav",
+  "semantic-search",
+  "content-moderation",
+  "plugin",
+  "plugin-assembly-ai",
+  "plugin-aws-transcribe",
+  "plugin-aws-rekognition",
+  "plugin-aws-rekognition-moderation",
+  "plugin-google-vision",
+  "plugin-claude-vision",
+  "plugin-openai-image-description",
+  "plugin-replicate-deoldify",
+  # "observability-opentelemetry",  # Disabled: API needs update for opentelemetry-otlp 0.27
+]
+
+# Core features
+api = []
+
+# Media type features (passed through to services)
+image = ["mindia-services/image", "mindia-processing/image", "dep:reqwest"]
+video = ["mindia-services/video", "mindia-processing/video", "mindia-db/video"]
+audio = ["mindia-services/audio", "mindia-processing/audio", "mindia-db/audio"]
+document = [
+  "dep:pdf-extract",
+  "mindia-services/document",
+  "mindia-processing/document",
+  "mindia-db/document",
+]
+
+# Storage backends (passed through to services)
+storage-s3 = ["mindia-services/storage-s3"]
+storage-local = ["mindia-services/storage-local"]
+
+# Optional services (passed through to services)
+clamav = ["mindia-services/clamav"]
+semantic-search = ["mindia-services/semantic-search"]
+content-moderation = ["plugin", "plugin-aws-rekognition-moderation"]
+plugin = ["dep:mindia-plugins", "mindia-plugins/plugin"]
+plugin-assembly-ai = ["plugin", "mindia-plugins/plugin-assembly-ai"]
+plugin-aws-transcribe = [
+  "plugin",
+  "mindia-plugins/plugin-aws-transcribe",
+  "dep:aws-config",
+]
+plugin-aws-rekognition = [
+  "plugin",
+  "mindia-plugins/plugin-aws-rekognition",
+  "dep:aws-config",
+]
+plugin-aws-rekognition-moderation = [
+  "plugin",
+  "mindia-plugins/plugin-aws-rekognition-moderation",
+  "dep:aws-config",
+]
+plugin-google-vision = ["plugin", "mindia-plugins/plugin-google-vision"]
+plugin-claude-vision = ["plugin", "mindia-plugins/plugin-claude-vision"]
+plugin-openai-image-description = ["plugin", "dep:reqwest"]
+plugin-replicate-deoldify = [
+  "plugin",
+  "mindia-plugins/plugin-replicate-deoldify",
+]
+
+# Observability
+observability-opentelemetry = [
+  "dep:tracing-opentelemetry",
+  "dep:opentelemetry",
+  "dep:opentelemetry_sdk",
+  "dep:opentelemetry-otlp",
+  "dep:opentelemetry-semantic-conventions",
+  "dep:opentelemetry-http",
+  "dep:opentelemetry-aws",
+]
+observability-basic = []
+
+# JWT features
+jwt-rs256 = ["dep:reqwest"]
+
+# Convenience features
+full = [
+  "api",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "storage-s3",
+  "plugin-assembly-ai",
+  "plugin-aws-transcribe",
+  "plugin-aws-rekognition",
+  "plugin-aws-rekognition-moderation",
+  "plugin-google-vision",
+  "plugin-claude-vision",
+  "plugin-openai-image-description",
+  "plugin-replicate-deoldify",
+  "clamav",
+  "semantic-search",
+  "content-moderation",
+  "observability-opentelemetry",
+]
+minimal = ["api", "image", "storage-s3", "observability-basic"]

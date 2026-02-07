@@ -6,7 +6,7 @@ RUN cargo install cargo-chef
 # Prepare recipe
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
-COPY src ./src
+COPY crates ./crates
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Build dependencies (cached layer)
@@ -26,7 +26,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 # Copy source code and build application
 COPY Cargo.toml Cargo.lock ./
-COPY src ./src
+COPY crates ./crates
 COPY migrations ./migrations
 
 # Build with SIMD optimizations for modern x86_64 CPUs

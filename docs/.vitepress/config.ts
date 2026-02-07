@@ -48,12 +48,22 @@ export default defineConfig({
         text: 'Core Features',
         items: [
           { text: 'Images', link: '/images' },
-          { text: 'Image Transformations', link: '/image-transformations' },
           { text: 'Videos', link: '/videos' },
           { text: 'Audio', link: '/audio' },
           { text: 'Documents', link: '/documents' },
           { text: 'Folders', link: '/folders' },
           { text: 'File Groups', link: '/file-groups' },
+          { text: 'Batch Operations', link: '/batch-operations' },
+        ],
+      },
+      {
+        text: 'Transformations',
+        items: [
+          { text: 'Overview', link: '/transformations' },
+          { text: 'Image', link: '/image-transformations' },
+          { text: 'Audio', link: '/audio-transformations' },
+          { text: 'Video', link: '/video-transformations' },
+          { text: 'Document', link: '/document-transformations' },
         ],
       },
       {
@@ -70,6 +80,7 @@ export default defineConfig({
         text: 'Integration',
         items: [
           { text: 'Client Integration', link: '/client-integration' },
+          { text: 'MCP Server', link: '/mcp' },
           { text: 'Error Handling', link: '/error-handling' },
           { text: 'Rate Limiting', link: '/rate-limiting' },
           { text: 'Best Practices', link: '/best-practices' },

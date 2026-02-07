@@ -244,6 +244,8 @@ pub async fn setup_test_app() -> TestApp {
         poll_interval_ms: config.task_queue_poll_interval_ms,
         default_timeout_seconds: config.task_queue_default_timeout_seconds,
         max_retries: config.task_queue_max_retries,
+        stale_task_reap_interval_secs: config.task_queue_stale_task_reap_interval_secs,
+        stale_task_grace_period_secs: config.task_queue_stale_task_grace_period_secs,
     };
 
     // Create content moderation handler if feature is enabled (uses plugin system)
@@ -270,6 +272,7 @@ pub async fn setup_test_app() -> TestApp {
             task_queue_config.clone(),
             state_ref.clone(),
             Some(pool.clone()),
+            None, // No capacity gate in tests
         );
 
         AppState {
@@ -613,6 +616,8 @@ fn create_test_config() -> Config {
         task_queue_embedding_rate_limit: 5.0,
         task_queue_default_timeout_seconds: 3600,
         task_queue_max_retries: 3,
+        task_queue_stale_task_reap_interval_secs: 60,
+        task_queue_stale_task_grace_period_secs: 300,
         jwt_secret: "test-secret-key-min-32-characters-long-for-testing".to_string(),
         jwt_expiry_hours: 24,
         webhook_timeout_seconds: 30,

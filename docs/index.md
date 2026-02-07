@@ -17,6 +17,9 @@ features:
   - title: Images
     details: Upload, transform, and serve images with on-the-fly resizing and format conversion.
     link: /images
+  - title: Transformations
+    details: Resize images on-the-fly, HLS video transcoding, and delivery for audio and documents.
+    link: /transformations
   - title: Videos
     details: HLS adaptive bitrate streaming with automatic transcoding.
     link: /videos
@@ -32,4 +35,7 @@ features:
   - title: Multi-Tenant
     details: Organization isolation with API key authentication.
     link: /multi-tenancy
+  - title: Batch Operations
+    details: Delete or copy up to 50 media items in one request with per-item results.
+    link: /batch-operations
 ---

@@ -17,7 +17,7 @@ RUN apk add --no-cache \
 
 # Copy source code and build application
 COPY Cargo.toml Cargo.lock ./
-COPY src ./src
+COPY crates ./crates
 COPY migrations ./migrations
 
 # Build with SIMD optimizations for modern x86_64 CPUs
