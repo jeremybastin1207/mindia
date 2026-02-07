@@ -21,6 +21,7 @@ utoipa = { workspace = true }
 validator = { workspace = true }
 pgvector = { workspace = true, optional = true }
 dotenvy = { workspace = true }
+envy = "0.4"
 async-trait = { workspace = true }
 rust_decimal = { workspace = true }
 regex = { workspace = true }

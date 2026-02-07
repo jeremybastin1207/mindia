@@ -153,7 +153,7 @@ async fn execute_metadata_search(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<SearchResult>, AppError> {
-    state
+    state.db
         .metadata_search_repository
         .search_by_metadata(tenant_id, filters, entity_type, folder_id, limit, offset)
         .await
@@ -215,7 +215,7 @@ async fn execute_combined_search(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<SearchResult>, AppError> {
-    state
+    state.db
         .metadata_search_repository
         .search_with_metadata_filters(
             tenant_id,

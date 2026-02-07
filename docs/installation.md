@@ -134,6 +134,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 \dx
 ```
 
+**Database migrations**: Schema is split into numbered migrations in `migrations/` (e.g. `00000000000001_tenants_and_storage.sql` through `00000000000012_triggers_rls_seed.sql`, plus workflow-specific migrations). The API applies pending migrations on startup when using the default migration runner.
+
 ### Step 4: Set Up S3 Storage
 
 #### Option A: AWS S3
@@ -342,6 +344,10 @@ docker-compose down
 See [Quick Start Guide](quick-start.md#option-1-deploy-to-flyio-recommended) for Fly.io deployment.
 
 ### AWS EC2
+
+For a full infrastructure-as-code deployment (VPC, RDS, S3, ALB, CloudFront, ClamAV), see **[Deploy Mindia to AWS](deployment-aws.md)** (Terraform + Ansible).
+
+Manual EC2 setup:
 
 1. **Launch EC2 Instance**:
    - AMI: Ubuntu 22.04 LTS

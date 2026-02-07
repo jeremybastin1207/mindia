@@ -129,7 +129,7 @@ pub async fn delete_media(
             delete_video_hls_files(&state.media.storage, id, hls_master_playlist.as_ref()).await;
         }
         MediaType::Audio => {
-            delete_audio_embeddings(&state.embedding_repository, tenant_ctx.tenant_id, id).await;
+            delete_audio_embeddings(&state.db.embedding_repository, tenant_ctx.tenant_id, id).await;
         }
         MediaType::Image | MediaType::Document => {}
     }
@@ -262,7 +262,7 @@ pub async fn delete_media(
     };
 
     // Fire webhook asynchronously (don't block on response)
-    let webhook_service = state.webhook_service.clone();
+    let webhook_service = state.webhooks.webhook_service.clone();
     let tenant_id = tenant_ctx.tenant_id;
     tokio::spawn(async move {
         if let Err(e) = webhook_service

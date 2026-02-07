@@ -65,8 +65,8 @@ pub async fn get_config(State(state): State<Arc<AppState>>) -> impl IntoResponse
             allowed_content_types: state.media.image_allowed_content_types.clone(),
         },
         database: DatabaseConfig {
-            max_connections: state.database.max_connections,
-            timeout_seconds: state.database.timeout_seconds,
+            max_connections: state.db.database.max_connections,
+            timeout_seconds: state.db.database.timeout_seconds,
         },
         cors: CorsConfig {
             allowed_origins: state.security.cors_origins.clone(),

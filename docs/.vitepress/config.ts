@@ -70,6 +70,7 @@ export default defineConfig({
         text: 'Advanced Features',
         items: [
           { text: 'Plugins', link: '/plugins' },
+          { text: 'Workflows', link: '/workflows' },
           { text: 'Tasks', link: '/tasks' },
           { text: 'Semantic Search', link: '/semantic-search' },
           { text: 'Webhooks', link: '/webhooks' },

@@ -61,7 +61,7 @@ pub async fn create_folder(
     }
 
     // Create folder
-    let folder = state
+    let folder = state.db
         .folder_repository
         .create_folder(ctx.tenant_id, name.to_string(), request.parent_id)
         .await
@@ -103,7 +103,7 @@ pub async fn list_folders(
     Query(query): Query<FolderListQuery>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let folders = state
+    let folders = state.db
         .folder_repository
         .list_folders(ctx.tenant_id, query.parent_id)
         .await
@@ -131,7 +131,7 @@ pub async fn get_folder_tree(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let tree = state
+    let tree = state.db
         .folder_repository
         .get_folder_tree(ctx.tenant_id)
         .await
@@ -163,7 +163,7 @@ pub async fn get_folder(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let folder = state
+    let folder = state.db
         .folder_repository
         .get_folder(ctx.tenant_id, id)
         .await
@@ -174,12 +174,12 @@ pub async fn get_folder(
         .ok_or_else(|| AppError::NotFound("Folder not found".to_string()))?;
 
     // Get media count and subfolder count
-    let media_count = state
+    let media_count = state.db
         .folder_repository
         .count_media_in_folder(ctx.tenant_id, id)
         .await
         .ok();
-    let subfolder_count = state
+    let subfolder_count = state.db
         .folder_repository
         .count_subfolders(ctx.tenant_id, id)
         .await
@@ -234,7 +234,7 @@ pub async fn update_folder(
         None => None,
     };
 
-    let folder = state
+    let folder = state.db
         .folder_repository
         .update_folder(ctx.tenant_id, id, name, request.parent_id)
         .await
@@ -280,7 +280,7 @@ pub async fn delete_folder(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let deleted = state
+    let deleted = state.db
         .folder_repository
         .delete_folder(ctx.tenant_id, id)
         .await

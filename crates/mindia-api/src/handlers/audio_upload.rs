@@ -1,19 +1,25 @@
 use crate::auth::models::TenantContext;
-use crate::error::{ErrorResponse, HttpAppError};
+use crate::error::{error_response_with_event, ErrorResponse, HttpAppError};
+use crate::middleware::json_response_with_event;
+use crate::services::upload::{
+    AudioMetadata, AudioProcessorImpl, MediaLimitsConfig, MediaProcessor, MediaUploadService,
+};
 use crate::state::AppState;
+use crate::telemetry::wide_event::WideEvent;
+use crate::utils::upload::parse_store_parameter;
 use axum::{
     extract::{Multipart, Query, State},
+    response::Response,
     Json,
 };
-use mindia_core::models::AudioResponse;
-use mindia_core::AppError;
+use chrono::Utc;
+use mindia_core::models::{AudioResponse, MediaType};
 use serde::Deserialize;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub struct StoreQuery {
     #[serde(default = "default_store")]
-    #[allow(dead_code)]
     store: String,
 }
 
@@ -41,9 +47,103 @@ pub async fn upload_audio(
     tenant_ctx: TenantContext,
     Query(query): Query<StoreQuery>,
     multipart: Multipart,
-) -> Result<Json<AudioResponse>, HttpAppError> {
-    let _ = (state, tenant_ctx, query, multipart);
-    Err(HttpAppError::from(AppError::Internal(
-        "audio upload temporarily disabled".to_string(),
-    )))
+) -> Result<Response, HttpAppError> {
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let mut wide_event = WideEvent::new(
+        request_id,
+        state.config.otel_service_name().to_string(),
+        state.config.environment().to_string(),
+        "POST".to_string(),
+        "/api/v0/audios".to_string(),
+        Utc::now(),
+    );
+    wide_event.with_tenant_context(&tenant_ctx);
+    wide_event.with_business_context(|ctx| {
+        ctx.media_type = Some("audio".to_string());
+        ctx.operation = Some("upload".to_string());
+    });
+
+    let (store_permanently, expires_at) =
+        match parse_store_parameter(&query.store, state.config.auto_store_enabled()) {
+            Ok(result) => result,
+            Err(e) => return Ok(error_response_with_event(HttpAppError::from(e), wide_event)),
+        };
+    let store_behavior = query.store.clone();
+
+    let audio_limits = state.media.limits_for(MediaType::Audio);
+    let config = MediaLimitsConfig {
+        limits: &audio_limits,
+        media_type_name: "audio",
+    };
+
+    let ffprobe_path = state.config.ffmpeg_path().replace("ffmpeg", "ffprobe");
+    let service = MediaUploadService::new(&state);
+    let processor: Box<dyn MediaProcessor<Metadata = AudioMetadata> + Send + Sync> =
+        Box::new(AudioProcessorImpl::new(ffprobe_path));
+
+    let (upload_data, metadata) = match service
+        .upload(
+            tenant_ctx.tenant_id,
+            multipart,
+            &config,
+            processor,
+            store_permanently,
+            expires_at,
+            store_behavior.clone(),
+        )
+        .await
+    {
+        Ok(result) => result,
+        Err(e) => return Ok(error_response_with_event(HttpAppError::from(e), wide_event)),
+    };
+
+    let audio = match state
+        .media
+        .repository
+        .create_audio_from_storage(
+            tenant_ctx.tenant_id,
+            upload_data.file_id,
+            upload_data.uuid_filename.clone(),
+            upload_data.safe_original_filename.clone(),
+            upload_data.content_type.clone(),
+            upload_data.file_size as i64,
+            metadata.duration,
+            metadata.bitrate,
+            metadata.sample_rate,
+            metadata.channels,
+            store_behavior,
+            store_permanently,
+            expires_at,
+            None,
+            upload_data.storage_key.clone(),
+            upload_data.storage_url.clone(),
+        )
+        .await
+    {
+        Ok(a) => {
+            wide_event.with_business_context(|ctx| {
+                ctx.media_id = Some(a.id);
+            });
+            a
+        }
+        Err(e) => {
+            let storage = state.media.storage.clone();
+            let storage_key = upload_data.storage_key.clone();
+            tokio::spawn(async move {
+                if let Err(cleanup_err) = storage.delete(&storage_key).await {
+                    tracing::debug!(
+                        error = %cleanup_err,
+                        storage_key = %storage_key,
+                        "Failed to cleanup storage after DB error"
+                    );
+                }
+            });
+            return Ok(error_response_with_event(HttpAppError::from(e), wide_event));
+        }
+    };
+
+    Ok(json_response_with_event(
+        Json(AudioResponse::from(audio)),
+        wide_event,
+    ))
 }

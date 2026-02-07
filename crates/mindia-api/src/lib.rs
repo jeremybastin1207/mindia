@@ -7,13 +7,13 @@
 
 // Module declarations
 mod api_doc;
-mod constants;
+pub mod constants;
 mod handlers;
 mod http_metrics;
 mod job_queue;
 mod middleware;
 mod services;
-mod setup;
+pub mod setup;
 mod task_dispatch;
 mod task_handlers;
 mod telemetry;
@@ -33,6 +33,8 @@ pub mod state;
 pub use error::ErrorResponse;
 pub use mindia_worker::{TaskQueue, TaskQueueConfig};
 pub use task_handlers::TaskHandler;
+pub use job_queue::VideoJobQueue;
+pub use services::workflow::WorkflowService;
 
 #[cfg(feature = "video")]
 pub use mindia_processing::{VideoOrchestrator, VideoOrchestratorConfig, VideoStorage};

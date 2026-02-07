@@ -171,6 +171,8 @@ pub async fn upload_document(
         document.file_size,
         document.uploaded_at,
         document.store_permanently,
+        None,
+        None,
     );
 
     Ok(json_response_with_event(

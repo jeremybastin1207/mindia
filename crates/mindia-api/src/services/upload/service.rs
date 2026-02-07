@@ -128,6 +128,7 @@ impl MediaUploadService {
     /// Scan file with ClamAV if enabled
     async fn scan_security(&self, file: ValidatedFile) -> Result<ValidatedFile, AppError> {
         if self.state.security.clamav_enabled {
+            #[cfg(feature = "clamav")]
             if let Some(ref clamav) = self.state.security.clamav {
                 tracing::debug!("Scanning file with ClamAV");
                 let scan_result = clamav.scan_bytes(&file.data).await;
@@ -283,6 +284,8 @@ impl MediaUploadService {
         file_size: i64,
         uploaded_at: DateTime<chrono::Utc>,
         store_permanently: bool,
+        folder_id: Option<Uuid>,
+        metadata: Option<serde_json::Value>,
     ) {
         // Trigger webhook for upload
         let webhook_data = mindia_core::models::WebhookDataInfo {
@@ -306,7 +309,7 @@ impl MediaUploadService {
             initiator_type: String::from("upload"),
             id: tenant_id,
         };
-        let webhook_service = self.state.webhook_service.clone();
+        let webhook_service = self.state.webhooks.webhook_service.clone();
         let tenant_id_clone = tenant_id;
         tokio::spawn(async move {
             if let Err(e) = webhook_service
@@ -334,7 +337,7 @@ impl MediaUploadService {
             };
 
             if let Ok(embedding_payload_json) = serde_json::to_value(&embedding_payload) {
-                let task_queue = self.state.task_queue.clone();
+                let task_queue = self.state.tasks.task_queue.clone();
                 let tenant_id_clone = tenant_id;
                 let entity_id_clone = entity_id;
                 tokio::spawn(async move {
@@ -346,6 +349,7 @@ impl MediaUploadService {
                             Priority::Low,
                             None,
                             None,
+                            false,
                         )
                         .await
                     {
@@ -405,7 +409,7 @@ impl MediaUploadService {
 
         if queue_moderation {
             if let Ok(moderation_payload_json) = serde_json::to_value(&moderation_payload) {
-                let task_queue = self.state.task_queue.clone();
+                let task_queue = self.state.tasks.task_queue.clone();
                 let tenant_id_clone = tenant_id;
                 let entity_id_clone = entity_id;
                 tokio::spawn(async move {
@@ -417,6 +421,7 @@ impl MediaUploadService {
                             Priority::Normal,
                             None,
                             None,
+                            false,
                         )
                         .await
                     {
@@ -433,6 +438,36 @@ impl MediaUploadService {
                     "Failed to serialize moderation payload"
                 );
             }
+        }
+
+        #[cfg(feature = "workflow")]
+        {
+            let workflow_service = self.state.workflows.workflow_service.clone();
+            let tenant_id_w = tenant_id;
+            let entity_id_w = entity_id;
+            let entity_type_w = entity_type.to_string();
+            let content_type_w = content_type.clone();
+            let folder_id_w = folder_id;
+            let metadata_w = metadata.clone();
+            tokio::spawn(async move {
+                if let Err(e) = workflow_service
+                    .match_and_trigger(
+                        tenant_id_w,
+                        entity_id_w,
+                        &entity_type_w,
+                        folder_id_w,
+                        &content_type_w,
+                        metadata_w.as_ref(),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        error = %e,
+                        entity_id = %entity_id_w,
+                        "Failed to match and trigger workflows on upload"
+                    );
+                }
+            });
         }
     }
 }

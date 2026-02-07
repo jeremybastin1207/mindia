@@ -21,6 +21,7 @@ use mindia_core::Config;
 use std::sync::Arc;
 use std::time::Duration;
 use tower::limit::ConcurrencyLimitLayer;
+use tower::timeout::TimeoutLayer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
@@ -102,6 +103,13 @@ pub async fn setup_routes(
         "HTTP concurrency limit layer enabled"
     );
 
+    let request_timeout_secs = std::env::var("REQUEST_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(60)
+        .max(1);
+    tracing::info!(request_timeout_secs, "Request timeout layer enabled");
+
     let app = app_state_routes
         .nest(
             "/docs",
@@ -109,6 +117,7 @@ pub async fn setup_routes(
                 .path("/docs")
                 .into(),
         )
+        .layer(TimeoutLayer::new(Duration::from_secs(request_timeout_secs)))
         .layer(ConcurrencyLimitLayer::new(http_concurrency_limit))
         .layer(RequestBodyLimitLayer::new(
             config
@@ -182,8 +191,8 @@ fn setup_auth_middleware(
 
     Ok(AuthState {
         master_api_key,
-        api_key_repository: state.api_key_repository.clone(),
-        tenant_repository: state.tenant_repository.clone(),
+        api_key_repository: state.db.api_key_repository.clone(),
+        tenant_repository: state.db.tenant_repository.clone(),
     })
 }
 
@@ -238,6 +247,16 @@ fn public_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
                 move || {
                     let state = state.clone();
                     async { health_check(state).await }
+                }
+            }),
+        )
+        .route(
+            "/health/deep",
+            get({
+                let state = state.clone();
+                move || {
+                    let state = state.clone();
+                    async { deep_health_check(state).await }
                 }
             }),
         )
@@ -299,10 +318,6 @@ fn public_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 /// Protected routes (require authentication).
 fn protected_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(
-            &format!("{}/batch", API_PREFIX),
-            post(handlers::batch::batch_operations),
-        )
         .merge(media_routes(state.clone()))
         .merge(image_routes(state.clone()))
         .merge(video_routes(state.clone()))
@@ -316,6 +331,7 @@ fn protected_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
         .merge(task_routes(state.clone()))
         .merge(file_group_routes(state.clone()))
         .merge(plugin_routes(state.clone()))
+        .merge(workflow_routes(state.clone()))
         .merge(upload_routes(state.clone()))
         .merge(webhook_routes(state.clone()))
         .merge(api_key_routes(state.clone()))
@@ -728,6 +744,49 @@ fn plugin_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     }
 }
 
+/// Workflow routes
+#[cfg(feature = "workflow")]
+fn workflow_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
+    Router::new()
+        .route(
+            &format!("{}/workflows", API_PREFIX),
+            post(handlers::workflows::create_workflow),
+        )
+        .route(
+            &format!("{}/workflows", API_PREFIX),
+            get(handlers::workflows::list_workflows),
+        )
+        .route(
+            &format!("{}/workflows/:id", API_PREFIX),
+            get(handlers::workflows::get_workflow),
+        )
+        .route(
+            &format!("{}/workflows/:id", API_PREFIX),
+            put(handlers::workflows::update_workflow),
+        )
+        .route(
+            &format!("{}/workflows/:id", API_PREFIX),
+            delete(handlers::workflows::delete_workflow),
+        )
+        .route(
+            &format!("{}/workflows/:id/trigger/:media_id", API_PREFIX),
+            post(handlers::workflows::trigger_workflow),
+        )
+        .route(
+            &format!("{}/workflows/:id/executions", API_PREFIX),
+            get(handlers::workflows::list_workflow_executions),
+        )
+        .route(
+            &format!("{}/workflow-executions/:id", API_PREFIX),
+            get(handlers::workflows::get_workflow_execution),
+        )
+        .with_state(state)
+}
+#[cfg(not(feature = "workflow"))]
+fn workflow_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
+    Router::new().with_state(state)
+}
+
 /// Upload routes (presigned and chunked)
 fn upload_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
@@ -774,6 +833,22 @@ struct HealthCheckResponse {
     task_queue: Option<String>,
 }
 
+/// Extended health response for /health/deep: includes webhooks DB check.
+#[derive(serde::Serialize)]
+struct DeepHealthCheckResponse {
+    status: String,
+    database: String,
+    storage: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clamav: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    semantic_search: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    task_queue: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    webhooks: Option<String>,
+}
+
 /// Liveness probe - simple check that process is running
 /// Always returns 200 if process can respond
 async fn liveness_check(_state: Arc<AppState>) -> impl IntoResponse {
@@ -798,7 +873,7 @@ async fn readiness_check(state: Arc<AppState>) -> impl IntoResponse {
     let mut overall_ready = true;
 
     // Check database with timeout
-    match tokio::time::timeout(TIMEOUT, sqlx::query("SELECT 1").execute(&state.db_pool)).await {
+    match tokio::time::timeout(TIMEOUT, sqlx::query("SELECT 1").execute(&state.db.pool)).await {
         Ok(Ok(_)) => {
             response["database"] = serde_json::json!("ready");
         }
@@ -838,7 +913,7 @@ async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
     let mut overall_healthy = true;
 
     // Check database using the pool directly with timeout
-    match tokio::time::timeout(TIMEOUT, sqlx::query("SELECT 1").execute(&state.db_pool)).await {
+    match tokio::time::timeout(TIMEOUT, sqlx::query("SELECT 1").execute(&state.db.pool)).await {
         Ok(Ok(_)) => {
             response.database = "healthy".to_string();
         }
@@ -917,7 +992,7 @@ async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
     match tokio::time::timeout(TIMEOUT, async {
         // Check if repository can be accessed (simple query to verify connectivity)
         sqlx::query("SELECT COUNT(*) FROM tasks WHERE 1=0")
-            .execute(&state.db_pool)
+            .execute(&state.db.pool)
             .await
     })
     .await
@@ -934,6 +1009,103 @@ async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
             tracing::warn!("Task queue health check timed out");
             response.task_queue = Some("timeout".to_string());
         }
+    }
+
+    let status_code = if overall_healthy {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (status_code, Json(response))
+}
+
+/// Deep health check: same as /health plus webhooks table connectivity.
+/// Use for debugging or ops dashboards; prefer /health for load balancers.
+async fn deep_health_check(state: Arc<AppState>) -> impl IntoResponse {
+    const TIMEOUT: Duration = Duration::from_secs(5);
+
+    let mut response = DeepHealthCheckResponse {
+        status: "healthy".to_string(),
+        database: "unknown".to_string(),
+        storage: "unknown".to_string(),
+        clamav: None,
+        semantic_search: None,
+        task_queue: None,
+        webhooks: None,
+    };
+
+    let mut overall_healthy = true;
+
+    match tokio::time::timeout(TIMEOUT, sqlx::query("SELECT 1").execute(&state.db.pool)).await {
+        Ok(Ok(_)) => response.database = "healthy".to_string(),
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "Database health check failed");
+            response.database = format!("unhealthy: {}", e);
+            overall_healthy = false;
+        }
+        Err(_) => {
+            response.database = "timeout".to_string();
+            overall_healthy = false;
+        }
+    }
+
+    match tokio::time::timeout(
+        TIMEOUT,
+        state.media.storage.exists("health-check-non-existent-key"),
+    )
+    .await
+    {
+        Ok(Ok(_)) => response.storage = "healthy".to_string(),
+        Ok(Err(e)) => response.storage = format!("degraded: {}", e),
+        Err(_) => response.storage = "timeout".to_string(),
+    }
+
+    if state.security.clamav_enabled {
+        response.clamav = Some("not_checked".to_string());
+    }
+
+    if state.config.semantic_search_enabled() {
+        #[cfg(feature = "semantic-search")]
+        {
+            if let Some(provider) = &state.semantic_search {
+                match tokio::time::timeout(TIMEOUT, provider.health_check()).await {
+                    Ok(Ok(true)) => response.semantic_search = Some("healthy".to_string()),
+                    _ => response.semantic_search = Some("unhealthy".to_string()),
+                }
+            } else {
+                response.semantic_search = Some("not_configured".to_string());
+            }
+        }
+        #[cfg(not(feature = "semantic-search"))]
+        {
+            response.semantic_search = Some("not_configured".to_string());
+        }
+    }
+
+    match tokio::time::timeout(
+        TIMEOUT,
+        sqlx::query("SELECT COUNT(*) FROM tasks WHERE 1=0").execute(&state.db.pool),
+    )
+    .await
+    {
+        Ok(Ok(_)) => response.task_queue = Some("healthy".to_string()),
+        Ok(Err(e)) => response.task_queue = Some(format!("unhealthy: {}", e)),
+        Err(_) => response.task_queue = Some("timeout".to_string()),
+    }
+
+    match tokio::time::timeout(
+        TIMEOUT,
+        sqlx::query("SELECT 1 FROM webhooks LIMIT 0").execute(&state.db.pool),
+    )
+    .await
+    {
+        Ok(Ok(_)) => response.webhooks = Some("healthy".to_string()),
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "Webhooks table health check failed");
+            response.webhooks = Some(format!("unhealthy: {}", e));
+        }
+        Err(_) => response.webhooks = Some("timeout".to_string()),
     }
 
     let status_code = if overall_healthy {

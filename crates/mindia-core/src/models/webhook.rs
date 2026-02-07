@@ -18,6 +18,8 @@ pub enum WebhookEventType {
     FileStored,
     FileProcessingCompleted,
     FileProcessingFailed,
+    WorkflowCompleted,
+    WorkflowFailed,
 }
 
 impl Display for WebhookEventType {
@@ -28,6 +30,8 @@ impl Display for WebhookEventType {
             WebhookEventType::FileStored => write!(f, "file.stored"),
             WebhookEventType::FileProcessingCompleted => write!(f, "file.processing_completed"),
             WebhookEventType::FileProcessingFailed => write!(f, "file.processing_failed"),
+            WebhookEventType::WorkflowCompleted => write!(f, "workflow.completed"),
+            WebhookEventType::WorkflowFailed => write!(f, "workflow.failed"),
         }
     }
 }
@@ -42,6 +46,8 @@ impl FromStr for WebhookEventType {
             "file.stored" => Ok(WebhookEventType::FileStored),
             "file.processing_completed" => Ok(WebhookEventType::FileProcessingCompleted),
             "file.processing_failed" => Ok(WebhookEventType::FileProcessingFailed),
+            "workflow.completed" => Ok(WebhookEventType::WorkflowCompleted),
+            "workflow.failed" => Ok(WebhookEventType::WorkflowFailed),
             _ => Err(anyhow::anyhow!("Invalid webhook event type: {}", s)),
         }
     }

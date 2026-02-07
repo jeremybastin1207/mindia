@@ -2,6 +2,8 @@
 
 Complete reference for all Mindia environment variables and configuration options.
 
+**Runtime vs compile-time:** Behavior toggles (e.g. `CLAMAV_ENABLED`, `SEMANTIC_SEARCH_ENABLED`) are read at startup—you can enable or disable them without recompiling. Optional heavy dependencies (ClamAV client, AWS SDKs, semantic-search providers) are only included when the matching Cargo feature is enabled.
+
 ## Table of Contents
 
 - [Required Configuration](#required-configuration)
@@ -242,6 +244,23 @@ ENVIRONMENT=production
 **Effects**:
 - `production`: More strict validations, optimized settings
 - `development`: More verbose logging, relaxed CORS
+
+### REQUEST_TIMEOUT_SECS
+
+Global HTTP request timeout in seconds. Requests that take longer are aborted.
+
+```env
+REQUEST_TIMEOUT_SECS=60
+```
+
+**Default**: `60`. Minimum: `1`.
+
+### Health endpoints
+
+- **`GET /health`** – Full health check (database, storage, optional ClamAV/semantic-search, task queue). Returns 200 when critical deps are OK; use for load balancers.
+- **`GET /health/deep`** – Same as `/health` plus webhooks table connectivity. Use for ops dashboards or debugging.
+- **`GET /live`** – Liveness (process is up). Always 200 if the process responds.
+- **`GET /ready`** – Readiness (database reachable). Use for Kubernetes or similar readiness probes.
 
 ---
 

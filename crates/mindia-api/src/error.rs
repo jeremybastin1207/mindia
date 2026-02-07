@@ -1,6 +1,10 @@
 //! HTTP error response conversion
 //!
 //! This module provides HTTP-specific error response conversion for AppError.
+//!
+//! **Preferred handler pattern:** Return `Result<impl IntoResponse, HttpAppError>`. Use
+//! `AppError` (or types that implement `Into<AppError>`) for errors and `.map_err(Into::into)`
+//! so they become `HttpAppError` and render consistently (status, body, logging).
 
 use axum::{
     http::StatusCode,

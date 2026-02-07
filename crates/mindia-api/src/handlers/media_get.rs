@@ -1,12 +1,8 @@
 use crate::auth::models::TenantContext;
-use crate::error::ErrorResponse;
+use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::{Path, State}, response::IntoResponse, Json};
+use mindia_core::AppError;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -28,8 +24,7 @@ pub async fn get_media(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    // Get media using the unified repository method
+) -> Result<impl IntoResponse, HttpAppError> {
     let media = state
         .media
         .repository
@@ -37,37 +32,10 @@ pub async fn get_media(
         .await
         .map_err(|e| {
             tracing::error!(error = ?e, media_id = %id, "Failed to fetch media");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to fetch media".to_string(),
-                    details: None,
-                    error_type: None,
-                    code: "DATABASE_ERROR".to_string(),
-                    recoverable: true,
-                    suggested_action: Some("Retry after a short delay".to_string()),
-                }),
-            )
-        })?;
+            AppError::Internal(e.to_string())
+        })?
+        .ok_or_else(|| AppError::NotFound("Media not found".to_string()))?;
 
-    let media = match media {
-        Some(m) => m,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: "Media not found".to_string(),
-                    details: None,
-                    error_type: None,
-                    code: "NOT_FOUND".to_string(),
-                    recoverable: false,
-                    suggested_action: Some("Verify the media ID exists".to_string()),
-                }),
-            ));
-        }
-    };
-
-    // Match on media type and build appropriate response
     let response: JsonValue = match media {
         mindia_core::models::Media::Image(image) => {
             let image_response = state
@@ -77,31 +45,11 @@ pub async fn get_media(
                 .await
                 .map_err(|e| {
                     tracing::error!(error = ?e, media_id = %id, "Failed to build image response");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Failed to build image response".to_string(),
-                            details: None,
-                            error_type: None,
-                            code: "INTERNAL_ERROR".to_string(),
-                            recoverable: true,
-                            suggested_action: Some("Retry after a short delay".to_string()),
-                        }),
-                    )
+                    AppError::Internal(e.to_string())
                 })?;
             serde_json::to_value(image_response).map_err(|e| {
                 tracing::error!(error = ?e, media_id = %id, "Failed to serialize image response");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Failed to serialize response".to_string(),
-                        details: None,
-                        error_type: None,
-                        code: "INTERNAL_ERROR".to_string(),
-                        recoverable: true,
-                        suggested_action: Some("Retry after a short delay".to_string()),
-                    }),
-                )
+                AppError::Internal(e.to_string())
             })?
         }
         mindia_core::models::Media::Video(video) => {
@@ -112,31 +60,11 @@ pub async fn get_media(
                 .await
                 .map_err(|e| {
                     tracing::error!(error = ?e, media_id = %id, "Failed to build video response");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Failed to build video response".to_string(),
-                            details: None,
-                            error_type: None,
-                            code: "INTERNAL_ERROR".to_string(),
-                            recoverable: true,
-                            suggested_action: Some("Retry after a short delay".to_string()),
-                        }),
-                    )
+                    AppError::Internal(e.to_string())
                 })?;
             serde_json::to_value(video_response).map_err(|e| {
                 tracing::error!(error = ?e, media_id = %id, "Failed to serialize video response");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Failed to serialize response".to_string(),
-                        details: None,
-                        error_type: None,
-                        code: "INTERNAL_ERROR".to_string(),
-                        recoverable: true,
-                        suggested_action: Some("Retry after a short delay".to_string()),
-                    }),
-                )
+                AppError::Internal(e.to_string())
             })?
         }
         mindia_core::models::Media::Audio(audio) => {
@@ -147,31 +75,11 @@ pub async fn get_media(
                 .await
                 .map_err(|e| {
                     tracing::error!(error = ?e, media_id = %id, "Failed to build audio response");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Failed to build audio response".to_string(),
-                            details: None,
-                            error_type: None,
-                            code: "INTERNAL_ERROR".to_string(),
-                            recoverable: true,
-                            suggested_action: Some("Retry after a short delay".to_string()),
-                        }),
-                    )
+                    AppError::Internal(e.to_string())
                 })?;
             serde_json::to_value(audio_response).map_err(|e| {
                 tracing::error!(error = ?e, media_id = %id, "Failed to serialize audio response");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Failed to serialize response".to_string(),
-                        details: None,
-                        error_type: None,
-                        code: "INTERNAL_ERROR".to_string(),
-                        recoverable: true,
-                        suggested_action: Some("Retry after a short delay".to_string()),
-                    }),
-                )
+                AppError::Internal(e.to_string())
             })?
         }
         mindia_core::models::Media::Document(document) => {
@@ -182,31 +90,11 @@ pub async fn get_media(
                 .await
                 .map_err(|e| {
                     tracing::error!(error = ?e, media_id = %id, "Failed to build document response");
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Failed to build document response".to_string(),
-                            details: None,
-                            error_type: None,
-                            code: "INTERNAL_ERROR".to_string(),
-                            recoverable: true,
-                            suggested_action: Some("Retry after a short delay".to_string()),
-                        }),
-                    )
+                    AppError::Internal(e.to_string())
                 })?;
             serde_json::to_value(document_response).map_err(|e| {
                 tracing::error!(error = ?e, media_id = %id, "Failed to serialize document response");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Failed to serialize response".to_string(),
-                        details: None,
-                        error_type: None,
-                        code: "INTERNAL_ERROR".to_string(),
-                        recoverable: true,
-                        suggested_action: Some("Retry after a short delay".to_string()),
-                    }),
-                )
+                AppError::Internal(e.to_string())
             })?
         }
     };

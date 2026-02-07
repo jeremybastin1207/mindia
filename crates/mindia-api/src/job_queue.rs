@@ -131,14 +131,14 @@ impl VideoJobQueue {
         tracing::info!(video_id = %video_id, "Starting video transcode job");
 
         let video: mindia_core::models::Video = state
-            .video_db
+            .media.repository
             .get_video_by_id_unchecked(video_id)
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?
             .ok_or_else(|| anyhow::anyhow!("Video not found"))?;
 
         if let Err(e) = state
-            .video_db
+            .media.repository
             .update_video_processing_status(video.tenant_id, video_id, ProcessingStatus::Processing)
             .await
         {
@@ -154,7 +154,7 @@ impl VideoJobQueue {
             capacity_monitor_interval_secs: state.config.capacity_monitor_interval_secs(),
         };
         let orchestrator = VideoOrchestrator::new(
-            state.video_db.clone(),
+            state.media.repository.clone(),
             storage,
             state.capacity_checker.clone(),
             config,
@@ -185,7 +185,7 @@ impl VideoJobQueue {
 
                 // Update status to failed
                 if let Err(update_err) = state
-                    .video_db
+                    .media.repository
                     .update_video_processing_status(
                         video.tenant_id,
                         video_id,

@@ -2,6 +2,8 @@
 
 Mindia's plugin system extends functionality by processing media files with third-party AI and cloud services. Plugins run asynchronously via the task queue—you trigger execution, and results are stored when processing completes.
 
+You can chain plugins automatically using [Workflows](/workflows): define a pipeline (e.g. moderation → object detection → colorization) that runs on upload or on demand for a subset of media.
+
 ## Overview
 
 | Plugin | Media Type | Purpose |

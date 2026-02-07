@@ -112,8 +112,6 @@ pub fn get_openapi_spec() -> utoipa::openapi::OpenApi {
         handlers::file_group::delete_file_group,
         // Config
         handlers::config::get_config,
-        // Batch operations
-        handlers::batch::batch_operations,
     ),
     components(
         schemas(
@@ -169,11 +167,7 @@ pub fn get_openapi_spec() -> utoipa::openapi::OpenApi {
             // Metadata models
             handlers::metadata::UpdateMetadataRequest,
             handlers::metadata::MetadataResponse,
-            // Batch models
-            handlers::batch::BatchRequest,
-            handlers::batch::BatchResponse,
-            handlers::batch::BatchOperation,
-            handlers::batch::BatchResult,
+            // Batch media models
             handlers::batch_media::BatchMediaRequest,
             handlers::batch_media::BatchDeleteResponse,
             handlers::batch_media::BatchDeleteResult,
@@ -193,8 +187,7 @@ pub fn get_openapi_spec() -> utoipa::openapi::OpenApi {
         (name = "file-groups", description = "File group operations for organizing multiple files"),
         (name = "config", description = "Service configuration and health checks"),
         (name = "uploads", description = "Presigned URL and chunked upload operations"),
-        (name = "media", description = "Unified media operations (delete, metadata, etc.)"),
-        (name = "batch", description = "Batch operations for executing multiple API calls in a single request")
+        (name = "media", description = "Unified media operations (delete, metadata, etc.)")
     )
 )]
 pub struct ApiDoc;

@@ -1,14 +1,14 @@
 use crate::auth::models::TenantContext;
-use crate::error::ErrorResponse;
+use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
 use axum::{
     body::Body,
     extract::{Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use futures::StreamExt;
+use mindia_core::AppError;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -29,42 +29,22 @@ pub async fn stream_master_playlist(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    let video: mindia_core::models::Video = match state
-        .video
+) -> Result<impl IntoResponse, HttpAppError> {
+    let video = state
+        .media
         .repository
         .get_video(tenant_ctx.tenant_id, id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, video_id = %id, "Failed to fetch video");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to fetch video",
-                    "DATABASE_ERROR",
-                )),
-            )
-        })? {
-        Some(v) => v,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Video not found", "NOT_FOUND")),
-            ));
-        }
-    };
+            AppError::Internal(e.to_string())
+        })?
+        .ok_or_else(|| AppError::NotFound("Video not found".to_string()))?;
 
     let master_playlist_key = video.hls_master_playlist.as_ref().ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "Video is still processing or failed",
-                "PROCESSING_INCOMPLETE",
-            )),
-        )
+        AppError::NotFound("Video is still processing or failed".to_string())
     })?;
 
-    // Download playlist as stream using Storage trait (works with any backend: S3, local, etc.)
     let stream = state
         .media
         .storage
@@ -72,13 +52,9 @@ pub async fn stream_master_playlist(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, storage_key = %master_playlist_key, "Failed to fetch playlist from storage");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("Failed to fetch playlist", "STORAGE_ERROR")),
-            )
+            AppError::Internal(e.to_string())
         })?;
 
-    // Wrap storage stream for axum Body
     let body_stream = stream.map(|result| {
         result.map_err(|e| std::io::Error::other(format!("Storage stream error: {}", e)))
     });
@@ -90,13 +66,7 @@ pub async fn stream_master_playlist(
         .body(Body::from_stream(body_stream))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build master playlist response");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to build response",
-                    "INTERNAL_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string()).into()
         })
 }
 
@@ -118,39 +88,20 @@ pub async fn stream_variant_playlist(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Path((id, variant)): Path<(Uuid, String)>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    let video: mindia_core::models::Video = match state
-        .video
+) -> Result<impl IntoResponse, HttpAppError> {
+    let video = state
+        .media
         .repository
         .get_video(tenant_ctx.tenant_id, id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, video_id = %id, "Failed to fetch video");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to fetch video",
-                    "DATABASE_ERROR",
-                )),
-            )
-        })? {
-        Some(v) => v,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Video not found", "NOT_FOUND")),
-            ));
-        }
-    };
+            AppError::Internal(e.to_string())
+        })?
+        .ok_or_else(|| AppError::NotFound("Video not found".to_string()))?;
 
     if video.hls_master_playlist.is_none() {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "Video is still processing or failed",
-                "PROCESSING_INCOMPLETE",
-            )),
-        ));
+        return Err(AppError::NotFound("Video is still processing or failed".to_string()).into());
     }
 
     let playlist_key = format!("uploads/{}/{}/index.m3u8", id, variant);
@@ -162,13 +113,9 @@ pub async fn stream_variant_playlist(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, storage_key = %playlist_key, "Failed to fetch variant playlist from storage");
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Variant not found", "NOT_FOUND")),
-            )
+            AppError::NotFound("Variant not found".to_string())
         })?;
 
-    // Wrap storage stream for axum Body
     let body_stream = stream.map(|result| {
         result.map_err(|e| std::io::Error::other(format!("Storage stream error: {}", e)))
     });
@@ -180,13 +127,7 @@ pub async fn stream_variant_playlist(
         .body(Body::from_stream(body_stream))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build variant playlist response");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to build response",
-                    "INTERNAL_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string()).into()
         })
 }
 
@@ -209,39 +150,23 @@ pub async fn stream_variant_playlist(
 pub async fn stream_segment(
     State(state): State<Arc<AppState>>,
     Path((id, variant, segment)): Path<(Uuid, String, String)>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
-    // Validate segment filename to prevent path traversal
+) -> Result<impl IntoResponse, HttpAppError> {
     if segment.contains("..") || segment.contains('/') || segment.contains('\\') {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("Invalid segment name", "BAD_REQUEST")),
-        ));
+        return Err(AppError::BadRequest("Invalid segment name".to_string()).into());
     }
 
     let segment_key = format!("uploads/{}/{}/{}", id, variant, segment);
 
-    let _video: mindia_core::models::Video = match state
-        .video
+    let _video = state
+        .media
         .repository
         .get_video_by_id_unchecked(id)
         .await
-        .map_err(|_e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to fetch video",
-                    "DATABASE_ERROR",
-                )),
-            )
-        })? {
-        Some(v) => v,
-        None => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Video not found", "NOT_FOUND")),
-            ));
-        }
-    };
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to fetch video");
+            AppError::Internal(e.to_string())
+        })?
+        .ok_or_else(|| AppError::NotFound("Video not found".to_string()))?;
 
     let stream = state
         .media
@@ -250,13 +175,9 @@ pub async fn stream_segment(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, storage_key = %segment_key, "Failed to fetch segment from storage");
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Segment not found", "NOT_FOUND")),
-            )
+            AppError::NotFound("Segment not found".to_string())
         })?;
 
-    // Wrap storage stream for axum Body
     let body_stream = stream.map(|result| {
         result.map_err(|e| std::io::Error::other(format!("Storage stream error: {}", e)))
     });
@@ -268,12 +189,6 @@ pub async fn stream_segment(
         .body(Body::from_stream(body_stream))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build segment response");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to build response",
-                    "INTERNAL_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string()).into()
         })
 }

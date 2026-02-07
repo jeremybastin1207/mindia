@@ -7,6 +7,40 @@ use std::env;
 
 use crate::storage_types::StorageBackend;
 
+/// Critical env vars validated eagerly at startup (serde + envy).
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+struct AppEnv {
+    database_url: Option<String>,
+    media_processor_database_url: Option<String>,
+    jwt_secret: Option<String>,
+}
+
+/// Validate required env vars before loading full config. Call at startup for clear errors.
+pub fn validate_env() -> Result<(), anyhow::Error> {
+    dotenvy::dotenv().ok();
+    let app_env: AppEnv = envy::from_env().map_err(|e| anyhow::anyhow!("Env validation: {}", e))?;
+    let database_url = app_env
+        .media_processor_database_url
+        .or(app_env.database_url)
+        .ok_or_else(|| anyhow::anyhow!("MEDIA_PROCESSOR_DATABASE_URL or DATABASE_URL must be set"))?;
+    if !database_url.starts_with("postgresql://") {
+        return Err(anyhow::anyhow!(
+            "DATABASE_URL must be a PostgreSQL connection string (postgresql://...)"
+        ));
+    }
+    let jwt = app_env
+        .jwt_secret
+        .ok_or_else(|| anyhow::anyhow!("JWT_SECRET must be set"))?;
+    if jwt.len() < 32 {
+        return Err(anyhow::anyhow!(
+            "JWT_SECRET must be at least 32 characters (got {})",
+            jwt.len()
+        ));
+    }
+    Ok(())
+}
+
 // Common constants
 const MAX_CONNECTIONS: u32 = 20;
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
@@ -148,6 +182,7 @@ impl Config {
     }
 
     pub fn from_env() -> Result<Self, anyhow::Error> {
+        validate_env()?;
         let config = MediaProcessorConfig::from_env()?;
         Ok(Config(Box::new(config)))
     }

@@ -181,7 +181,7 @@ pub async fn start_chunked_upload(
     }
 
     // Create upload session in database
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     upload_repo
         .create_upload_session(
             tenant_ctx.tenant_id,
@@ -239,7 +239,7 @@ pub async fn record_chunk_upload(
     Json(request): Json<UploadChunkRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
@@ -313,7 +313,7 @@ pub async fn get_chunked_upload_progress(
     Path(session_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
@@ -383,7 +383,7 @@ pub async fn complete_chunked_upload(
     }
 
     // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
@@ -733,7 +733,7 @@ pub async fn complete_chunked_upload(
         id: tenant_ctx.tenant_id,
     };
 
-    let webhook_service = state.webhook_service.clone();
+    let webhook_service = state.webhooks.webhook_service.clone();
     let tenant_id = tenant_ctx.tenant_id;
     tokio::spawn(async move {
         if let Err(e) = webhook_service

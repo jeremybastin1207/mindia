@@ -17,7 +17,7 @@ pub mod validation;
 
 // Re-export commonly used types
 pub use capacity_gate::CapacityGate;
-pub use config::{BaseConfig, Config, MediaProcessorConfig};
+pub use config::{validate_env, BaseConfig, Config, MediaProcessorConfig};
 pub use encryption::EncryptionService;
 pub use error::{AppError, ErrorMetadata, LogLevel};
 pub use storage_types::StorageBackend;

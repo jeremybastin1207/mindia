@@ -26,6 +26,13 @@ mod config_impls;
 pub use image_processor::{ImageMetadata, ImageProcessorImpl};
 pub use service::MediaUploadService;
 pub use traits::{MediaProcessor, MediaUploadConfig};
+pub use config_impls::MediaLimitsConfig;
 
 #[cfg(feature = "document")]
 pub use document_processor::DocumentProcessorImpl;
+
+#[cfg(feature = "video")]
+pub use video_processor::{VideoMetadata, VideoProcessorImpl};
+
+#[cfg(feature = "audio")]
+pub use audio_processor::{AudioMetadata, AudioProcessorImpl};

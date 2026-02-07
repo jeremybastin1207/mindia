@@ -68,7 +68,7 @@ pub async fn create_api_key(
         expires_in_days: request.expires_in_days,
     };
 
-    let api_key = state
+    let api_key = state.db
         .api_key_repository
         .create_api_key(ctx.tenant_id, &db_request, key_hash, key_prefix)
         .await
@@ -99,7 +99,7 @@ pub async fn list_api_keys(
     let limit = query.limit.clamp(1, 100);
     let offset = query.offset.max(0);
 
-    let api_keys = state
+    let api_keys = state.db
         .api_key_repository
         .list_by_tenant(ctx.tenant_id, limit, offset)
         .await
@@ -120,7 +120,7 @@ pub async fn get_api_key(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let api_key = state
+    let api_key = state.db
         .api_key_repository
         .get_by_id(ctx.tenant_id, id)
         .await
@@ -137,7 +137,7 @@ pub async fn revoke_api_key(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let revoked = state
+    let revoked = state.db
         .api_key_repository
         .revoke_api_key(ctx.tenant_id, id)
         .await

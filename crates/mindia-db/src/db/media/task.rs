@@ -28,6 +28,7 @@ impl TaskRepository {
         max_retries: Option<i32>,
         timeout_seconds: Option<i32>,
         depends_on: Option<Vec<Uuid>>,
+        cancel_on_dep_failure: bool,
     ) -> Result<Task> {
         let scheduled_at = scheduled_at.unwrap_or_else(Utc::now);
         let max_retries = max_retries.unwrap_or(3);
@@ -48,9 +49,9 @@ impl TaskRepository {
             r#"
             INSERT INTO tasks (
                 tenant_id, task_type, status, priority, payload, scheduled_at,
-                max_retries, timeout_seconds, depends_on
+                max_retries, timeout_seconds, depends_on, cancel_on_dep_failure
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING
                 id,
                 tenant_id,
@@ -66,6 +67,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -79,6 +81,7 @@ impl TaskRepository {
         .bind(max_retries)
         .bind(timeout_seconds)
         .bind(depends_on.as_deref())
+        .bind(cancel_on_dep_failure)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| {
@@ -159,6 +162,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             FROM tasks
@@ -197,6 +201,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             FROM tasks
@@ -300,6 +305,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             FROM tasks
@@ -338,6 +344,7 @@ impl TaskRepository {
                     max_retries,
                     timeout_seconds,
                     depends_on,
+                    COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                     created_at,
                     updated_at
                 "#,
@@ -387,6 +394,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -432,6 +440,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -478,6 +487,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -525,6 +535,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -565,6 +576,27 @@ impl TaskRepository {
         .context("Failed to check dependencies")?;
 
         Ok(count == depends_on.len() as i64)
+    }
+
+    /// Check if any dependency has failed or cancelled (used to cancel downstream workflow tasks).
+    #[tracing::instrument(skip(self))]
+    pub async fn check_any_dependency_failed_or_cancelled(&self, depends_on: &[Uuid]) -> Result<bool> {
+        if depends_on.is_empty() {
+            return Ok(false);
+        }
+        let count: i64 = sqlx::query_scalar::<Postgres, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM tasks
+            WHERE id = ANY($1)
+                AND status IN ('failed', 'cancelled')
+            "#,
+        )
+        .bind(depends_on)
+        .fetch_one(&self.pool)
+        .await
+        .context("Failed to check dependency failure")?;
+        Ok(count > 0)
     }
 
     /// Get aggregated task statistics for a tenant
@@ -627,6 +659,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,
@@ -676,6 +709,7 @@ impl TaskRepository {
                 max_retries,
                 timeout_seconds,
                 depends_on,
+                COALESCE(cancel_on_dep_failure, false) AS cancel_on_dep_failure,
                 created_at,
                 updated_at
             "#,

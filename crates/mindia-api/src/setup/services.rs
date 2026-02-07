@@ -16,6 +16,8 @@ use mindia_db::{
 };
 #[cfg(feature = "plugin")]
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
+#[cfg(feature = "workflow")]
+use mindia_db::{WorkflowExecutionRepository, WorkflowRepository};
 use mindia_infra::{
     start_storage_metrics_refresh, AnalyticsService, CapacityChecker, CleanupService, RateLimiter,
     WebhookRetryService, WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
@@ -39,9 +41,13 @@ use mindia_services::{AnthropicService, SemanticSearchProvider};
 use mindia_services::{S3Service, Storage};
 // TaskQueue and task handlers moved to api crate
 use crate::state::{
-    AppState, AudioConfig, DatabaseConfig, DocumentConfig, ImageConfig, MediaConfig, S3Config,
-    SecurityConfig, VideoConfig,
+    AppState, DatabaseConfig, DbState, MediaConfig, S3Config, SecurityConfig, TaskState,
+    WebhookState,
 };
+#[cfg(feature = "plugin")]
+use crate::state::PluginState;
+#[cfg(feature = "workflow")]
+use crate::state::WorkflowState;
 #[cfg(feature = "content-moderation")]
 use crate::task_handlers::ContentModerationTaskHandler;
 #[cfg(feature = "plugin")]
@@ -94,6 +100,11 @@ pub async fn initialize_services(
     let embedding_db = EmbeddingRepository::new(pool.clone());
     let metadata_search_db = MetadataSearchRepository::new(pool.clone());
     let task_db = TaskRepository::new(pool.clone());
+
+    #[cfg(feature = "workflow")]
+    let workflow_repo = WorkflowRepository::new(pool.clone());
+    #[cfg(feature = "workflow")]
+    let workflow_execution_repo = WorkflowExecutionRepository::new(pool.clone());
 
     // Initialize webhook repositories
     let webhook_db = WebhookRepository::new(pool.clone());
@@ -171,9 +182,14 @@ pub async fn initialize_services(
         endpoint_url: config.s3_endpoint().map(|s| s.to_string()),
     });
 
+    #[cfg(feature = "clamav")]
     let security_config = SecurityConfig {
-        #[cfg(feature = "clamav")]
         clamav: clamav_service.clone(),
+        clamav_enabled: config.clamav_enabled(),
+        cors_origins: config.cors_origins().to_vec(),
+    };
+    #[cfg(not(feature = "clamav"))]
+    let security_config = SecurityConfig {
         clamav_enabled: config.clamav_enabled(),
         cors_origins: config.cors_origins().to_vec(),
     };
@@ -183,71 +199,50 @@ pub async fn initialize_services(
         timeout_seconds: config.db_timeout_seconds(),
     };
 
-    let image_config = ImageConfig {
-        repository: media_db.clone(),
-        max_file_size: config.max_file_size_bytes(),
-        allowed_extensions: config.allowed_extensions().to_vec(),
-        allowed_content_types: config.allowed_content_types().to_vec(),
-        remove_exif: config.remove_exif(),
-    };
-
-    #[cfg(feature = "document")]
-    let document_config = DocumentConfig {
-        repository: media_db.clone(),
-        max_file_size: config.max_document_size_bytes(),
-        allowed_extensions: config.document_allowed_extensions().to_vec(),
-        allowed_content_types: config.document_allowed_content_types().to_vec(),
-    };
-
-    #[cfg(feature = "audio")]
-    let audio_config = AudioConfig {
-        repository: media_db.clone(),
-        max_file_size: config.max_audio_size_bytes(),
-        allowed_extensions: config.audio_allowed_extensions().to_vec(),
-        allowed_content_types: config.audio_allowed_content_types().to_vec(),
-    };
-
-    // Unified media configuration
     let file_group_repo = FileGroupRepository::new(pool.clone(), storage.clone());
     let media_config = MediaConfig {
         repository: media_db.clone(),
         file_group_repository: file_group_repo,
         storage: storage.clone(),
-        // Image settings
         image_max_file_size: config.max_file_size_bytes(),
         image_allowed_extensions: config.allowed_extensions().to_vec(),
         image_allowed_content_types: config.allowed_content_types().to_vec(),
         remove_exif: config.remove_exif(),
-        // Video settings
         video_max_file_size: config.max_video_size_bytes(),
         video_allowed_extensions: config.video_allowed_extensions().to_vec(),
         video_allowed_content_types: config.video_allowed_content_types().to_vec(),
         ffmpeg_path: config.ffmpeg_path().to_string(),
         hls_segment_duration: config.hls_segment_duration(),
         hls_variants: config.hls_variants().to_vec(),
-        // Audio settings
         audio_max_file_size: config.max_audio_size_bytes(),
         audio_allowed_extensions: config.audio_allowed_extensions().to_vec(),
         audio_allowed_content_types: config.audio_allowed_content_types().to_vec(),
-        // Document settings
         document_max_file_size: config.max_document_size_bytes(),
         document_allowed_extensions: config.document_allowed_extensions().to_vec(),
         document_allowed_content_types: config.document_allowed_content_types().to_vec(),
     };
     tracing::info!("MediaConfig initialized with unified repository");
 
-    #[cfg(feature = "video")]
-    let video_db = media_db.clone();
-    #[cfg(feature = "video")]
-    let video_config_init = VideoConfig {
-        repository: media_db.clone(),
-        job_queue: VideoJobQueue::dummy(),
-        max_file_size: config.max_video_size_bytes(),
-        allowed_extensions: config.video_allowed_extensions().to_vec(),
-        allowed_content_types: config.video_allowed_content_types().to_vec(),
-        ffmpeg_path: config.ffmpeg_path().to_string(),
-        hls_segment_duration: config.hls_segment_duration(),
-        hls_variants: config.hls_variants().to_vec(),
+    let db_state_temp = DbState {
+        pool: pool.clone(),
+        analytics: analytics_service.clone(),
+        database: database_config.clone(),
+        cleanup_service: Some(cleanup_service.clone()),
+        folder_repository: folder_db.clone(),
+        named_transformation_repository: named_transformation_db.clone(),
+        embedding_repository: embedding_db.clone(),
+        metadata_search_repository: metadata_search_db.clone(),
+        api_key_repository: api_key_db.clone(),
+        tenant_repository: tenant_db.clone(),
+        task_repository: task_db.clone(),
+        webhook_repository: webhook_db.clone(),
+        webhook_event_repository: webhook_event_db.clone(),
+        webhook_retry_repository: webhook_retry_db.clone(),
+    };
+
+    let webhook_state = WebhookState {
+        webhook_service: webhook_service.clone(),
+        webhook_retry_service: webhook_retry_service.clone(),
     };
 
     // Initialize cleanup service
@@ -586,94 +581,93 @@ pub async fn initialize_services(
     // Initialize capacity checker (needed for temp_state)
     let capacity_checker_temp = Arc::new(CapacityChecker::new(config.clone()));
 
-    // Create temporary state with a TaskQueue that does not spawn a worker, to break
-    // circular dependency. VideoJobQueue holds Arc<AppState> to this; if we used a real
-    // TaskQueue here, we would have two worker pools and duplicate shutdown logs.
-    let temp_state = AppState {
-        db_pool: pool.clone(),
-        media: media_config.clone(),
-        image: image_config.clone(),
-        #[cfg(feature = "video")]
-        video: video_config_init.clone(),
-        #[cfg(feature = "document")]
-        document: document_config.clone(),
-        #[cfg(feature = "audio")]
-        audio: audio_config.clone(),
-        s3: s3_config.clone(),
-        security: security_config.clone(),
-        database: database_config.clone(),
-        analytics: analytics_service.clone(),
-        is_production,
-        #[cfg(feature = "semantic-search")]
-        semantic_search: semantic_search.clone(),
-        embedding_repository: embedding_db.clone(),
-        metadata_search_repository: metadata_search_db.clone(),
-        cleanup_service: Some(cleanup_service.clone()),
-        config: config.clone(),
-        task_queue: TaskQueue::new_no_worker(
-            task_db.clone(),
-            rate_limiter.clone(),
-            task_queue_config.clone(),
-        ),
+    let no_worker_queue = TaskQueue::new_no_worker(
+        task_db.clone(),
+        rate_limiter.clone(),
+        task_queue_config.clone(),
+    );
+
+    #[cfg(feature = "video")]
+    let temp_video_job_queue = crate::job_queue::VideoJobQueue::dummy();
+
+    #[cfg(all(feature = "content-moderation", feature = "video"))]
+    let tasks_temp = TaskState {
+        task_queue: no_worker_queue.clone(),
         task_repository: task_db.clone(),
-        #[cfg(feature = "video")]
-        video_db: video_db.clone(),
-        webhook_repository: webhook_db.clone(),
-        webhook_event_repository: webhook_event_db.clone(),
-        webhook_retry_repository: webhook_retry_db.clone(),
-        webhook_service: webhook_service.clone(),
-        webhook_retry_service: webhook_retry_service.clone(),
-        folder_repository: folder_db.clone(),
-        api_key_repository: api_key_db.clone(),
-        tenant_repository: tenant_db.clone(),
-        named_transformation_repository: named_transformation_db.clone(),
-        #[cfg(feature = "plugin")]
-        plugin_registry: plugin_registry_init.clone(),
-        #[cfg(feature = "plugin")]
-        plugin_task_handler: plugin_task_handler_init.clone(),
-        #[cfg(feature = "content-moderation")]
         content_moderation_handler: content_moderation_handler.clone(),
-        capacity_checker: capacity_checker_temp.clone(),
-        #[cfg(feature = "plugin")]
+        video_job_queue: temp_video_job_queue,
+    };
+    #[cfg(all(feature = "content-moderation", not(feature = "video")))]
+    let tasks_temp = TaskState {
+        task_queue: no_worker_queue.clone(),
+        task_repository: task_db.clone(),
+        content_moderation_handler: content_moderation_handler.clone(),
+    };
+    #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
+    let tasks_temp = TaskState {
+        task_queue: no_worker_queue.clone(),
+        task_repository: task_db.clone(),
+        video_job_queue: temp_video_job_queue,
+    };
+    #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
+    let tasks_temp = TaskState {
+        task_queue: no_worker_queue.clone(),
+        task_repository: task_db.clone(),
+    };
+
+    #[cfg(feature = "plugin")]
+    let plugin_state_temp = PluginState {
+        plugin_registry: plugin_registry_init.clone(),
         plugin_service: PluginService::new_with_encryption(
             plugin_registry_init.clone(),
             plugin_config_repo_init.clone(),
             plugin_execution_repo_init.clone(),
-            TaskQueue::new_no_worker(
-                task_db.clone(),
-                rate_limiter.clone(),
-                task_queue_config.clone(),
-            ),
+            no_worker_queue.clone(),
             encryption_service.clone(),
         ),
-        #[cfg(feature = "plugin")]
         plugin_config_repository: plugin_config_repo_init.clone(),
-        #[cfg(feature = "plugin")]
         plugin_execution_repository: plugin_execution_repo_init.clone(),
+        plugin_task_handler: plugin_task_handler_init.clone(),
+    };
+
+    #[cfg(feature = "workflow")]
+    let workflow_state_temp = WorkflowState {
+        workflow_repository: workflow_repo.clone(),
+        workflow_execution_repository: workflow_execution_repo.clone(),
+        workflow_service: crate::services::workflow::WorkflowService::new(
+            workflow_repo.clone(),
+            workflow_execution_repo.clone(),
+            no_worker_queue.clone(),
+        ),
+    };
+
+    // Temporary state to break circular dependency: VideoJobQueue needs Arc<AppState>.
+    let temp_state = AppState {
+        db: db_state_temp.clone(),
+        media: media_config.clone(),
+        security: security_config.clone(),
+        tasks: tasks_temp,
+        webhooks: webhook_state.clone(),
+        #[cfg(feature = "plugin")]
+        plugins: plugin_state_temp,
+        #[cfg(feature = "workflow")]
+        workflows: workflow_state_temp,
+        config: config.clone(),
+        capacity_checker: capacity_checker_temp.clone(),
+        is_production,
+        s3: s3_config.clone(),
+        #[cfg(feature = "semantic-search")]
+        semantic_search: semantic_search.clone(),
     };
 
     let temp_state_arc = Arc::new(temp_state);
     #[cfg(feature = "video")]
     let video_job_queue =
-        VideoJobQueue::new(temp_state_arc.clone(), config.max_concurrent_transcodes());
-
-    // Embedding jobs are now handled via TaskQueue with EmbeddingTaskHandler
-    // No separate embedding_queue needed
-
-    // Create final video config with real job queue
-    #[cfg(feature = "video")]
-    let video_config = VideoConfig {
-        repository: video_db.clone(),
-        job_queue: video_job_queue,
-        max_file_size: config.max_video_size_bytes(),
-        allowed_extensions: config.video_allowed_extensions().to_vec(),
-        allowed_content_types: config.video_allowed_content_types().to_vec(),
-        ffmpeg_path: config.ffmpeg_path().to_string(),
-        hls_segment_duration: config.hls_segment_duration(),
-        hls_variants: config.hls_variants().to_vec(),
-    };
+        crate::job_queue::VideoJobQueue::new(temp_state_arc.clone(), config.max_concurrent_transcodes());
 
     let state_weak = Arc::downgrade(&temp_state_arc);
+    #[cfg(feature = "workflow")]
+    let (task_finished_tx, task_finished_rx) = tokio::sync::mpsc::channel(256);
     let task_queue = TaskQueue::new(
         task_db.clone(),
         rate_limiter.clone(),
@@ -681,6 +675,10 @@ pub async fn initialize_services(
         state_weak,
         Some(pool.clone()),
         Some(capacity_checker_temp.clone() as Arc<dyn mindia_core::CapacityGate>),
+        #[cfg(feature = "workflow")]
+        Some(task_finished_tx),
+        #[cfg(not(feature = "workflow"))]
+        None,
     );
     tracing::info!(
         max_workers = config.task_queue_max_workers(),
@@ -710,62 +708,154 @@ pub async fn initialize_services(
         "Capacity checker initialized"
     );
 
-    // Create final state with all components including properly initialized task queue
-    let state = Arc::new(AppState {
-        db_pool: pool,
-        media: media_config,
-        image: image_config,
-        #[cfg(feature = "video")]
-        video: video_config,
-        #[cfg(feature = "document")]
-        document: document_config,
-        #[cfg(feature = "audio")]
-        audio: audio_config,
-        s3: s3_config,
-        security: security_config,
-        database: database_config,
+    #[cfg(all(feature = "content-moderation", feature = "video"))]
+    let tasks_final = TaskState {
+        task_queue: task_queue.clone(),
+        task_repository: task_db.clone(),
+        content_moderation_handler: content_moderation_handler.clone(),
+        video_job_queue,
+    };
+    #[cfg(all(feature = "content-moderation", not(feature = "video")))]
+    let tasks_final = TaskState {
+        task_queue: task_queue.clone(),
+        task_repository: task_db.clone(),
+        content_moderation_handler: content_moderation_handler.clone(),
+    };
+    #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
+    let tasks_final = TaskState {
+        task_queue: task_queue.clone(),
+        task_repository: task_db.clone(),
+        video_job_queue,
+    };
+    #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
+    let tasks_final = TaskState {
+        task_queue: task_queue.clone(),
+        task_repository: task_db.clone(),
+    };
+
+    #[cfg(feature = "plugin")]
+    let plugin_state_final = PluginState {
+        plugin_registry: plugin_registry_init.clone(),
+        plugin_service: plugin_service_final,
+        plugin_config_repository: plugin_config_repo_init.clone(),
+        plugin_execution_repository: plugin_execution_repo_init.clone(),
+        plugin_task_handler: plugin_task_handler_init.clone(),
+    };
+
+    #[cfg(feature = "workflow")]
+    let workflow_state_final = WorkflowState {
+        workflow_repository: workflow_repo.clone(),
+        workflow_execution_repository: workflow_execution_repo.clone(),
+        workflow_service: crate::services::workflow::WorkflowService::new(
+            workflow_repo.clone(),
+            workflow_execution_repo.clone(),
+            task_queue.clone(),
+        ),
+    };
+
+    let db_state_final = DbState {
+        pool,
         analytics: analytics_service,
-        is_production,
-        #[cfg(feature = "semantic-search")]
-        semantic_search,
+        database: database_config,
+        cleanup_service: Some(cleanup_service),
+        folder_repository: folder_db,
+        named_transformation_repository: named_transformation_db,
         embedding_repository: embedding_db,
         metadata_search_repository: metadata_search_db,
-        cleanup_service: Some(cleanup_service.clone()),
-        config: config.clone(),
-        task_queue,
+        api_key_repository: api_key_db,
+        tenant_repository: tenant_db,
         task_repository: task_db,
-        #[cfg(feature = "video")]
-        video_db,
         webhook_repository: webhook_db,
         webhook_event_repository: webhook_event_db,
         webhook_retry_repository: webhook_retry_db,
-        webhook_service,
-        webhook_retry_service,
-        folder_repository: folder_db,
-        api_key_repository: api_key_db,
-        tenant_repository: tenant_db,
-        named_transformation_repository: named_transformation_db,
+    };
+
+    let state = Arc::new(AppState {
+        db: db_state_final,
+        media: media_config,
+        security: security_config,
+        tasks: tasks_final,
+        webhooks: WebhookState {
+            webhook_service,
+            webhook_retry_service: webhook_retry_service,
+        },
         #[cfg(feature = "plugin")]
-        plugin_registry: plugin_registry_init.clone(),
-        #[cfg(feature = "plugin")]
-        plugin_service: plugin_service_final,
-        #[cfg(feature = "plugin")]
-        plugin_config_repository: plugin_config_repo_init.clone(),
-        #[cfg(feature = "plugin")]
-        plugin_execution_repository: plugin_execution_repo_init.clone(),
-        #[cfg(feature = "plugin")]
-        plugin_task_handler: plugin_task_handler_init.clone(),
-        #[cfg(feature = "content-moderation")]
-        content_moderation_handler: content_moderation_handler.clone(),
+        plugins: plugin_state_final,
+        #[cfg(feature = "workflow")]
+        workflows: workflow_state_final,
+        config: config.clone(),
         capacity_checker,
+        is_production,
+        s3: s3_config,
+        #[cfg(feature = "semantic-search")]
+        semantic_search,
     });
 
+    #[cfg(feature = "workflow")]
+    {
+        use mindia_core::models::{
+            WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
+            WorkflowExecutionStatus,
+        };
+        let exec_repo = state.workflows.workflow_execution_repository.clone();
+        let webhook_svc = state.webhooks.webhook_service.clone();
+        let mut rx = task_finished_rx;
+        tokio::spawn(async move {
+            while let Some((task_id, _)) = rx.recv().await {
+                let Ok(Some(exec)) = exec_repo.get_by_task_id(task_id).await else {
+                    continue;
+                };
+                let Ok(Some(new_status)) = exec_repo.update_status_from_tasks(exec.id).await else {
+                    continue;
+                };
+                if !matches!(
+                    new_status,
+                    WorkflowExecutionStatus::Completed | WorkflowExecutionStatus::Failed
+                ) {
+                    continue;
+                }
+                let event_type = if new_status == WorkflowExecutionStatus::Completed {
+                    WebhookEventType::WorkflowCompleted
+                } else {
+                    WebhookEventType::WorkflowFailed
+                };
+                let data = WebhookDataInfo {
+                    id: exec.media_id,
+                    filename: String::new(),
+                    url: String::new(),
+                    content_type: "application/json".to_string(),
+                    file_size: 0,
+                    entity_type: "workflow".to_string(),
+                    uploaded_at: None,
+                    deleted_at: None,
+                    stored_at: None,
+                    processing_status: Some(format!("{:?}", new_status).to_lowercase()),
+                    error_message: None,
+                };
+                let initiator = WebhookInitiatorInfo {
+                    initiator_type: "workflow".to_string(),
+                    id: exec.workflow_id,
+                };
+                if let Err(e) = webhook_svc
+                    .trigger_event(exec.tenant_id, event_type, data, initiator)
+                    .await
+                {
+                    tracing::warn!(
+                        error = %e,
+                        execution_id = %exec.id,
+                        "Failed to trigger workflow webhook"
+                    );
+                }
+            }
+        });
+    }
+
     // Start background tasks
-    let analytics_for_background = Arc::new(state.analytics.clone());
+    let analytics_for_background = Arc::new(state.db.analytics.clone());
     start_storage_metrics_refresh(analytics_for_background, 6);
     tracing::info!("Started storage metrics refresh background task (every 6 hours)");
 
-    if let Some(cleanup) = &state.cleanup_service {
+    if let Some(cleanup) = &state.db.cleanup_service {
         Arc::new(cleanup.clone()).start();
         tracing::info!("Started file cleanup background task (runs every hour)");
     }
@@ -776,7 +866,7 @@ pub async fn initialize_services(
         use crate::telemetry::PoolMetrics;
         let meter = opentelemetry::global::meter("mindia");
         let pool_metrics = PoolMetrics::new(meter);
-        crate::telemetry::start_pool_metrics_collector(state.db_pool.clone(), pool_metrics);
+        crate::telemetry::start_pool_metrics_collector(state.db.pool.clone(), pool_metrics);
         tracing::info!("Started database pool metrics collection (every 30 seconds)");
     }
 

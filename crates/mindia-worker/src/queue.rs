@@ -19,6 +19,10 @@ use crate::context::TaskHandlerContext;
 /// Channel name for PostgreSQL LISTEN/NOTIFY when a new task is created.
 pub const TASK_NOTIFY_CHANNEL: &str = "mindia_new_task";
 
+/// Optional sender to notify when a task finishes (e.g. for workflow execution updates).
+/// Not cloned into the worker; use with TaskQueue::new_with_task_finished.
+pub type TaskFinishedSender = mpsc::Sender<(Uuid, mindia_core::models::TaskStatus)>;
+
 #[derive(Clone)]
 pub struct TaskQueueConfig {
     pub max_workers: usize,
@@ -67,6 +71,7 @@ impl TaskQueue {
         context: Weak<dyn TaskHandlerContext>,
         pool: Option<sqlx::PgPool>,
         capacity_gate: Option<Arc<dyn CapacityGate>>,
+        task_finished_tx: Option<TaskFinishedSender>,
     ) -> Self {
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
 
@@ -90,6 +95,7 @@ impl TaskQueue {
                 shutdown_rx,
                 pool,
                 capacity_gate,
+                task_finished_tx,
             )
             .await;
         });
@@ -130,6 +136,7 @@ impl TaskQueue {
         priority: Priority,
         scheduled_at: Option<DateTime<Utc>>,
         depends_on: Option<Vec<Uuid>>,
+        cancel_on_dep_failure: bool,
     ) -> Result<Uuid> {
         let task = self
             .repository
@@ -142,6 +149,7 @@ impl TaskQueue {
                 Some(self.config.max_retries),
                 Some(self.config.default_timeout_seconds),
                 depends_on,
+                cancel_on_dep_failure,
             )
             .await
             .map_err(|e| {
@@ -173,6 +181,7 @@ impl TaskQueue {
         mut shutdown_rx: mpsc::Receiver<()>,
         pool: Option<sqlx::PgPool>,
         capacity_gate: Option<Arc<dyn CapacityGate>>,
+        task_finished_tx: Option<TaskFinishedSender>,
     ) {
         let use_listen = pool.is_some();
         tracing::info!(
@@ -242,13 +251,13 @@ impl TaskQueue {
                     break;
                 }
                 _ = notify_rx.recv() => {
-                    // Woken by LISTEN/NOTIFY; try to claim one task immediately.
                     Self::claim_and_dispatch_one(
                         &repository,
                         &rate_limiter,
                         &semaphore,
                         &context,
                         capacity_gate.as_deref(),
+                        task_finished_tx.clone(),
                     ).await;
                 }
                 _ = sleep(poll_interval) => {
@@ -258,6 +267,7 @@ impl TaskQueue {
                         &semaphore,
                         &context,
                         capacity_gate.as_deref(),
+                        task_finished_tx.clone(),
                     ).await;
                 }
             }
@@ -272,6 +282,7 @@ impl TaskQueue {
         semaphore: &Arc<Semaphore>,
         context: &Weak<dyn TaskHandlerContext>,
         capacity_gate: Option<&dyn CapacityGate>,
+        task_finished_tx: Option<TaskFinishedSender>,
     ) {
         if let Some(gate) = capacity_gate {
             if !gate.can_accept_task().await {
@@ -294,9 +305,12 @@ impl TaskQueue {
                 let limiter = rate_limiter.clone();
                 let ctx = context.clone();
 
+                let finished_tx = task_finished_tx.clone();
                 tokio::spawn(async move {
                     let _permit = permit;
-                    if let Err(e) = Self::process_task_with_retry(task, repo, limiter, ctx).await {
+                    if let Err(e) =
+                        Self::process_task_with_retry(task, repo, limiter, ctx, finished_tx).await
+                    {
                         tracing::error!(error = %e, "Task processing failed after retries");
                     }
                 });
@@ -312,12 +326,13 @@ impl TaskQueue {
         }
     }
 
-    #[tracing::instrument(skip(repository, rate_limiter, context), fields(task.id = %task.id, task.type = %task.task_type))]
+    #[tracing::instrument(skip(repository, rate_limiter, context, task_finished_tx), fields(task.id = %task.id, task.type = %task.task_type))]
     async fn process_task_with_retry(
         task: Task,
         repository: TaskRepository,
         rate_limiter: RateLimiter,
         context: Weak<dyn TaskHandlerContext>,
+        task_finished_tx: Option<TaskFinishedSender>,
     ) -> Result<()> {
         if let Some(ref depends_on) = task.depends_on {
             let deps_completed = repository
@@ -326,6 +341,25 @@ impl TaskQueue {
                 .context("Failed to check dependencies")?;
 
             if !deps_completed {
+                if task.cancel_on_dep_failure {
+                    let dep_failed = repository
+                        .check_any_dependency_failed_or_cancelled(depends_on)
+                        .await
+                        .context("Failed to check dependency failure")?;
+                    if dep_failed {
+                        tracing::info!(
+                            task_id = %task.id,
+                            "Dependency failed or cancelled and cancel_on_dep_failure is set, cancelling task"
+                        );
+                        repository
+                            .update_status(task.id, mindia_core::models::TaskStatus::Cancelled)
+                            .await?;
+                        if let Some(ref tx) = task_finished_tx {
+                            let _ = tx.send((task.id, mindia_core::models::TaskStatus::Cancelled)).await;
+                        }
+                        return Ok(());
+                    }
+                }
                 tracing::info!(task_id = %task.id, "Task dependencies not completed, rescheduling");
                 repository
                     .update_status(task.id, mindia_core::models::TaskStatus::Pending)
@@ -353,6 +387,9 @@ impl TaskQueue {
                     .mark_completed(task.id, task_result)
                     .await
                     .context("Failed to mark task as completed")?;
+                if let Some(ref tx) = task_finished_tx {
+                    let _ = tx.send((task.id, mindia_core::models::TaskStatus::Completed)).await;
+                }
                 tracing::info!(task_id = %task.id, task_type = %task.task_type, "Task completed successfully");
                 Ok(())
             }
@@ -384,6 +421,9 @@ impl TaskQueue {
                         .mark_failed(task.id, error_result)
                         .await
                         .context("Failed to mark task as failed")?;
+                    if let Some(ref tx) = task_finished_tx {
+                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                    }
                     tracing::error!(
                         task_id = %task.id,
                         "Task failed with unrecoverable error, will not retry"
@@ -415,6 +455,9 @@ impl TaskQueue {
                         .mark_failed(task.id, error_result)
                         .await
                         .context("Failed to mark task as failed")?;
+                    if let Some(ref tx) = task_finished_tx {
+                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                    }
                     tracing::error!(task_id = %task.id, "Task failed after max retries");
                     Err(e)
                 }
@@ -434,6 +477,9 @@ impl TaskQueue {
                     Ok(())
                 } else {
                     repository.mark_failed(task.id, error_result).await?;
+                    if let Some(ref tx) = task_finished_tx {
+                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                    }
                     Err(anyhow::anyhow!("Task execution timed out"))
                 }
             }

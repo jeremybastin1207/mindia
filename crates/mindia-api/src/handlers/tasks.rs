@@ -1,14 +1,11 @@
 use crate::auth::models::TenantContext;
-use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
-};
-use serde_json::json;
+use crate::error::HttpAppError;
+use axum::{extract::{Path, Query, State}, response::Json};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::state::AppState;
+use mindia_core::AppError;
 use mindia_core::models::{TaskListQuery, TaskResponse, TaskStats};
 
 /// List tasks with optional filters
@@ -17,26 +14,21 @@ pub async fn list_tasks(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
     Query(query): Query<TaskListQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<serde_json::Value>, HttpAppError> {
     tracing::debug!("Listing tasks with filters: {:?}", query);
 
-    let tasks = state
+    let tasks = state.tasks
         .task_repository
         .list_tasks(tenant_ctx.tenant_id, query)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to list tasks");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": "Failed to list tasks"
-                })),
-            )
+            AppError::Internal(e.to_string())
         })?;
 
     let task_responses: Vec<TaskResponse> = tasks.into_iter().map(TaskResponse::from).collect();
 
-    Ok(Json(json!({
+    Ok(Json(serde_json::json!({
         "tasks": task_responses,
         "count": task_responses.len()
     })))
@@ -48,33 +40,23 @@ pub async fn get_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<Uuid>,
-) -> Result<Json<TaskResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::debug!(task_id = %task_id, "Getting task details");
 
-    let task = state
+    let task = state.tasks
         .task_repository
         .get_task(tenant_ctx.tenant_id, task_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, task_id = %task_id, "Failed to get task");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": "Failed to get task"
-                })),
-            )
+            AppError::Internal(e.to_string())
         })?;
 
     match task {
         Some(task) => Ok(Json(TaskResponse::from(task))),
         None => {
             tracing::warn!(task_id = %task_id, "Task not found");
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(json!({
-                    "error": "Task not found"
-                })),
-            ))
+            Err(AppError::NotFound("Task not found".to_string()).into())
         }
     }
 }
@@ -85,21 +67,16 @@ pub async fn cancel_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<Uuid>,
-) -> Result<Json<TaskResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::info!(task_id = %task_id, "Cancelling task");
 
-    let task = state
+    let task = state.tasks
         .task_repository
         .cancel_task(tenant_ctx.tenant_id, task_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, task_id = %task_id, "Failed to cancel task");
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "Failed to cancel task - task not found or not in cancellable state"
-                })),
-            )
+            AppError::BadRequest("Failed to cancel task - task not found or not in cancellable state".to_string())
         })?;
 
     tracing::info!(task_id = %task_id, "Task cancelled successfully");
@@ -113,21 +90,16 @@ pub async fn retry_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
     Path(task_id): Path<Uuid>,
-) -> Result<Json<TaskResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::info!(task_id = %task_id, "Manually retrying task");
 
-    let task = state
+    let task = state.tasks
         .task_repository
         .retry_task(tenant_ctx.tenant_id, task_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, task_id = %task_id, "Failed to retry task");
-            (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "Failed to retry task - task not found or not in failed state"
-                })),
-            )
+            AppError::BadRequest("Failed to retry task - task not found or not in failed state".to_string())
         })?;
 
     tracing::info!(task_id = %task_id, "Task retry scheduled successfully");
@@ -140,21 +112,16 @@ pub async fn retry_task(
 pub async fn get_task_stats(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<TaskStats>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<TaskStats>, HttpAppError> {
     tracing::debug!("Getting task statistics");
 
-    let stats = state
+    let stats = state.tasks
         .task_repository
         .get_stats(tenant_ctx.tenant_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to get task stats");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "error": "Failed to get task statistics"
-                })),
-            )
+            AppError::Internal(e.to_string())
         })?;
 
     Ok(Json(stats))

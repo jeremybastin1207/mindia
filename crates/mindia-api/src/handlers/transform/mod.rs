@@ -5,7 +5,7 @@ use parser::parse_operations;
 use transformer::apply_transformations;
 
 use crate::auth::models::TenantContext;
-use crate::error::ErrorResponse;
+use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
 use axum::{
     body::Body,
@@ -15,6 +15,7 @@ use axum::{
     Json,
 };
 use futures::StreamExt;
+use mindia_core::AppError;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -24,53 +25,29 @@ async fn resolve_preset_in_operations(
     operations: &str,
     tenant_id: Uuid,
     state: &AppState,
-) -> Result<String, (StatusCode, Json<ErrorResponse>)> {
-    // Quick check if there's a preset reference
+) -> Result<String, HttpAppError> {
     if !operations.contains("preset/") {
         return Ok(operations.to_string());
     }
 
-    // Parse to extract the preset name
     let parsed = parse_operations(operations).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                format!("Invalid transformation: {}", e),
-                "INVALID_INPUT",
-            )),
-        )
+        AppError::BadRequest(format!("Invalid transformation: {}", e))
     })?;
 
-    // If no preset, return as-is
     let preset_name = match parsed.preset_name {
         Some(name) => name,
         None => return Ok(operations.to_string()),
     };
 
-    // Look up the preset from the database
-    let preset = state
+    let preset = state.db
         .named_transformation_repository
         .get_by_name(tenant_id, &preset_name)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, preset_name = %preset_name, "Failed to look up preset");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to look up preset",
-                    "DATABASE_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string())
         })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new(
-                    format!("Preset not found: {}", preset_name),
-                    "NOT_FOUND",
-                )),
-            )
-        })?;
+        .ok_or_else(|| AppError::NotFound(format!("Preset not found: {}", preset_name)))?;
 
     // Replace the preset reference with the actual operations
     // Format: `-/preset/{name}/` -> actual operations
@@ -113,30 +90,19 @@ pub async fn transform_image(
     Path((id, operations)): Path<(Uuid, String)>,
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<impl IntoResponse, HttpAppError> {
     tracing::debug!(image_id = %id, operations = %operations, "Processing image transformation");
 
     let image = state
-        .image
+        .media
         .repository
         .get_image(tenant_ctx.tenant_id, id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, image_id = %id, "Database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to retrieve image",
-                    "DATABASE_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string())
         })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new("Image not found", "NOT_FOUND")),
-            )
-        })?;
+        .ok_or_else(|| AppError::NotFound("Image not found".to_string()))?;
 
     // Download original image using Storage trait (works with any backend: S3, local, etc.)
     // Note: We need the full image in memory for processing, so we collect the stream
@@ -147,10 +113,7 @@ pub async fn transform_image(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, storage_key = %image.storage_key(), "Failed to retrieve from storage");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("Failed to retrieve file", "STORAGE_ERROR")),
-            )
+            AppError::Internal(e.to_string())
         })?;
 
     // Collect stream into bytes (required for image processing)
@@ -159,61 +122,35 @@ pub async fn transform_image(
     while let Some(chunk_result) = stream.next().await {
         let chunk = chunk_result.map_err(|e| {
             tracing::error!(error = %e, storage_key = %image.storage_key(), "Failed to read chunk from storage");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("Failed to retrieve file", "STORAGE_ERROR")),
-            )
+            AppError::Internal(e.to_string())
         })?;
         original_data.extend_from_slice(&chunk);
     }
     let original_data = bytes::Bytes::from(original_data);
 
-    // Extract Accept header for format selection
     let accept_header = headers.get(header::ACCEPT).and_then(|h| h.to_str().ok());
 
-    // Resolve preset references (if any) before parsing
     let resolved_operations =
         resolve_preset_in_operations(&operations, tenant_ctx.tenant_id, &state).await?;
 
     let ops = parse_operations(&resolved_operations).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                format!("Invalid transformation: {}", e),
-                "INVALID_INPUT",
-            )),
-        )
+        AppError::BadRequest(format!("Invalid transformation: {}", e))
     })?;
 
-    // Load watermark image if needed
     let watermark_data = if let Some(ref watermark_config) = ops.watermark {
         let watermark_image = state
-            .image
+            .media
             .repository
             .get_image(tenant_ctx.tenant_id, watermark_config.watermark_id)
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, watermark_id = %watermark_config.watermark_id, "Database error");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "Failed to retrieve watermark image",
-                        "DATABASE_ERROR",
-                    )),
-                )
+                AppError::Internal(e.to_string())
             })?
             .ok_or_else(|| {
-                (
-                    StatusCode::NOT_FOUND,
-                    Json(ErrorResponse::new(
-                        format!("Watermark image not found: {}", watermark_config.watermark_id),
-                        "NOT_FOUND",
-                    )),
-                )
+                AppError::NotFound(format!("Watermark image not found: {}", watermark_config.watermark_id))
             })?;
 
-        // Download watermark image using Storage trait (works with any backend: S3, local, etc.)
-        // Note: We need the full watermark in memory for processing, so we collect the stream
         let stream = state
             .media
             .storage
@@ -221,28 +158,15 @@ pub async fn transform_image(
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, storage_key = %watermark_image.storage_key(), "Failed to retrieve watermark from storage");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "Failed to retrieve watermark image",
-                        "STORAGE_ERROR",
-                    )),
-                )
+                AppError::Internal(e.to_string())
             })?;
 
-        // Collect stream into bytes (required for image processing)
         let mut watermark_bytes = Vec::new();
         let mut stream = stream;
         while let Some(chunk_result) = stream.next().await {
             let chunk = chunk_result.map_err(|e| {
                 tracing::error!(error = %e, storage_key = %watermark_image.storage_key(), "Failed to read watermark chunk from storage");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "Failed to retrieve watermark image",
-                        "STORAGE_ERROR",
-                    )),
-                )
+                AppError::Internal(e.to_string())
             })?;
             watermark_bytes.extend_from_slice(&chunk);
         }
@@ -251,40 +175,26 @@ pub async fn transform_image(
         None
     };
 
-    // Process image with transformations
-    // Move data into the blocking task instead of cloning
     let accept_header_str = accept_header.map(|s| s.to_string());
     let original_content_type = image.content_type.clone();
 
     let (transformed_data, output_content_type) = tokio::task::spawn_blocking(move || {
         apply_transformations(
-            &original_data, // Move instead of clone
+            &original_data,
             ops,
             accept_header_str.as_deref(),
             &original_content_type,
-            watermark_data.as_deref(), // Move instead of clone
+            watermark_data.as_deref(),
         )
     })
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "Failed to spawn blocking task");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "Failed to process image",
-                "IMAGE_PROCESSING_ERROR",
-            )),
-        )
+        AppError::Internal(e.to_string())
     })?
     .map_err(|e| {
         tracing::error!(error = %e, "Failed to transform image");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "Failed to transform image",
-                "IMAGE_PROCESSING_ERROR",
-            )),
-        )
+        AppError::Internal(e.to_string())
     })?;
 
     let response = Response::builder()
@@ -295,13 +205,7 @@ pub async fn transform_image(
         .body(Body::from(transformed_data))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build response");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "Failed to build response",
-                    "INTERNAL_ERROR",
-                )),
-            )
+            AppError::Internal(e.to_string()).into()
         })?;
 
     Ok(response)

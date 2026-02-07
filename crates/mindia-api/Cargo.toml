@@ -36,7 +36,6 @@ mindia-infra = { path = "../mindia-infra", features = [
   "audio",
 ] }
 mindia-plugins = { path = "../mindia-plugins", optional = true }
-mindia-cache = { path = "../mindia-cache", optional = true }
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
@@ -107,6 +106,7 @@ default = [
 
 # Core features
 api = []
+workflow = []
 
 # Media type features (passed through to services)
 image = ["mindia-services/image", "mindia-processing/image", "dep:reqwest"]
@@ -189,3 +189,17 @@ full = [
   "observability-opentelemetry",
 ]
 minimal = ["api", "image", "storage-s3", "observability-basic"]
+
+[dev-dependencies]
+axum-test = "18"
+testcontainers = "0.21"
+testcontainers-modules = { version = "0.9", features = ["postgres"] }
+uuid = { workspace = true }
+mindia-core = { path = "../mindia-core" }
+mindia-db = { path = "../mindia-db" }
+mindia-infra = { path = "../mindia-infra", features = ["analytics", "webhook", "rate-limit", "cleanup", "capacity", "video", "document", "audio"] }
+mindia-services = { path = "../mindia-services", features = ["storage-local"] }
+mindia-worker = { path = "../mindia-worker" }
+mindia-storage = { path = "../mindia-storage" }
+serde_json = "1.0"
+futures = "0.3"

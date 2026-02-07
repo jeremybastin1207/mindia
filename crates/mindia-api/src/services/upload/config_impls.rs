@@ -1,80 +1,29 @@
-//! MediaUploadConfig and UploadConfig implementations for AppState config types
+//! MediaUploadConfig implementations using MediaConfig / MediaLimits
 
-use crate::state::{AudioConfig, DocumentConfig, ImageConfig, VideoConfig};
+use crate::state::MediaLimits;
 
 use super::traits::MediaUploadConfig;
 
-impl MediaUploadConfig for ImageConfig {
-    fn max_file_size(&self) -> usize {
-        self.max_file_size
-    }
-
-    fn allowed_extensions(&self) -> &[String] {
-        &self.allowed_extensions
-    }
-
-    fn allowed_content_types(&self) -> &[String] {
-        &self.allowed_content_types
-    }
-
-    fn media_type_name(&self) -> &'static str {
-        "image"
-    }
+/// Adapter to use MediaLimits as MediaUploadConfig (e.g. from media.limits_for(MediaType)).
+pub struct MediaLimitsConfig<'a> {
+    pub limits: &'a MediaLimits,
+    pub media_type_name: &'static str,
 }
 
-#[cfg(feature = "audio")]
-impl MediaUploadConfig for AudioConfig {
+impl MediaUploadConfig for MediaLimitsConfig<'_> {
     fn max_file_size(&self) -> usize {
-        self.max_file_size
+        self.limits.max_file_size
     }
 
     fn allowed_extensions(&self) -> &[String] {
-        &self.allowed_extensions
+        &self.limits.allowed_extensions
     }
 
     fn allowed_content_types(&self) -> &[String] {
-        &self.allowed_content_types
+        &self.limits.allowed_content_types
     }
 
     fn media_type_name(&self) -> &'static str {
-        "audio"
-    }
-}
-
-#[cfg(feature = "video")]
-impl MediaUploadConfig for VideoConfig {
-    fn max_file_size(&self) -> usize {
-        self.max_file_size
-    }
-
-    fn allowed_extensions(&self) -> &[String] {
-        &self.allowed_extensions
-    }
-
-    fn allowed_content_types(&self) -> &[String] {
-        &self.allowed_content_types
-    }
-
-    fn media_type_name(&self) -> &'static str {
-        "video"
-    }
-}
-
-#[cfg(feature = "document")]
-impl MediaUploadConfig for DocumentConfig {
-    fn max_file_size(&self) -> usize {
-        self.max_file_size
-    }
-
-    fn allowed_extensions(&self) -> &[String] {
-        &self.allowed_extensions
-    }
-
-    fn allowed_content_types(&self) -> &[String] {
-        &self.allowed_content_types
-    }
-
-    fn media_type_name(&self) -> &'static str {
-        "document"
+        self.media_type_name
     }
 }

@@ -30,7 +30,8 @@ impl TaskHandler for VideoTaskHandler {
         );
 
         state
-            .video_db
+            .media
+            .repository
             .update_video_processing_status(
                 task.tenant_id,
                 payload.video_id,
@@ -48,7 +49,7 @@ impl TaskHandler for VideoTaskHandler {
             capacity_monitor_interval_secs: state.config.capacity_monitor_interval_secs(),
         };
         let orchestrator = VideoOrchestrator::new(
-            state.video_db.clone(),
+            state.media.repository.clone(),
             storage,
             state.capacity_checker.clone(),
             config,
@@ -64,7 +65,8 @@ impl TaskHandler for VideoTaskHandler {
 
                 // Get video data for webhook
                 if let Ok(Some(video)) = state
-                    .video_db
+                    .media
+                    .repository
                     .get_video(task.tenant_id, payload.video_id)
                     .await
                 {
@@ -92,7 +94,7 @@ impl TaskHandler for VideoTaskHandler {
                         id: task.tenant_id,
                     };
 
-                    let webhook_service = state.webhook_service.clone();
+                    let webhook_service = state.webhooks.webhook_service.clone();
                     let tenant_id = task.tenant_id;
                     tokio::spawn(async move {
                         if let Err(e) = webhook_service
@@ -129,7 +131,8 @@ impl TaskHandler for VideoTaskHandler {
 
                 // Update video status to failed
                 state
-                    .video_db
+                    .media
+                    .repository
                     .update_video_processing_status(
                         task.tenant_id,
                         payload.video_id,
@@ -140,7 +143,8 @@ impl TaskHandler for VideoTaskHandler {
 
                 // Get video data for webhook
                 if let Ok(Some(video)) = state
-                    .video_db
+                    .media
+                    .repository
                     .get_video(task.tenant_id, payload.video_id)
                     .await
                 {
@@ -168,7 +172,7 @@ impl TaskHandler for VideoTaskHandler {
                         id: task.tenant_id,
                     };
 
-                    let webhook_service = state.webhook_service.clone();
+                    let webhook_service = state.webhooks.webhook_service.clone();
                     let tenant_id = task.tenant_id;
                     tokio::spawn(async move {
                         if let Err(e) = webhook_service

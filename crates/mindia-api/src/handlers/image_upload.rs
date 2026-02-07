@@ -195,6 +195,8 @@ pub async fn upload_image(
         image.file_size,
         image.uploaded_at,
         image.store_permanently,
+        None,
+        None,
     );
 
     Ok(json_response_with_event(

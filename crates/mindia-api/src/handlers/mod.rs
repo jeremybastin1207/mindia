@@ -6,7 +6,6 @@ pub mod audio_download;
 pub mod audio_get;
 #[cfg(feature = "audio")]
 pub mod audio_upload;
-pub mod batch;
 pub mod batch_media;
 pub mod chunked_upload;
 pub mod config;
@@ -39,6 +38,8 @@ pub mod video_stream;
 #[cfg(feature = "video")]
 pub mod video_upload;
 pub mod webhooks;
+#[cfg(feature = "workflow")]
+pub mod workflows;
 
 #[allow(dead_code)]
 fn _assert_multipart_send() {

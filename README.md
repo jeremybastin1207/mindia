@@ -24,10 +24,15 @@ cargo run -p mindia-api
 - Audio and document management
 - Semantic search with AI embeddings
 - Plugin system for AI/ML integrations (Claude Vision, AWS Rekognition, AssemblyAI, etc.)
+- Workflows: auto-run plugin pipelines on upload (e.g. moderation → object detection → colorization) with filters (media type, folder, content type)
 - Multi-tenant architecture with API key authentication
 - Webhooks for event notifications
 - OpenTelemetry observability
 - Optional ClamAV virus scanning
+
+## Deploy to AWS
+
+Deploy Mindia to AWS with Terraform and Ansible (EC2, RDS PostgreSQL, S3, ALB, CloudFront, ClamAV). See [docs/deployment-aws.md](docs/deployment-aws.md) and [.deployment/README.md](.deployment/README.md).
 
 ## Documentation
 

@@ -78,6 +78,7 @@ htmlcov/
 .tox/
 
 # Cloud & Deployment
+.deployment/
 .fly/
 .terraform/
 *.tfstate

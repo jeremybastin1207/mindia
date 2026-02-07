@@ -26,7 +26,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.9"
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tokio = { version = "1", features = ["full"] }
@@ -53,8 +53,8 @@ aws-sdk-s3 = { version = "1.13" }
 aws-sdk-sqs = { version = "1.13" }
 aws-sdk-rekognition = { version = "1.13" }
 aws-sdk-transcribe = { version = "1.13" }
-image = { version = "0.24", features = ["jpeg", "png", "webp", "gif"] }
-imageproc = { version = "0.24" }
+image = { version = "0.25", features = ["jpeg", "png", "webp", "gif"] }
+imageproc = { version = "0.25" }
 ravif = { version = "0.11" }
 rgb = { version = "0.8" }
 webp = { version = "0.3" }
@@ -63,7 +63,7 @@ img-parts = { version = "0.3" }
 kamadak-exif = { version = "0.5" }
 clamav-client = { version = "0.5", features = ["tokio"] }
 pgvector = { version = "0.4", features = ["sqlx"] }
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 tracing-opentelemetry = { version = "0.27" }
 opentelemetry = { version = "0.27", features = ["trace", "metrics", "logs"] }
 opentelemetry_sdk = { version = "0.27", features = [
@@ -84,7 +84,7 @@ opentelemetry-aws = { version = "0.14", features = ["trace"] }
 
 # HTTP/API dependencies (for api crate)
 axum = { version = "0.7", features = ["multipart"] }
-tower = { version = "0.4", features = ["limit"] }
+tower = { version = "0.4", features = ["limit", "timeout"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "limit"] }
 utoipa = { version = "5.2", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-rapidoc = { version = "5.0", features = ["axum"] }

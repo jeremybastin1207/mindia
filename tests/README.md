@@ -1,9 +1,29 @@
 # Integration Tests
 
-These integration tests are **not currently run** by `cargo test`. They target the former `mindia` crate and use `mindia::*` imports; the project now uses the `mindia-api` workspace crate.
+## Active integration tests (mindia-api)
 
-To re-enable them:
+Integration tests that run with `cargo test` live under **`crates/mindia-api/tests/`**. They use the real `AppState`, `mindia_core::Config`, and `setup_routes` from the API.
 
-1. Wire them to a package (e.g. add a `mindia-tests` dev crate or `[[test]]` entries in `mindia-api`).
-2. Update imports from `mindia::*` to `mindia_api::*` (or the appropriate crate).
-3. Ensure `sqlx::migrate!` points at `./migrations` or `../../migrations` relative to the crate that runs them.
+**Run from workspace root:**
+
+```bash
+cargo test -p mindia-api --test images_test
+# or all integration tests:
+cargo test -p mindia-api --tests
+```
+
+**Requirements:**
+
+- Docker (for testcontainers Postgres)
+- Same feature set as the API (default features include image, video, audio, document, storage-local, clamav, plugin, workflow)
+
+**Layout:**
+
+- `crates/mindia-api/tests/images_test.rs` – image upload, list, workflow
+- `crates/mindia-api/tests/helpers/` – shared setup: `setup_test_app()`, `create_test_config()`, auth/fixtures/workflows
+
+Migrations are loaded from `../../migrations` (workspace root) when the test runs.
+
+## Legacy tests in `tests/` (root)
+
+The files in the repo-root **`tests/`** directory are **not** run by `cargo test`. They still use the old `mindia::*` imports and the previous flat `AppState`. They are kept for reference; the canonical integration tests are in `crates/mindia-api/tests/`.

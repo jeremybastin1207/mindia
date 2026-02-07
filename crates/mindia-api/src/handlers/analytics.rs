@@ -27,7 +27,7 @@ pub async fn get_traffic_summary(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AnalyticsQuery>,
 ) -> impl IntoResponse {
-    match state.analytics.get_traffic_summary(query).await {
+    match state.db.analytics.get_traffic_summary(query).await {
         Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "Failed to get traffic summary");
@@ -58,7 +58,7 @@ pub async fn get_url_statistics(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AnalyticsQuery>,
 ) -> impl IntoResponse {
-    match state.analytics.get_url_statistics(query).await {
+    match state.db.analytics.get_url_statistics(query).await {
         Ok(stats) => (StatusCode::OK, Json(stats)).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "Failed to get URL statistics");
@@ -83,7 +83,7 @@ pub async fn get_url_statistics(
     )
 )]
 pub async fn get_storage_summary(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    match state.analytics.get_storage_summary().await {
+    match state.db.analytics.get_storage_summary().await {
         Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
         Err(e) => {
             tracing::error!(error = %e, "Failed to get storage summary");
@@ -108,7 +108,7 @@ pub async fn get_storage_summary(State(state): State<Arc<AppState>>) -> impl Int
     )
 )]
 pub async fn refresh_storage_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    match state.analytics.refresh_storage_metrics().await {
+    match state.db.analytics.refresh_storage_metrics().await {
         Ok(_) => (
             StatusCode::OK,
             Json(serde_json::json!({

@@ -157,7 +157,7 @@ impl crate::task_handlers::TaskHandler for ContentModerationTaskHandler {
                     )
                     .bind(&job_metadata)
                     .bind(payload.media_id)
-                    .execute(&state.db_pool)
+                    .execute(&state.db.pool)
                     .await?;
 
                     return Ok(json!({
@@ -202,7 +202,7 @@ impl crate::task_handlers::TaskHandler for ContentModerationTaskHandler {
                 id: task.tenant_id,
             };
 
-            let webhook_service = state.webhook_service.clone();
+            let webhook_service = state.webhooks.webhook_service.clone();
             let tenant_id = task.tenant_id;
             tokio::spawn(async move {
                 if let Err(e) = webhook_service

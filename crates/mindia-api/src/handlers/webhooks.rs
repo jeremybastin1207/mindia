@@ -144,7 +144,7 @@ pub async fn list_webhooks(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let webhooks = state
+    let webhooks = state.db
         .webhook_repository
         .list_by_tenant(ctx.tenant_id)
         .await
@@ -164,7 +164,7 @@ pub async fn get_webhook(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let webhook = state
+    let webhook = state.db
         .webhook_repository
         .get_by_id(ctx.tenant_id, id)
         .await
@@ -186,7 +186,7 @@ pub async fn update_webhook(
     Json(request): Json<UpdateWebhookRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Ensure webhook exists and belongs to tenant
-    let _existing = state
+    let _existing = state.db
         .webhook_repository
         .get_by_id(ctx.tenant_id, id)
         .await
@@ -205,7 +205,7 @@ pub async fn update_webhook(
         }
     }
 
-    let webhook = state
+    let webhook = state.db
         .webhook_repository
         .update(
             ctx.tenant_id,
@@ -234,7 +234,7 @@ pub async fn delete_webhook(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let deleted = state
+    let deleted = state.db
         .webhook_repository
         .delete(ctx.tenant_id, id)
         .await
@@ -261,7 +261,7 @@ pub async fn list_webhook_events(
     Query(query): Query<WebhookEventListQuery>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Ensure webhook exists and belongs to tenant
-    let _webhook = state
+    let _webhook = state.db
         .webhook_repository
         .get_by_id(ctx.tenant_id, id)
         .await
@@ -274,7 +274,7 @@ pub async fn list_webhook_events(
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
     let offset = query.offset.unwrap_or(0).max(0);
 
-    let events = state
+    let events = state.db
         .webhook_event_repository
         .list_by_webhook(id, limit, offset)
         .await

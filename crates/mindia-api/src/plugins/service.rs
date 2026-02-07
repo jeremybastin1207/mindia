@@ -97,6 +97,7 @@ impl PluginService {
                 Priority::Normal,
                 None,
                 None,
+                false,
             )
             .await
             .map_err(|e| {

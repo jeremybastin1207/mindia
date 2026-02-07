@@ -1,17 +1,12 @@
 //! Batch media operations: delete and copy (duplicate) multiple media items in one request.
 
 use crate::auth::models::TenantContext;
-use crate::error::ErrorResponse;
+use crate::error::{ErrorResponse, HttpAppError};
 use crate::handlers::media_delete::{delete_audio_embeddings, delete_video_hls_files};
 use crate::middleware::audit;
 use crate::state::AppState;
 use crate::utils::ip_extraction::extract_client_ip;
-use axum::{
-    extract::{Request, State},
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::{Request, State}, Json};
 use chrono::Utc;
 use mindia_core::models::{
     Media, MediaType, WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
@@ -73,19 +68,13 @@ pub async fn batch_delete_media(
     State(state): State<Arc<AppState>>,
     request: Request,
     Json(body): Json<BatchMediaRequest>,
-) -> Result<Json<BatchDeleteResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<BatchDeleteResponse>, HttpAppError> {
     if body.ids.len() > MAX_BATCH_SIZE {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("Batch size exceeds maximum of {}", MAX_BATCH_SIZE),
-                details: None,
-                error_type: None,
-                code: "BATCH_SIZE_EXCEEDED".to_string(),
-                recoverable: false,
-                suggested_action: Some(format!("Reduce batch size to {} or fewer", MAX_BATCH_SIZE)),
-            }),
-        ));
+        return Err(AppError::BadRequest(format!(
+            "Batch size exceeds maximum of {}",
+            MAX_BATCH_SIZE
+        ))
+        .into());
     }
 
     let trusted_proxy_count = std::env::var("TRUSTED_PROXY_COUNT")
@@ -121,7 +110,7 @@ pub async fn batch_delete_media(
                     }
                     MediaType::Audio => {
                         delete_audio_embeddings(
-                            &state.embedding_repository,
+                            &state.db.embedding_repository,
                             tenant_ctx.tenant_id,
                             id,
                         )
@@ -216,7 +205,7 @@ pub async fn batch_delete_media(
                             initiator_type: String::from("delete"),
                             id: tenant_ctx.tenant_id,
                         };
-                        let webhook_service = state.webhook_service.clone();
+                        let webhook_service = state.webhooks.webhook_service.clone();
                         let tenant_id = tenant_ctx.tenant_id;
                         tokio::spawn(async move {
                             let _ = webhook_service
@@ -279,19 +268,13 @@ pub async fn batch_copy_media(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
     Json(body): Json<BatchMediaRequest>,
-) -> Result<Json<BatchCopyResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<BatchCopyResponse>, HttpAppError> {
     if body.ids.len() > MAX_BATCH_SIZE {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: format!("Batch size exceeds maximum of {}", MAX_BATCH_SIZE),
-                details: None,
-                error_type: None,
-                code: "BATCH_SIZE_EXCEEDED".to_string(),
-                recoverable: false,
-                suggested_action: Some(format!("Reduce batch size to {} or fewer", MAX_BATCH_SIZE)),
-            }),
-        ));
+        return Err(AppError::BadRequest(format!(
+            "Batch size exceeds maximum of {}",
+            MAX_BATCH_SIZE
+        ))
+        .into());
     }
 
     let mut results = Vec::with_capacity(body.ids.len());
@@ -369,7 +352,7 @@ pub async fn batch_copy_media(
                     initiator_type: String::from("copy"),
                     id: tenant_ctx.tenant_id,
                 };
-                let webhook_service = state.webhook_service.clone();
+                let webhook_service = state.webhooks.webhook_service.clone();
                 let tenant_id = tenant_ctx.tenant_id;
                 tokio::spawn(async move {
                     let _ = webhook_service

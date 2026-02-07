@@ -145,6 +145,7 @@ pub async fn upload_image_from_url(
     let store_behavior = query.store.clone();
 
     if state.security.clamav_enabled {
+        #[cfg(feature = "clamav")]
         if let Some(ref clamav) = state.security.clamav {
             tracing::debug!("Scanning file from URL with ClamAV");
             let scan_result = clamav.scan_bytes(&file_data).await;
@@ -265,7 +266,7 @@ pub async fn upload_image_from_url(
         id: image.tenant_id,
     };
 
-    let webhook_service = state.webhook_service.clone();
+    let webhook_service = state.webhooks.webhook_service.clone();
     let tenant_id = image.tenant_id;
     tokio::spawn(async move {
         if let Err(e) = webhook_service

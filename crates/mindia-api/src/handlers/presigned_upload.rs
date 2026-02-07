@@ -88,7 +88,7 @@ pub async fn generate_presigned_url(
         .map_err(|e| AppError::S3(format!("Failed to generate presigned URL: {}", e)))?;
 
     // Create upload session in database
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     upload_repo
         .create_upload_session(
             tenant_ctx.tenant_id,
@@ -149,7 +149,7 @@ pub async fn complete_upload(
     })?;
 
     // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db_pool.clone());
+    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, request.upload_id)
         .await?
@@ -414,7 +414,7 @@ pub async fn complete_upload(
     };
 
     // Fire webhook asynchronously
-    let webhook_service = state.webhook_service.clone();
+    let webhook_service = state.webhooks.webhook_service.clone();
     let tenant_id = tenant_ctx.tenant_id;
     tokio::spawn(async move {
         if let Err(e) = webhook_service

@@ -25,6 +25,7 @@ mod usage;
 mod user;
 mod video;
 mod webhook;
+mod workflow;
 
 // Re-export all models for convenient imports
 pub use analytics::*;
@@ -53,3 +54,4 @@ pub use usage::*;
 pub use user::*;
 pub use video::*;
 pub use webhook::*;
+pub use workflow::*;

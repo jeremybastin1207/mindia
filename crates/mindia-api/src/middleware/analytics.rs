@@ -168,7 +168,7 @@ pub async fn analytics_middleware(
 
     // Log the request asynchronously (only if should_log is true)
     if should_log {
-        state.analytics.log_request(RequestLogInput {
+        state.db.analytics.log_request(RequestLogInput {
             tenant_id,
             method,
             path,
