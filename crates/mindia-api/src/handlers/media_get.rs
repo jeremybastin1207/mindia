@@ -1,7 +1,11 @@
 use crate::auth::models::TenantContext;
 use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
-use axum::{extract::{Path, State}, response::IntoResponse, Json};
+use axum::{
+    extract::{Path, State},
+    response::IntoResponse,
+    Json,
+};
 use mindia_core::AppError;
 use serde_json::Value as JsonValue;
 use std::sync::Arc;

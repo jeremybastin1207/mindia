@@ -131,14 +131,16 @@ impl VideoJobQueue {
         tracing::info!(video_id = %video_id, "Starting video transcode job");
 
         let video: mindia_core::models::Video = state
-            .media.repository
+            .media
+            .repository
             .get_video_by_id_unchecked(video_id)
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?
             .ok_or_else(|| anyhow::anyhow!("Video not found"))?;
 
         if let Err(e) = state
-            .media.repository
+            .media
+            .repository
             .update_video_processing_status(video.tenant_id, video_id, ProcessingStatus::Processing)
             .await
         {
@@ -185,7 +187,8 @@ impl VideoJobQueue {
 
                 // Update status to failed
                 if let Err(update_err) = state
-                    .media.repository
+                    .media
+                    .repository
                     .update_video_processing_status(
                         video.tenant_id,
                         video_id,

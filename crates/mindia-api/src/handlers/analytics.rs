@@ -148,6 +148,7 @@ pub async fn list_audit_logs(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
     match state
+        .db
         .analytics
         .list_audit_logs(Some(tenant_ctx.tenant_id), query)
         .await
@@ -186,6 +187,7 @@ pub async fn get_audit_log(
     Path(id): Path<i64>,
 ) -> impl IntoResponse {
     match state
+        .db
         .analytics
         .get_audit_log(id, Some(tenant_ctx.tenant_id))
         .await

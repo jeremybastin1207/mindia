@@ -137,7 +137,8 @@ pub async fn create_workflow(
     Json(req): Json<CreateWorkflowRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let w = state.workflows
+    let w = state
+        .workflows
         .workflow_repository
         .create(
             tenant_id,
@@ -175,7 +176,8 @@ pub async fn list_workflows(
     let tenant_id = tenant_context.tenant_id;
     let limit = q.limit.unwrap_or(50).min(500);
     let offset = q.offset.unwrap_or(0);
-    let list = state.workflows
+    let list = state
+        .workflows
         .workflow_repository
         .list(tenant_id, limit, offset)
         .await
@@ -202,7 +204,8 @@ pub async fn get_workflow(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let w = state.workflows
+    let w = state
+        .workflows
         .workflow_repository
         .get(tenant_id, id)
         .await
@@ -230,7 +233,8 @@ pub async fn update_workflow(
     Json(req): Json<UpdateWorkflowRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let w = state.workflows
+    let w = state
+        .workflows
         .workflow_repository
         .update(
             tenant_id,
@@ -269,7 +273,8 @@ pub async fn delete_workflow(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let deleted = state.workflows
+    let deleted = state
+        .workflows
         .workflow_repository
         .delete(tenant_id, id)
         .await
@@ -298,7 +303,8 @@ pub async fn trigger_workflow(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let exec = state.workflows
+    let exec = state
+        .workflows
         .workflow_service
         .trigger_workflow(tenant_id, id, media_id)
         .await
@@ -325,7 +331,8 @@ pub async fn list_workflow_executions(
     let tenant_id = tenant_context.tenant_id;
     let limit = q.limit.unwrap_or(50).min(500);
     let offset = q.offset.unwrap_or(0);
-    let list = state.workflows
+    let list = state
+        .workflows
         .workflow_execution_repository
         .list_by_workflow(tenant_id, id, limit, offset)
         .await
@@ -352,7 +359,8 @@ pub async fn get_workflow_execution(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
-    let e = state.workflows
+    let e = state
+        .workflows
         .workflow_execution_repository
         .get_by_tenant_and_id(tenant_id, id)
         .await

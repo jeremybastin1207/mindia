@@ -1,4 +1,4 @@
-use image::{imageops, io::Reader as ImageReader, DynamicImage};
+use image::{imageops, DynamicImage, ImageReader};
 use std::io::Cursor;
 use uuid::Uuid;
 

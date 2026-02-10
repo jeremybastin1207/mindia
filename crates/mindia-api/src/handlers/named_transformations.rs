@@ -57,7 +57,8 @@ pub async fn create_preset(
     }
 
     // Create the preset
-    let preset = state.db
+    let preset = state
+        .db
         .named_transformation_repository
         .create(
             ctx.tenant_id,
@@ -95,7 +96,8 @@ pub async fn list_presets(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let presets = state.db
+    let presets = state
+        .db
         .named_transformation_repository
         .list(ctx.tenant_id)
         .await
@@ -131,7 +133,8 @@ pub async fn get_preset(
     ctx: TenantContext,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let preset = state.db
+    let preset = state
+        .db
         .named_transformation_repository
         .get_by_name(ctx.tenant_id, &name)
         .await
@@ -183,7 +186,8 @@ pub async fn update_preset(
         }
     }
 
-    let preset = state.db
+    let preset = state
+        .db
         .named_transformation_repository
         .update(
             ctx.tenant_id,
@@ -225,7 +229,8 @@ pub async fn delete_preset(
     ctx: TenantContext,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let deleted = state.db
+    let deleted = state
+        .db
         .named_transformation_repository
         .delete(ctx.tenant_id, &name)
         .await

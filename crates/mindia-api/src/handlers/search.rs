@@ -153,7 +153,8 @@ async fn execute_metadata_search(
     limit: i64,
     offset: i64,
 ) -> Result<Vec<SearchResult>, AppError> {
-    state.db
+    state
+        .db
         .metadata_search_repository
         .search_by_metadata(tenant_id, filters, entity_type, folder_id, limit, offset)
         .await
@@ -187,6 +188,7 @@ async fn execute_semantic_search(
         })?;
 
     state
+        .db
         .embedding_repository
         .search_similar(
             tenant_id,

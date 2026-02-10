@@ -290,8 +290,11 @@ impl Plugin for ClaudeVisionPlugin {
         if config.api_key.is_empty() {
             anyhow::bail!("Claude Vision API key is required but not provided");
         }
-        
-        if config.api_key == "your-api-key" || config.api_key == "sk-ant-" || config.api_key.len() < 10 {
+
+        if config.api_key == "your-api-key"
+            || config.api_key == "sk-ant-"
+            || config.api_key.len() < 10
+        {
             anyhow::bail!("Claude Vision API key appears to be invalid or a placeholder. Please provide a valid Anthropic API key.");
         }
 

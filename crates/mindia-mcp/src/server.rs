@@ -9,6 +9,7 @@ use rmcp::handler::server::tool::Parameters;
 use rmcp::model::*;
 use rmcp::{tool, tool_handler, tool_router, ServerHandler};
 use std::borrow::Cow;
+use std::future::Future;
 use std::sync::Arc;
 
 fn text_content(s: impl Into<String>) -> Content {
@@ -62,7 +63,9 @@ impl MindiaService {
         Ok(CallToolResult::success(vec![text_content(text)]))
     }
 
-    #[tool(description = "List media files (images, videos, audio, documents) with optional filters")]
+    #[tool(
+        description = "List media files (images, videos, audio, documents) with optional filters"
+    )]
     async fn list_media(
         &self,
         Parameters(req): Parameters<ListMediaRequest>,
@@ -95,11 +98,15 @@ impl MindiaService {
         &self,
         Parameters(req): Parameters<GetMediaRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let result = self.api_client.get_media(&req.media_id).await.map_err(|e| ErrorData {
-            code: ErrorCode(-32603),
-            message: Cow::from(e.to_string()),
-            data: None,
-        })?;
+        let result = self
+            .api_client
+            .get_media(&req.media_id)
+            .await
+            .map_err(|e| ErrorData {
+                code: ErrorCode(-32603),
+                message: Cow::from(e.to_string()),
+                data: None,
+            })?;
         let text = serde_json::to_string(&result).map_err(|e| ErrorData {
             code: ErrorCode(-32603),
             message: Cow::from(e.to_string()),
@@ -122,11 +129,13 @@ impl MindiaService {
                 message: Cow::from(e.to_string()),
                 data: None,
             })?;
-        let text = serde_json::to_string(&serde_json::json!({ "transformed_url": url }))
-            .map_err(|e| ErrorData {
-                code: ErrorCode(-32603),
-                message: Cow::from(e.to_string()),
-                data: None,
+        let text =
+            serde_json::to_string(&serde_json::json!({ "transformed_url": url })).map_err(|e| {
+                ErrorData {
+                    code: ErrorCode(-32603),
+                    message: Cow::from(e.to_string()),
+                    data: None,
+                }
             })?;
         Ok(CallToolResult::success(vec![text_content(text)]))
     }
@@ -158,11 +167,14 @@ impl MindiaService {
         &self,
         Parameters(req): Parameters<DeleteMediaRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        self.api_client.delete_media(&req.media_id).await.map_err(|e| ErrorData {
-            code: ErrorCode(-32603),
-            message: Cow::from(e.to_string()),
-            data: None,
-        })?;
+        self.api_client
+            .delete_media(&req.media_id)
+            .await
+            .map_err(|e| ErrorData {
+                code: ErrorCode(-32603),
+                message: Cow::from(e.to_string()),
+                data: None,
+            })?;
         let text = serde_json::to_string(&serde_json::json!({
             "success": true,
             "message": format!("Media {} deleted successfully", req.media_id)

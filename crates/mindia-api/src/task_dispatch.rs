@@ -33,12 +33,12 @@ impl TaskHandlerContext for AppState {
             }
             #[cfg(feature = "plugin")]
             TaskType::PluginExecution => {
-                let handler = self.plugin_task_handler.clone();
+                let handler = self.plugins.plugin_task_handler.clone();
                 handler.process(task, self).await
             }
             #[cfg(feature = "content-moderation")]
             TaskType::ContentModeration => {
-                let handler = self.content_moderation_handler.clone();
+                let handler = self.tasks.content_moderation_handler.clone();
                 handler.process(task, self).await
             }
             _ => Err(anyhow::anyhow!(

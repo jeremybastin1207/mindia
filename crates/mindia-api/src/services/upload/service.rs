@@ -284,8 +284,8 @@ impl MediaUploadService {
         file_size: i64,
         uploaded_at: DateTime<chrono::Utc>,
         store_permanently: bool,
-        folder_id: Option<Uuid>,
-        metadata: Option<serde_json::Value>,
+        _folder_id: Option<Uuid>,
+        _metadata: Option<serde_json::Value>,
     ) {
         // Trigger webhook for upload
         let webhook_data = mindia_core::models::WebhookDataInfo {

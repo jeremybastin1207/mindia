@@ -221,14 +221,10 @@ async fn authenticate_generated_key(
             let tenant = tenant_repo
                 .get_tenant_by_id(api_key.tenant_id)
                 .await?
-                .ok_or_else(|| {
-                    AppError::Internal("Tenant not found for API key".to_string())
-                })?;
+                .ok_or_else(|| AppError::Internal("Tenant not found for API key".to_string()))?;
 
             if tenant.status != TenantStatus::Active {
-                return Err(AppError::Unauthorized(
-                    "Tenant is not active".to_string(),
-                ));
+                return Err(AppError::Unauthorized("Tenant is not active".to_string()));
             }
 
             let tenant_context = TenantContext {

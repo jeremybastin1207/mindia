@@ -44,7 +44,6 @@ impl PluginTaskHandler {
 impl TaskHandler for PluginTaskHandler {
     #[tracing::instrument(skip(self, task, state), fields(task.id = %task.id, plugin_name = tracing::field::Empty, media_id = tracing::field::Empty))]
     async fn process(&self, task: &Task, state: Arc<AppState>) -> Result<serde_json::Value> {
-        // Parse payload
         let payload: PluginExecutionPayload = serde_json::from_value(task.payload.clone())
             .context("Failed to parse plugin execution payload")?;
 
@@ -85,19 +84,17 @@ impl TaskHandler for PluginTaskHandler {
             }
         };
 
-        // Update execution status to running
         self.execution_repo
             .update_execution_status(execution.id, DbPluginExecutionStatus::Running, None)
             .await
             .context("Failed to update execution status")?;
 
-        // Get plugin from registry
         let plugin = self
             .registry
             .get(&payload.plugin_name)
             .await
             .context("Plugin not found in registry")
-            .map_err(|e| TaskError::unrecoverable(e))?;
+            .map_err(TaskError::unrecoverable)?;
 
         // Get plugin configuration - configuration errors are unrecoverable
         let plugin_config = self
@@ -105,7 +102,7 @@ impl TaskHandler for PluginTaskHandler {
             .get_config(payload.tenant_id, &payload.plugin_name)
             .await
             .context("Failed to get plugin config")
-            .map_err(|e| TaskError::unrecoverable(e))?
+            .map_err(TaskError::unrecoverable)?
             .ok_or_else(|| {
                 TaskError::unrecoverable(anyhow::anyhow!(
                     "Plugin '{}' is not configured for this tenant. Please configure the plugin with required credentials before use.",
@@ -121,13 +118,11 @@ impl TaskHandler for PluginTaskHandler {
             .into());
         }
 
-        // Decrypt the plugin configuration - decryption errors are unrecoverable
         let decrypted_config = plugin_config
             .get_full_config(&self.encryption_service)
             .context("Failed to decrypt plugin configuration")
-            .map_err(|e| TaskError::unrecoverable(e))?;
+            .map_err(TaskError::unrecoverable)?;
 
-        // Validate plugin configuration - validation errors are unrecoverable
         if let Err(e) = plugin.validate_config(&decrypted_config) {
             return Err(TaskError::unrecoverable(
                 anyhow::anyhow!(
@@ -138,7 +133,6 @@ impl TaskHandler for PluginTaskHandler {
             ).into());
         }
 
-        // Create plugin context
         // Note: db_pool is intentionally excluded to enforce use of repository methods
         // which ensure tenant isolation and authorized operations
         let context = PluginContext {
@@ -185,7 +179,6 @@ impl TaskHandler for PluginTaskHandler {
                                         .await
                                         .context("Failed to process plugin result")?;
 
-                                // Create media group to associate audio and transcript
                                 let group = state
                                     .media
                                     .file_group_repository
@@ -237,7 +230,6 @@ impl TaskHandler for PluginTaskHandler {
                             .await
                             .context("Failed to update execution status")?;
 
-                        // Trigger webhook for plugin execution completed
                         let state_clone = state.clone();
                         let tenant_id = payload.tenant_id;
                         let media_id = payload.media_id;
@@ -299,6 +291,7 @@ impl TaskHandler for PluginTaskHandler {
                                 };
 
                                 if let Err(e) = state_clone
+                                    .webhooks
                                     .webhook_service
                                     .trigger_event(
                                         tenant_id,
@@ -332,7 +325,6 @@ impl TaskHandler for PluginTaskHandler {
                             "Plugin execution failed"
                         );
 
-                        // Update execution status to failed
                         let error_result = json!({
                             "status": "failed",
                             "error": error_msg,
@@ -347,7 +339,6 @@ impl TaskHandler for PluginTaskHandler {
                             .await
                             .ok(); // Don't fail if update fails
 
-                        // Trigger webhook for plugin execution failed
                         let state_clone = state.clone();
                         let tenant_id = payload.tenant_id;
                         let media_id = payload.media_id;
@@ -410,6 +401,7 @@ impl TaskHandler for PluginTaskHandler {
                                 };
 
                                 if let Err(e) = state_clone
+                                    .webhooks
                                     .webhook_service
                                     .trigger_event(
                                         tenant_id,
@@ -429,7 +421,6 @@ impl TaskHandler for PluginTaskHandler {
                             }
                         });
 
-                        // Check if this is a configuration error in the plugin result
                         if error_msg.to_lowercase().contains("api key")
                             || error_msg.to_lowercase().contains("not configured")
                             || error_msg.to_lowercase().contains("invalid configuration")
@@ -454,7 +445,6 @@ impl TaskHandler for PluginTaskHandler {
                     "Plugin execution error"
                 );
 
-                // Update execution status to failed
                 let error_result = json!({
                     "status": "failed",
                     "error": e.to_string(),
@@ -469,7 +459,6 @@ impl TaskHandler for PluginTaskHandler {
                     .await
                     .ok(); // Don't fail if update fails
 
-                // Trigger webhook for plugin execution error
                 let state_clone = state.clone();
                 let tenant_id = payload.tenant_id;
                 let media_id = payload.media_id;
@@ -531,6 +520,7 @@ impl TaskHandler for PluginTaskHandler {
                         };
 
                         if let Err(e) = state_clone
+                            .webhooks
                             .webhook_service
                             .trigger_event(
                                 tenant_id,
@@ -563,7 +553,6 @@ impl PluginTaskHandler {
         plugin_result: &crate::plugins::PluginResult,
         state: &Arc<AppState>,
     ) -> Result<Uuid> {
-        // Get the original audio file to determine storage behavior
         let audio = state
             .media
             .repository
@@ -577,11 +566,9 @@ impl PluginTaskHandler {
             .context("Failed to serialize plugin result to JSON")?;
         let transcript_bytes = transcript_json.into_bytes();
 
-        // Create transcript filename
         let transcript_filename = format!("{}.transcript.json", payload.media_id);
         let original_filename = "transcript.json".to_string();
 
-        // Upload transcript to storage and create document media
         let transcript_doc = state
             .media
             .repository

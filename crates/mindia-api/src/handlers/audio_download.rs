@@ -32,7 +32,7 @@ pub async fn download_audio(
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Get audio metadata from database
     let audio = state
-        .audio
+        .media
         .repository
         .get_audio(tenant_ctx.tenant_id, id)
         .await?
@@ -44,7 +44,6 @@ pub async fn download_audio(
         "Proxying audio from storage"
     );
 
-    // Download file as stream using Storage trait (works with any backend: S3, local, etc.)
     let stream = state
         .media
         .storage
@@ -57,8 +56,6 @@ pub async fn download_audio(
         result.map_err(|e| std::io::Error::other(format!("Storage stream error: {}", e)))
     });
 
-    // Return file with appropriate headers
-    // Use 'attachment' to prevent browser execution of potentially malicious files
     let content_disposition = format!("attachment; filename=\"{}\"", audio.original_filename);
 
     let response = Response::builder()

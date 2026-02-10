@@ -1128,11 +1128,7 @@ impl MediaRepository {
         })?;
 
         let new_id = Uuid::new_v4();
-        let ext = row
-            .original_filename
-            .rsplit('.')
-            .next()
-            .unwrap_or("bin");
+        let ext = row.original_filename.rsplit('.').next().unwrap_or("bin");
         let new_filename = format!("{}.{}", new_id, ext);
         let new_key = format!("media/{}/{}", tenant_id, new_filename);
 

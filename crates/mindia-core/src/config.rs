@@ -7,37 +7,33 @@ use std::env;
 
 use crate::storage_types::StorageBackend;
 
-/// Critical env vars validated eagerly at startup (serde + envy).
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-struct AppEnv {
-    database_url: Option<String>,
-    media_processor_database_url: Option<String>,
-    jwt_secret: Option<String>,
-}
-
 /// Validate required env vars before loading full config. Call at startup for clear errors.
 pub fn validate_env() -> Result<(), anyhow::Error> {
-    dotenvy::dotenv().ok();
-    let app_env: AppEnv = envy::from_env().map_err(|e| anyhow::anyhow!("Env validation: {}", e))?;
-    let database_url = app_env
-        .media_processor_database_url
-        .or(app_env.database_url)
+    // Best-effort: load `.env` if present (dotenvy searches current dir and parents).
+    // This is mainly for local development; in production environments, real env vars
+    // should already be set and this call will be a no-op.
+    let _ = dotenvy::dotenv();
+
+    // MEDIA_PROCESSOR_DATABASE_URL takes precedence over DATABASE_URL if both are set.
+    let database_url = env::var("MEDIA_PROCESSOR_DATABASE_URL")
+        .ok()
+        .or_else(|| env::var("DATABASE_URL").ok())
         .ok_or_else(|| anyhow::anyhow!("MEDIA_PROCESSOR_DATABASE_URL or DATABASE_URL must be set"))?;
+
     if !database_url.starts_with("postgresql://") {
         return Err(anyhow::anyhow!(
             "DATABASE_URL must be a PostgreSQL connection string (postgresql://...)"
         ));
     }
-    let jwt = app_env
-        .jwt_secret
-        .ok_or_else(|| anyhow::anyhow!("JWT_SECRET must be set"))?;
+
+    let jwt = env::var("JWT_SECRET").map_err(|_| anyhow::anyhow!("JWT_SECRET must be set"))?;
     if jwt.len() < 32 {
         return Err(anyhow::anyhow!(
             "JWT_SECRET must be at least 32 characters (got {})",
             jwt.len()
         ));
     }
+
     Ok(())
 }
 

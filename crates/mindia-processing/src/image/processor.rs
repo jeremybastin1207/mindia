@@ -3,8 +3,8 @@
 use crate::metadata::ImageMetadata;
 use crate::traits::MediaProcessor;
 use async_trait::async_trait;
-use image::io::Reader as ImageReader;
 use image::GenericImageView;
+use image::ImageReader;
 use img_parts::{jpeg::Jpeg, png::Png, ImageEXIF};
 use std::io::Cursor;
 

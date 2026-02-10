@@ -1,7 +1,5 @@
 //! Service initialization and application state setup
 
-#[cfg(feature = "video")]
-use crate::job_queue::VideoJobQueue;
 #[cfg(all(feature = "plugin", feature = "plugin-openai-image-description"))]
 use crate::plugins::impls::OpenAiImageDescriptionPlugin;
 #[cfg(feature = "plugin")]
@@ -40,14 +38,14 @@ use mindia_services::ClamAVService;
 use mindia_services::{AnthropicService, SemanticSearchProvider};
 use mindia_services::{S3Service, Storage};
 // TaskQueue and task handlers moved to api crate
-use crate::state::{
-    AppState, DatabaseConfig, DbState, MediaConfig, S3Config, SecurityConfig, TaskState,
-    WebhookState,
-};
 #[cfg(feature = "plugin")]
 use crate::state::PluginState;
 #[cfg(feature = "workflow")]
 use crate::state::WorkflowState;
+use crate::state::{
+    AppState, DatabaseConfig, DbState, MediaConfig, S3Config, SecurityConfig, TaskState,
+    WebhookState,
+};
 #[cfg(feature = "content-moderation")]
 use crate::task_handlers::ContentModerationTaskHandler;
 #[cfg(feature = "plugin")]
@@ -64,7 +62,6 @@ pub async fn initialize_services(
     s3_service: Option<S3Service>,
     storage: Arc<dyn Storage>,
 ) -> Result<Arc<AppState>> {
-    // Initialize ClamAV service if enabled
     #[cfg(feature = "clamav")]
     let clamav_service = if config.clamav_enabled() {
         tracing::info!(
@@ -86,7 +83,6 @@ pub async fn initialize_services(
     #[cfg(not(feature = "clamav"))]
     let clamav_service = None;
 
-    // Initialize encryption service (REQUIRED for production security)
     let encryption_service = mindia_core::EncryptionService::new()
         .context("ENCRYPTION_KEY environment variable must be set. Generate with: ./scripts/generate-encryption-key.sh")?;
     tracing::info!("Encryption service initialized - plugin configs will be encrypted");
@@ -106,17 +102,12 @@ pub async fn initialize_services(
     #[cfg(feature = "workflow")]
     let workflow_execution_repo = WorkflowExecutionRepository::new(pool.clone());
 
-    // Initialize webhook repositories
     let webhook_db = WebhookRepository::new(pool.clone());
     let webhook_event_db = WebhookEventRepository::new(pool.clone());
     let webhook_retry_db = WebhookRetryRepository::new(pool.clone());
 
-    // Initialize authentication repositories
     let tenant_db = TenantRepository::new(pool.clone());
     let api_key_db = ApiKeyRepository::new(pool.clone());
-
-    // Auth/tenant repositories (API keys, tenants)
-    // NOTE: User/OAuth authentication removed - using API keys and master key only
 
     let folder_db = FolderRepository::new(pool.clone());
     let named_transformation_db = NamedTransformationRepository::new(pool.clone());
@@ -131,7 +122,6 @@ pub async fn initialize_services(
         "Environment configuration loaded"
     );
 
-    // Initialize semantic search if enabled (Anthropic/Claude cloud)
     #[cfg(feature = "semantic-search")]
     let semantic_search = if config.semantic_search_enabled() {
         let api_key = config
@@ -169,8 +159,6 @@ pub async fn initialize_services(
     #[cfg(not(feature = "semantic-search"))]
     let semantic_search = None;
 
-    // Create configuration sub-structs
-    // S3Config is only created if S3Service is available (S3 backend)
     let s3_config = s3_service.as_ref().map(|s3_svc| S3Config {
         service: s3_svc.clone(),
         bucket: config.s3_bucket().unwrap_or_default().to_string(),
@@ -223,30 +211,6 @@ pub async fn initialize_services(
     };
     tracing::info!("MediaConfig initialized with unified repository");
 
-    let db_state_temp = DbState {
-        pool: pool.clone(),
-        analytics: analytics_service.clone(),
-        database: database_config.clone(),
-        cleanup_service: Some(cleanup_service.clone()),
-        folder_repository: folder_db.clone(),
-        named_transformation_repository: named_transformation_db.clone(),
-        embedding_repository: embedding_db.clone(),
-        metadata_search_repository: metadata_search_db.clone(),
-        api_key_repository: api_key_db.clone(),
-        tenant_repository: tenant_db.clone(),
-        task_repository: task_db.clone(),
-        webhook_repository: webhook_db.clone(),
-        webhook_event_repository: webhook_event_db.clone(),
-        webhook_retry_repository: webhook_retry_db.clone(),
-    };
-
-    let webhook_state = WebhookState {
-        webhook_service: webhook_service.clone(),
-        webhook_retry_service: webhook_retry_service.clone(),
-    };
-
-    // Initialize cleanup service
-    // CleanupService now uses the Storage trait abstraction instead of S3Service directly
     tracing::info!("Initializing cleanup service...");
     #[cfg(all(feature = "video", feature = "document", feature = "audio"))]
     let cleanup_service = CleanupService::new(
@@ -310,7 +274,6 @@ pub async fn initialize_services(
     );
     tracing::info!("Cleanup service initialized successfully");
 
-    // Initialize webhook services
     tracing::info!("Initializing webhook services...");
     let webhook_service_config = WebhookServiceConfig {
         timeout_seconds: config.webhook_timeout_seconds(),
@@ -339,7 +302,28 @@ pub async fn initialize_services(
     );
     tracing::info!("Webhook services initialized successfully");
 
-    // Initialize plugin system - variables defined here are used conditionally in AppState construction
+    let db_state_temp = DbState {
+        pool: pool.clone(),
+        analytics: analytics_service.clone(),
+        database: database_config.clone(),
+        cleanup_service: Some(cleanup_service.clone()),
+        folder_repository: folder_db.clone(),
+        named_transformation_repository: named_transformation_db.clone(),
+        embedding_repository: embedding_db.clone(),
+        metadata_search_repository: metadata_search_db.clone(),
+        api_key_repository: api_key_db.clone(),
+        tenant_repository: tenant_db.clone(),
+        task_repository: task_db.clone(),
+        webhook_repository: webhook_db.clone(),
+        webhook_event_repository: webhook_event_db.clone(),
+        webhook_retry_repository: webhook_retry_db.clone(),
+    };
+
+    let webhook_state = WebhookState {
+        webhook_service: webhook_service.clone(),
+        webhook_retry_service: webhook_retry_service.clone(),
+    };
+
     #[cfg(feature = "plugin")]
     let (
         plugin_config_repo_init,
@@ -352,7 +336,6 @@ pub async fn initialize_services(
             PluginConfigRepository::new_with_encryption(pool.clone(), encryption_service.clone());
         let plugin_execution_repo = PluginExecutionRepository::new(pool.clone());
 
-        // Create plugin registry and register plugins
         let plugin_registry = PluginRegistry::new();
 
         #[cfg(all(feature = "plugin", feature = "plugin-assembly-ai"))]
@@ -519,7 +502,6 @@ pub async fn initialize_services(
                 .len()
         );
 
-        // Create plugin task handler early (it doesn't depend on task_queue)
         let plugin_task_handler = PluginTaskHandler::new_with_encryption(
             plugin_registry.clone(),
             plugin_config_repo.clone(),
@@ -536,7 +518,6 @@ pub async fn initialize_services(
         )
     };
 
-    // Initialize content moderation handler (uses plugin system)
     #[cfg(feature = "content-moderation")]
     let content_moderation_handler = {
         #[cfg(feature = "plugin")]
@@ -553,7 +534,6 @@ pub async fn initialize_services(
 
     tracing::info!("Plugin repositories initialized successfully");
 
-    // Initialize task queue components
     tracing::info!("Initializing task queue system...");
     let video_rate = config.task_queue_video_rate_limit();
     let embedding_rate = config.task_queue_embedding_rate_limit();
@@ -578,7 +558,6 @@ pub async fn initialize_services(
         stale_task_grace_period_secs: config.task_queue_stale_task_grace_period_secs(),
     };
 
-    // Initialize capacity checker (needed for temp_state)
     let capacity_checker_temp = Arc::new(CapacityChecker::new(config.clone()));
 
     let no_worker_queue = TaskQueue::new_no_worker(
@@ -662,8 +641,10 @@ pub async fn initialize_services(
 
     let temp_state_arc = Arc::new(temp_state);
     #[cfg(feature = "video")]
-    let video_job_queue =
-        crate::job_queue::VideoJobQueue::new(temp_state_arc.clone(), config.max_concurrent_transcodes());
+    let video_job_queue = crate::job_queue::VideoJobQueue::new(
+        temp_state_arc.clone(),
+        config.max_concurrent_transcodes(),
+    );
 
     let state_weak = Arc::downgrade(&temp_state_arc);
     #[cfg(feature = "workflow")]
@@ -698,7 +679,6 @@ pub async fn initialize_services(
     #[cfg(feature = "plugin")]
     tracing::info!("Plugin service initialized successfully");
 
-    // Initialize capacity checker
     tracing::info!("Initializing capacity checker...");
     let capacity_checker = Arc::new(CapacityChecker::new(config.clone()));
     tracing::info!(
@@ -777,7 +757,7 @@ pub async fn initialize_services(
         tasks: tasks_final,
         webhooks: WebhookState {
             webhook_service,
-            webhook_retry_service: webhook_retry_service,
+            webhook_retry_service,
         },
         #[cfg(feature = "plugin")]
         plugins: plugin_state_final,
@@ -794,8 +774,7 @@ pub async fn initialize_services(
     #[cfg(feature = "workflow")]
     {
         use mindia_core::models::{
-            WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
-            WorkflowExecutionStatus,
+            WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo, WorkflowExecutionStatus,
         };
         let exec_repo = state.workflows.workflow_execution_repository.clone();
         let webhook_svc = state.webhooks.webhook_service.clone();

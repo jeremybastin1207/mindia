@@ -12,7 +12,6 @@ use axum::{
     extract::{Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
-    Json,
 };
 use futures::StreamExt;
 use mindia_core::AppError;
@@ -30,16 +29,16 @@ async fn resolve_preset_in_operations(
         return Ok(operations.to_string());
     }
 
-    let parsed = parse_operations(operations).map_err(|e| {
-        AppError::BadRequest(format!("Invalid transformation: {}", e))
-    })?;
+    let parsed = parse_operations(operations)
+        .map_err(|e| AppError::BadRequest(format!("Invalid transformation: {}", e)))?;
 
     let preset_name = match parsed.preset_name {
         Some(name) => name,
         None => return Ok(operations.to_string()),
     };
 
-    let preset = state.db
+    let preset = state
+        .db
         .named_transformation_repository
         .get_by_name(tenant_id, &preset_name)
         .await
@@ -49,12 +48,9 @@ async fn resolve_preset_in_operations(
         })?
         .ok_or_else(|| AppError::NotFound(format!("Preset not found: {}", preset_name)))?;
 
-    // Replace the preset reference with the actual operations
-    // Format: `-/preset/{name}/` -> actual operations
     let preset_pattern = format!("preset/{}", preset_name);
     let expanded = operations.replace(&preset_pattern, preset.operations.trim_matches('/'));
 
-    // Clean up any double separators that might result
     let cleaned = expanded
         .replace("/-/-/", "/-/")
         .replace("-/-/", "-/")
@@ -104,8 +100,6 @@ pub async fn transform_image(
         })?
         .ok_or_else(|| AppError::NotFound("Image not found".to_string()))?;
 
-    // Download original image using Storage trait (works with any backend: S3, local, etc.)
-    // Note: We need the full image in memory for processing, so we collect the stream
     let stream = state
         .media
         .storage
@@ -116,7 +110,6 @@ pub async fn transform_image(
             AppError::Internal(e.to_string())
         })?;
 
-    // Collect stream into bytes (required for image processing)
     let mut original_data = Vec::new();
     let mut stream = stream;
     while let Some(chunk_result) = stream.next().await {
@@ -133,9 +126,8 @@ pub async fn transform_image(
     let resolved_operations =
         resolve_preset_in_operations(&operations, tenant_ctx.tenant_id, &state).await?;
 
-    let ops = parse_operations(&resolved_operations).map_err(|e| {
-        AppError::BadRequest(format!("Invalid transformation: {}", e))
-    })?;
+    let ops = parse_operations(&resolved_operations)
+        .map_err(|e| AppError::BadRequest(format!("Invalid transformation: {}", e)))?;
 
     let watermark_data = if let Some(ref watermark_config) = ops.watermark {
         let watermark_image = state
@@ -205,7 +197,7 @@ pub async fn transform_image(
         .body(Body::from(transformed_data))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build response");
-            AppError::Internal(e.to_string()).into()
+            HttpAppError::from(AppError::Internal(e.to_string()))
         })?;
 
     Ok(response)

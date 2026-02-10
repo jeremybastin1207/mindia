@@ -106,7 +106,7 @@ pub async fn upload_audio(
             upload_data.uuid_filename.clone(),
             upload_data.safe_original_filename.clone(),
             upload_data.content_type.clone(),
-            upload_data.file_size as i64,
+            upload_data.file_size,
             metadata.duration,
             metadata.bitrate,
             metadata.sample_rate,

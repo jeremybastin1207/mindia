@@ -204,74 +204,6 @@ impl TypeMetadata {
     }
 }
 
-/// Base trait for common media functionality (Image, Video, Audio, Document response DTOs).
-#[allow(dead_code)]
-pub trait MediaBase {
-    fn id(&self) -> Uuid;
-    fn tenant_id(&self) -> Uuid;
-    fn filename(&self) -> &str;
-    fn original_filename(&self) -> &str;
-    fn content_type(&self) -> &str;
-    fn file_size(&self) -> i64;
-    fn uploaded_at(&self) -> DateTime<Utc>;
-    fn updated_at(&self) -> DateTime<Utc>;
-    fn store_behavior(&self) -> &str;
-    fn store_permanently(&self) -> bool;
-    fn expires_at(&self) -> Option<DateTime<Utc>>;
-    fn media_type(&self) -> MediaType;
-}
-
-/// Macro to implement MediaBase for media types with common fields.
-/// All media types (Image, Video, Audio, Document) share the same field names,
-/// so this macro eliminates repetitive getter implementations.
-macro_rules! impl_media_base {
-    ($type:ty, $media_type:expr) => {
-        impl MediaBase for $type {
-            fn id(&self) -> Uuid {
-                self.id
-            }
-            fn tenant_id(&self) -> Uuid {
-                self.tenant_id
-            }
-            fn filename(&self) -> &str {
-                &self.filename
-            }
-            fn original_filename(&self) -> &str {
-                &self.original_filename
-            }
-            fn content_type(&self) -> &str {
-                &self.content_type
-            }
-            fn file_size(&self) -> i64 {
-                self.file_size
-            }
-            fn uploaded_at(&self) -> DateTime<Utc> {
-                self.uploaded_at
-            }
-            fn updated_at(&self) -> DateTime<Utc> {
-                self.updated_at
-            }
-            fn store_behavior(&self) -> &str {
-                &self.store_behavior
-            }
-            fn store_permanently(&self) -> bool {
-                self.store_permanently
-            }
-            fn expires_at(&self) -> Option<DateTime<Utc>> {
-                self.expires_at
-            }
-            fn media_type(&self) -> MediaType {
-                $media_type
-            }
-        }
-    };
-}
-
-impl_media_base!(Image, MediaType::Image);
-impl_media_base!(Video, MediaType::Video);
-impl_media_base!(Audio, MediaType::Audio);
-impl_media_base!(Document, MediaType::Document);
-
 /// Polymorphic media enum (Image, Video, Audio, Document) for response building.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "media_type", rename_all = "lowercase")]
@@ -285,19 +217,19 @@ pub enum Media {
 impl Media {
     pub fn id(&self) -> Uuid {
         match self {
-            Media::Image(i) => i.id(),
-            Media::Video(v) => v.id(),
-            Media::Audio(a) => a.id(),
-            Media::Document(d) => d.id(),
+            Media::Image(i) => i.id,
+            Media::Video(v) => v.id,
+            Media::Audio(a) => a.id,
+            Media::Document(d) => d.id,
         }
     }
 
     pub fn tenant_id(&self) -> Uuid {
         match self {
-            Media::Image(i) => i.tenant_id(),
-            Media::Video(v) => v.tenant_id(),
-            Media::Audio(a) => a.tenant_id(),
-            Media::Document(d) => d.tenant_id(),
+            Media::Image(i) => i.tenant_id,
+            Media::Video(v) => v.tenant_id,
+            Media::Audio(a) => a.tenant_id,
+            Media::Document(d) => d.tenant_id,
         }
     }
 

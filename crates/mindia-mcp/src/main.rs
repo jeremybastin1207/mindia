@@ -21,7 +21,10 @@ async fn main() -> anyhow::Result<()> {
     )?;
 
     let service = MindiaService::new(api_client);
-    let running = service.serve(stdio()).await.context("MCP transport failed")?;
+    let running = service
+        .serve(stdio())
+        .await
+        .context("MCP transport failed")?;
     running.waiting().await.context("MCP server error")?;
 
     Ok(())

@@ -32,7 +32,7 @@ pub async fn download_document(
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Get document metadata
     let document = state
-        .document
+        .media
         .repository
         .get_document(tenant_ctx.tenant_id, id)
         .await?
@@ -44,7 +44,6 @@ pub async fn download_document(
         "Proxying document from storage"
     );
 
-    // Download file as stream using Storage trait (works with any backend: S3, local, etc.)
     let stream = state
         .media
         .storage
@@ -57,7 +56,6 @@ pub async fn download_document(
         result.map_err(|e| std::io::Error::other(format!("Storage stream error: {}", e)))
     });
 
-    // Return file with appropriate headers
     let content_disposition = format!("attachment; filename=\"{}\"", document.original_filename);
 
     let response = Response::builder()

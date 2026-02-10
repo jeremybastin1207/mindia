@@ -200,11 +200,7 @@ pub async fn setup_test_app() -> TestApp {
         stale_task_reap_interval_secs: config.task_queue_stale_task_reap_interval_secs(),
         stale_task_grace_period_secs: config.task_queue_stale_task_grace_period_secs(),
     };
-    let task_queue = TaskQueue::new_no_worker(
-        task_db.clone(),
-        rate_limiter,
-        task_queue_config,
-    );
+    let task_queue = TaskQueue::new_no_worker(task_db.clone(), rate_limiter, task_queue_config);
 
     #[cfg(feature = "video")]
     let video_job_queue = mindia_api::VideoJobQueue::dummy();
@@ -212,9 +208,10 @@ pub async fn setup_test_app() -> TestApp {
     #[cfg(all(feature = "content-moderation", feature = "video"))]
     let tasks = {
         #[cfg(feature = "plugin")]
-        let content_moderation_handler = mindia_api::task_handlers::ContentModerationTaskHandler::new(
-            Arc::new(mindia_api::plugins::PluginRegistry::new()),
-        );
+        let content_moderation_handler =
+            mindia_api::task_handlers::ContentModerationTaskHandler::new(Arc::new(
+                mindia_api::plugins::PluginRegistry::new(),
+            ));
         #[cfg(not(feature = "plugin"))]
         let content_moderation_handler = panic!("content-moderation requires plugin for tests");
         TaskState {
@@ -227,9 +224,10 @@ pub async fn setup_test_app() -> TestApp {
     #[cfg(all(feature = "content-moderation", not(feature = "video")))]
     let tasks = {
         #[cfg(feature = "plugin")]
-        let content_moderation_handler = mindia_api::task_handlers::ContentModerationTaskHandler::new(
-            Arc::new(mindia_api::plugins::PluginRegistry::new()),
-        );
+        let content_moderation_handler =
+            mindia_api::task_handlers::ContentModerationTaskHandler::new(Arc::new(
+                mindia_api::plugins::PluginRegistry::new(),
+            ));
         #[cfg(not(feature = "plugin"))]
         let content_moderation_handler = panic!("content-moderation requires plugin for tests");
         TaskState {
@@ -276,10 +274,12 @@ pub async fn setup_test_app() -> TestApp {
 
     #[cfg(feature = "plugin")]
     let plugins = {
-        let encryption = mindia_core::EncryptionService::new()
-            .expect("ENCRYPTION_KEY set in setup_test_app");
-        let plugin_config_repo =
-            mindia_db::PluginConfigRepository::new_with_encryption(pool.clone(), encryption.clone());
+        let encryption =
+            mindia_core::EncryptionService::new().expect("ENCRYPTION_KEY set in setup_test_app");
+        let plugin_config_repo = mindia_db::PluginConfigRepository::new_with_encryption(
+            pool.clone(),
+            encryption.clone(),
+        );
         let plugin_execution_repo = mindia_db::PluginExecutionRepository::new(pool.clone());
         let plugin_registry = Arc::new(mindia_api::plugins::PluginRegistry::new());
         let plugin_service = mindia_api::plugins::PluginService::new_with_encryption(
@@ -385,7 +385,13 @@ fn create_test_config(database_url: &str) -> Config {
         local_storage_path: Some("/tmp/mindia-test".to_string()),
         local_storage_base_url: Some("http://localhost:3000/media".to_string()),
         max_file_size_bytes: 10 * 1024 * 1024,
-        allowed_extensions: vec!["jpg".into(), "jpeg".into(), "png".into(), "gif".into(), "webp".into()],
+        allowed_extensions: vec![
+            "jpg".into(),
+            "jpeg".into(),
+            "png".into(),
+            "gif".into(),
+            "webp".into(),
+        ],
         allowed_content_types: vec![
             "image/jpeg".into(),
             "image/png".into(),

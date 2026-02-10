@@ -11,7 +11,6 @@ use crate::image::smart_crop::{SmartCrop, SmartCropConfig};
 use crate::image::watermark::{Watermark, WatermarkConfig};
 use bytes::Bytes;
 use image::GenericImageView;
-use image::{io::Reader as ImageReader, ImageFormat};
 use std::io::Cursor;
 
 /// Main image transformer that orchestrates all transform operations
@@ -23,11 +22,12 @@ impl ImageTransformer {
         data: &[u8],
         dimensions: ResizeDimensions,
         stretch_mode: StretchMode,
-        format: ImageFormat,
+        format: image::ImageFormat,
     ) -> Result<Bytes, anyhow::Error> {
         let cursor = Cursor::new(data);
-        let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let img = reader.decode()?;
+        let img = image::ImageReader::new(cursor)
+            .with_guessed_format()?
+            .decode()?;
 
         let resized = ImageResize::apply_resize(&img, dimensions, stretch_mode);
 
@@ -41,13 +41,13 @@ impl ImageTransformer {
     }
 
     /// Detect image format from content type
-    pub fn detect_format(content_type: &str) -> ImageFormat {
+    pub fn detect_format(content_type: &str) -> image::ImageFormat {
         match content_type {
-            "image/jpeg" | "image/jpg" => ImageFormat::Jpeg,
-            "image/png" => ImageFormat::Png,
-            "image/gif" => ImageFormat::Gif,
-            "image/webp" => ImageFormat::WebP,
-            _ => ImageFormat::Jpeg,
+            "image/jpeg" | "image/jpg" => image::ImageFormat::Jpeg,
+            "image/png" => image::ImageFormat::Png,
+            "image/gif" => image::ImageFormat::Gif,
+            "image/webp" => image::ImageFormat::WebP,
+            _ => image::ImageFormat::Jpeg,
         }
     }
 
@@ -80,10 +80,10 @@ impl ImageTransformer {
         watermark_data: Option<&[u8]>,
         filter_config: Option<FilterConfig>,
     ) -> Result<(Bytes, String), anyhow::Error> {
-        // Load the image
         let cursor = Cursor::new(data);
-        let reader = ImageReader::new(cursor).with_guessed_format()?;
-        let mut img = reader.decode()?;
+        let mut img = image::ImageReader::new(cursor)
+            .with_guessed_format()?
+            .decode()?;
 
         // Step 1: Apply EXIF auto-rotation if enabled (default)
         if autorotate {

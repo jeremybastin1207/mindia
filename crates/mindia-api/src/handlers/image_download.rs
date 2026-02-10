@@ -68,7 +68,7 @@ pub async fn download_image(
         .body(Body::from_stream(body_stream))
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to build response");
-            AppError::Internal(e.to_string()).into()
+            HttpAppError::from(AppError::Internal(e.to_string()))
         })?;
 
     Ok(response)

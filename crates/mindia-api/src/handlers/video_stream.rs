@@ -41,9 +41,10 @@ pub async fn stream_master_playlist(
         })?
         .ok_or_else(|| AppError::NotFound("Video not found".to_string()))?;
 
-    let master_playlist_key = video.hls_master_playlist.as_ref().ok_or_else(|| {
-        AppError::NotFound("Video is still processing or failed".to_string())
-    })?;
+    let master_playlist_key = video
+        .hls_master_playlist
+        .as_ref()
+        .ok_or_else(|| AppError::NotFound("Video is still processing or failed".to_string()))?;
 
     let stream = state
         .media

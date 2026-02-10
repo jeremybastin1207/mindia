@@ -44,7 +44,10 @@ pub async fn upload_and_verify_image_workflow(
     assert_eq!(get_response.status_code(), 200);
 
     let transform_response = client
-        .get(&format!("/api/v0/images/{}/resize?width=50&height=50", image_id))
+        .get(&format!(
+            "/api/v0/images/{}/resize?width=50&height=50",
+            image_id
+        ))
         .add_header("Authorization", format!("Bearer {}", user.token))
         .await;
     assert_eq!(transform_response.status_code(), 200);

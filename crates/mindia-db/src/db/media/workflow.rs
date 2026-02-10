@@ -5,9 +5,7 @@ use chrono::Utc;
 use sqlx::{PgPool, Postgres};
 use uuid::Uuid;
 
-use mindia_core::models::{
-    Workflow, WorkflowExecution, WorkflowExecutionStatus,
-};
+use mindia_core::models::{Workflow, WorkflowExecution, WorkflowExecutionStatus};
 
 #[derive(Clone)]
 pub struct WorkflowRepository {
@@ -19,6 +17,7 @@ impl WorkflowRepository {
         Self { pool }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         tenant_id: Uuid,
@@ -109,6 +108,7 @@ impl WorkflowRepository {
         Ok(rows)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update(
         &self,
         tenant_id: Uuid,
@@ -168,14 +168,12 @@ impl WorkflowRepository {
     }
 
     pub async fn delete(&self, tenant_id: Uuid, workflow_id: Uuid) -> Result<bool> {
-        let r = sqlx::query(
-            r#"DELETE FROM workflows WHERE tenant_id = $1 AND id = $2"#,
-        )
-        .bind(tenant_id)
-        .bind(workflow_id)
-        .execute(&self.pool)
-        .await
-        .context("Failed to delete workflow")?;
+        let r = sqlx::query(r#"DELETE FROM workflows WHERE tenant_id = $1 AND id = $2"#)
+            .bind(tenant_id)
+            .bind(workflow_id)
+            .execute(&self.pool)
+            .await
+            .context("Failed to delete workflow")?;
         Ok(r.rows_affected() > 0)
     }
 
@@ -226,31 +224,34 @@ impl WorkflowRepository {
         .context("Failed to match workflows for upload")?;
 
         // Filter by metadata_filter: if set, metadata must contain the required keys/values
-        let filtered: Vec<Workflow> = if metadata.is_none() {
+        let filtered: Vec<Workflow> = if let Some(meta) = metadata {
             rows.into_iter()
-                .filter(|w| w.metadata_filter.is_none() || w.metadata_filter.as_ref().map(|v| v.as_object().map(|o| o.is_empty()).unwrap_or(true)).unwrap_or(true))
+                .filter(|w| match &w.metadata_filter {
+                    None => true,
+                    Some(f) => {
+                        let obj = match f.as_object() {
+                            Some(o) => o,
+                            None => return true,
+                        };
+                        if obj.is_empty() {
+                            return true;
+                        }
+                        let m = match meta.as_object() {
+                            Some(m) => m,
+                            None => return false,
+                        };
+                        obj.iter().all(|(k, v)| m.get(k) == Some(v))
+                    }
+                })
                 .collect()
         } else {
-            let meta = metadata.unwrap();
             rows.into_iter()
                 .filter(|w| {
-                    match &w.metadata_filter {
-                        None => true,
-                        Some(f) => {
-                            let obj = match f.as_object() {
-                                Some(o) => o,
-                                None => return true,
-                            };
-                            if obj.is_empty() {
-                                return true;
-                            }
-                            let m = match meta.as_object() {
-                                Some(m) => m,
-                                None => return false,
-                            };
-                            obj.iter().all(|(k, v)| m.get(k) == Some(v))
-                        }
-                    }
+                    w.metadata_filter.is_none()
+                        || w.metadata_filter
+                            .as_ref()
+                            .map(|v| v.as_object().map(|o| o.is_empty()).unwrap_or(true))
+                            .unwrap_or(true)
                 })
                 .collect()
         };
@@ -448,7 +449,10 @@ impl WorkflowExecutionRepository {
     }
 
     /// Derive workflow execution status from its task statuses and update the record.
-    pub async fn update_status_from_tasks(&self, execution_id: Uuid) -> Result<Option<WorkflowExecutionStatus>> {
+    pub async fn update_status_from_tasks(
+        &self,
+        execution_id: Uuid,
+    ) -> Result<Option<WorkflowExecutionStatus>> {
         use sqlx::Row;
         let exec = match self.get(execution_id).await? {
             Some(e) => e,
@@ -458,7 +462,7 @@ impl WorkflowExecutionRepository {
             return Ok(Some(exec.status));
         }
         let task_ids = &exec.task_ids;
-        let stop_on_failure = exec.stop_on_failure;
+        let _stop_on_failure = exec.stop_on_failure;
 
         let rows = sqlx::query(
             r#"
@@ -473,10 +477,7 @@ impl WorkflowExecutionRepository {
         .await
         .context("Failed to fetch task statuses")?;
 
-        let statuses: Vec<String> = rows
-            .iter()
-            .map(|r| r.get::<String, _>("status"))
-            .collect();
+        let statuses: Vec<String> = rows.iter().map(|r| r.get::<String, _>("status")).collect();
 
         let (new_status, current_step) = derive_workflow_status(&statuses);
         self.update_status(execution_id, new_status, Some(current_step))
@@ -487,6 +488,7 @@ impl WorkflowExecutionRepository {
 }
 
 fn derive_workflow_status(task_statuses: &[String]) -> (WorkflowExecutionStatus, i32) {
+    #[allow(unused_assignments)]
     let mut current_step = 0i32;
     for (i, s) in task_statuses.iter().enumerate() {
         current_step = i as i32;

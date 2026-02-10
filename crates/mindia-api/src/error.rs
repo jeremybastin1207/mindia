@@ -35,6 +35,7 @@ pub struct ErrorResponse {
 
 impl ErrorResponse {
     /// Create a simple error response with default values
+    #[allow(dead_code)]
     pub fn new(error: impl Into<String>, code: impl Into<String>) -> Self {
         Self {
             error: error.into(),

@@ -52,12 +52,14 @@ impl Debug for ReplicateDeoldifyPlugin {
 
 // Replicate API structures
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 struct CreatePredictionRequest {
     version: Option<String>,
     input: PredictionInput,
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 struct PredictionInput {
     image: String, // URL to the image file
     render_factor: u32,
@@ -346,8 +348,11 @@ impl Plugin for ReplicateDeoldifyPlugin {
         if config.api_token.is_empty() {
             anyhow::bail!("Replicate API token is required but not provided");
         }
-        
-        if config.api_token == "your-api-token" || config.api_token == "r8_" || config.api_token.len() < 10 {
+
+        if config.api_token == "your-api-token"
+            || config.api_token == "r8_"
+            || config.api_token.len() < 10
+        {
             anyhow::bail!("Replicate API token appears to be invalid or a placeholder. Please provide a valid API token.");
         }
 

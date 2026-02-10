@@ -153,7 +153,9 @@ impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for Task {
             max_retries: row.get("max_retries"),
             timeout_seconds: row.get("timeout_seconds"),
             depends_on: row.get::<Option<Vec<Uuid>>, _>("depends_on"),
-            cancel_on_dep_failure: row.get::<Option<bool>, _>("cancel_on_dep_failure").unwrap_or(false),
+            cancel_on_dep_failure: row
+                .get::<Option<bool>, _>("cancel_on_dep_failure")
+                .unwrap_or(false),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
         })

@@ -78,6 +78,7 @@ impl TaskHandler for EmbeddingTaskHandler {
 
         // Store in database with tenant isolation
         state
+            .db
             .embedding_repository
             .insert_embedding(
                 task.tenant_id, // Use tenant_id from task for tenant isolation

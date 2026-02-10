@@ -21,7 +21,6 @@ use mindia_core::Config;
 use std::sync::Arc;
 use std::time::Duration;
 use tower::limit::ConcurrencyLimitLayer;
-use tower::timeout::TimeoutLayer;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
@@ -117,7 +116,6 @@ pub async fn setup_routes(
                 .path("/docs")
                 .into(),
         )
-        .layer(TimeoutLayer::new(Duration::from_secs(request_timeout_secs)))
         .layer(ConcurrencyLimitLayer::new(http_concurrency_limit))
         .layer(RequestBodyLimitLayer::new(
             config

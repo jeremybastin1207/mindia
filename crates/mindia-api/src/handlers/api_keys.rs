@@ -68,13 +68,19 @@ pub async fn create_api_key(
         expires_in_days: request.expires_in_days,
     };
 
-    let api_key = state.db
+    let api_key = state
+        .db
         .api_key_repository
         .create_api_key(ctx.tenant_id, &db_request, key_hash, key_prefix)
         .await
         .map_err(HttpAppError::from)?;
 
-    crate::middleware::audit::log_api_key_created(ctx.tenant_id, ctx.user_id, api_key.id);
+    crate::middleware::audit::log_api_key_created(
+        ctx.tenant_id,
+        api_key.id,
+        Some(ctx.user_id),
+        None::<String>,
+    );
 
     let response = CreateApiKeyResponse {
         id: api_key.id,
@@ -99,7 +105,8 @@ pub async fn list_api_keys(
     let limit = query.limit.clamp(1, 100);
     let offset = query.offset.max(0);
 
-    let api_keys = state.db
+    let api_keys = state
+        .db
         .api_key_repository
         .list_by_tenant(ctx.tenant_id, limit, offset)
         .await
@@ -120,7 +127,8 @@ pub async fn get_api_key(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let api_key = state.db
+    let api_key = state
+        .db
         .api_key_repository
         .get_by_id(ctx.tenant_id, id)
         .await
@@ -137,7 +145,8 @@ pub async fn revoke_api_key(
     ctx: TenantContext,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let revoked = state.db
+    let revoked = state
+        .db
         .api_key_repository
         .revoke_api_key(ctx.tenant_id, id)
         .await
@@ -149,7 +158,12 @@ pub async fn revoke_api_key(
         )));
     }
 
-    crate::middleware::audit::log_api_key_revoked(ctx.tenant_id, ctx.user_id, id);
+    crate::middleware::audit::log_api_key_revoked(
+        ctx.tenant_id,
+        id,
+        Some(ctx.user_id),
+        None::<String>,
+    );
 
     #[derive(serde::Serialize)]
     struct RevokeResponse {

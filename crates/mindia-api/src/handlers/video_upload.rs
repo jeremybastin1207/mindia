@@ -12,7 +12,7 @@ use axum::{
     response::Response,
     Json,
 };
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use mindia_core::models::VideoResponse;
 use mindia_core::models::{
     GenerateEmbeddingPayload, Priority, TaskType, VideoTranscodePayload, WebhookDataInfo,
@@ -21,7 +21,6 @@ use mindia_core::models::{
 use mindia_core::{models::MediaType, AppError};
 use serde::Deserialize;
 use std::sync::Arc;
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct StoreQuery {
@@ -123,7 +122,7 @@ pub async fn upload_video(
             uuid_filename,
             safe_original_filename,
             content_type,
-            file_size as i64,
+            file_size,
             store_behavior.clone(),
             store_permanently,
             expires_at,
@@ -161,7 +160,9 @@ pub async fn upload_video(
         }
     };
 
-    let payload = VideoTranscodePayload { video_id: file_uuid };
+    let payload = VideoTranscodePayload {
+        video_id: file_uuid,
+    };
     let payload_json = match serde_json::to_value(&payload) {
         Ok(val) => val,
         Err(e) => {

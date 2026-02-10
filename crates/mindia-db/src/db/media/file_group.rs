@@ -9,13 +9,11 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct FileGroupRepository {
     pool: PgPool,
-    #[allow(dead_code)]
-    storage: Arc<dyn Storage>,
 }
 
 impl FileGroupRepository {
-    pub fn new(pool: PgPool, storage: Arc<dyn Storage>) -> Self {
-        Self { pool, storage }
+    pub fn new(pool: PgPool, _storage: Arc<dyn Storage>) -> Self {
+        Self { pool }
     }
 
     /// Create a file group from existing media UUIDs

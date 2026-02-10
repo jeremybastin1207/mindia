@@ -26,8 +26,6 @@ use std::ops::{Deref, DerefMut};
 /// ```
 pub struct TransactionGuard<'a> {
     transaction: Option<Transaction<'a, Postgres>>,
-    #[allow(dead_code)]
-    pool: &'a PgPool,
 }
 
 impl<'a> TransactionGuard<'a> {
@@ -40,7 +38,6 @@ impl<'a> TransactionGuard<'a> {
 
         Ok(Self {
             transaction: Some(transaction),
-            pool,
         })
     }
 

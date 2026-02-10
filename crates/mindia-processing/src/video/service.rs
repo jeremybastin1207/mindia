@@ -232,7 +232,10 @@ impl FFmpegService {
         };
 
         // Prevent path traversal attacks by rejecting paths containing '..'
-        if video_path.components().any(|c| c == std::path::Component::ParentDir) {
+        if video_path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(anyhow!("Invalid input: {}", video_path.display()));
         }
         // Read video data

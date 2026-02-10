@@ -128,6 +128,7 @@ impl TaskQueue {
 
     /// Submit a new task to the queue.
     #[tracing::instrument(skip(self, payload))]
+    #[allow(clippy::too_many_arguments)]
     pub async fn submit_task(
         &self,
         tenant_id: Uuid,
@@ -173,6 +174,7 @@ impl TaskQueue {
         Ok(task.id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn worker_pool(
         repository: TaskRepository,
         rate_limiter: RateLimiter,
@@ -355,7 +357,9 @@ impl TaskQueue {
                             .update_status(task.id, mindia_core::models::TaskStatus::Cancelled)
                             .await?;
                         if let Some(ref tx) = task_finished_tx {
-                            let _ = tx.send((task.id, mindia_core::models::TaskStatus::Cancelled)).await;
+                            let _ = tx
+                                .send((task.id, mindia_core::models::TaskStatus::Cancelled))
+                                .await;
                         }
                         return Ok(());
                     }
@@ -388,7 +392,9 @@ impl TaskQueue {
                     .await
                     .context("Failed to mark task as completed")?;
                 if let Some(ref tx) = task_finished_tx {
-                    let _ = tx.send((task.id, mindia_core::models::TaskStatus::Completed)).await;
+                    let _ = tx
+                        .send((task.id, mindia_core::models::TaskStatus::Completed))
+                        .await;
                 }
                 tracing::info!(task_id = %task.id, task_type = %task.task_type, "Task completed successfully");
                 Ok(())
@@ -422,7 +428,9 @@ impl TaskQueue {
                         .await
                         .context("Failed to mark task as failed")?;
                     if let Some(ref tx) = task_finished_tx {
-                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                        let _ = tx
+                            .send((task.id, mindia_core::models::TaskStatus::Failed))
+                            .await;
                     }
                     tracing::error!(
                         task_id = %task.id,
@@ -456,7 +464,9 @@ impl TaskQueue {
                         .await
                         .context("Failed to mark task as failed")?;
                     if let Some(ref tx) = task_finished_tx {
-                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                        let _ = tx
+                            .send((task.id, mindia_core::models::TaskStatus::Failed))
+                            .await;
                     }
                     tracing::error!(task_id = %task.id, "Task failed after max retries");
                     Err(e)
@@ -478,7 +488,9 @@ impl TaskQueue {
                 } else {
                     repository.mark_failed(task.id, error_result).await?;
                     if let Some(ref tx) = task_finished_tx {
-                        let _ = tx.send((task.id, mindia_core::models::TaskStatus::Failed)).await;
+                        let _ = tx
+                            .send((task.id, mindia_core::models::TaskStatus::Failed))
+                            .await;
                     }
                     Err(anyhow::anyhow!("Task execution timed out"))
                 }

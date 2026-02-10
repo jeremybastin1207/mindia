@@ -59,10 +59,12 @@ test-single: ## Run a single test (usage: make test-single TEST=test_name)
 
 run: ## Run the application in debug mode
 	@echo "$(BLUE)Running application...$(NC)"
+	set -a; [ -f .env ] && . ./.env; set +a; \
 	RUST_LOG=$(RUST_LOG) PORT=$(PORT) $(CARGO) run -p mindia-api
 
 run-release: ## Run the application in release mode
 	@echo "$(BLUE)Running application in release mode...$(NC)"
+	set -a; [ -f .env ] && . ./.env; set +a; \
 	RUST_LOG=$(RUST_LOG) PORT=$(PORT) $(CARGO) run --release -p mindia-api
 
 ##@ Code Quality

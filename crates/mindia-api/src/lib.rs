@@ -2,9 +2,6 @@
 //!
 //! This crate provides the HTTP API handlers, middleware, and application setup.
 
-// Allow dead code for planned features and API documentation structures
-#![allow(dead_code)]
-
 // Module declarations
 mod api_doc;
 pub mod constants;
@@ -31,10 +28,11 @@ pub mod state;
 
 // Re-exports
 pub use error::ErrorResponse;
-pub use mindia_worker::{TaskQueue, TaskQueueConfig};
-pub use task_handlers::TaskHandler;
 pub use job_queue::VideoJobQueue;
+pub use mindia_worker::{TaskQueue, TaskQueueConfig};
+#[cfg(feature = "workflow")]
 pub use services::workflow::WorkflowService;
+pub use task_handlers::TaskHandler;
 
 #[cfg(feature = "video")]
 pub use mindia_processing::{VideoOrchestrator, VideoOrchestratorConfig, VideoStorage};

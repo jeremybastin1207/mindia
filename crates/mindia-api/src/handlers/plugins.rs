@@ -29,7 +29,8 @@ use std::sync::Arc;
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    let plugins = state.plugins
+    let plugins = state
+        .plugins
         .plugin_service
         .list_plugins()
         .await
@@ -70,7 +71,8 @@ pub async fn execute_plugin(
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
 
-    let task_id = state.plugins
+    let task_id = state
+        .plugins
         .plugin_service
         .execute_plugin(tenant_id, &plugin_name, request.media_id)
         .await
@@ -102,7 +104,8 @@ pub async fn get_plugin_config(
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
 
-    let config = state.plugins
+    let config = state
+        .plugins
         .plugin_service
         .get_plugin_config(tenant_id, &plugin_name)
         .await
@@ -134,7 +137,8 @@ pub async fn update_plugin_config(
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
 
-    let config = state.plugins
+    let config = state
+        .plugins
         .plugin_service
         .update_plugin_config(tenant_id, &plugin_name, request.enabled, request.config)
         .await
@@ -176,6 +180,7 @@ pub async fn get_plugin_costs(
     let tenant_id = tenant_context.tenant_id;
 
     let summary = state
+        .plugins
         .plugin_execution_repository
         .get_usage_summary(
             tenant_id,

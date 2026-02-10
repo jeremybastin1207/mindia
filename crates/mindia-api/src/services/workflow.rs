@@ -1,7 +1,9 @@
 //! Workflow service: trigger workflows on upload or manually, create task chains.
 
 use anyhow::{Context, Result};
-use mindia_core::models::{PluginExecutionPayload, Priority, TaskType, Workflow, WorkflowExecution, WorkflowStep};
+use mindia_core::models::{
+    PluginExecutionPayload, Priority, TaskType, Workflow, WorkflowExecution, WorkflowStep,
+};
 use mindia_db::{WorkflowExecutionRepository, WorkflowRepository};
 use mindia_worker::TaskQueue;
 use uuid::Uuid;
@@ -66,7 +68,8 @@ impl WorkflowService {
                 media_id,
                 tenant_id,
             };
-            let payload_json = serde_json::to_value(&payload).context("Serialize plugin payload")?;
+            let payload_json =
+                serde_json::to_value(&payload).context("Serialize plugin payload")?;
             let task_id = self
                 .task_queue
                 .submit_task(
@@ -111,10 +114,7 @@ impl WorkflowService {
             .context("Match workflows for upload")?;
         let mut executions = Vec::with_capacity(workflows.len());
         for w in workflows {
-            match self
-                .trigger_workflow(tenant_id, w.id, media_id)
-                .await
-            {
+            match self.trigger_workflow(tenant_id, w.id, media_id).await {
                 Ok(exec) => executions.push(exec),
                 Err(e) => {
                     tracing::warn!(

@@ -3,9 +3,9 @@
 //! AppState is split into domain sub-states so handlers can extract only what they need
 //! via Axum's `FromRef`, and to avoid a single god object with duplicate repositories.
 
-use crate::task_handlers::PluginTaskHandler;
 #[cfg(feature = "content-moderation")]
 use crate::task_handlers::ContentModerationTaskHandler;
+use crate::task_handlers::PluginTaskHandler;
 use mindia_core::models::MediaType;
 use mindia_core::Config;
 use mindia_db::{
@@ -23,22 +23,23 @@ use std::sync::Arc;
 
 #[cfg(feature = "plugin")]
 use crate::plugins::{PluginRegistry, PluginService};
+#[cfg(feature = "workflow")]
+use crate::services::workflow::WorkflowService;
 #[cfg(feature = "plugin")]
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
 #[cfg(feature = "workflow")]
 use mindia_db::{WorkflowExecutionRepository, WorkflowRepository};
-#[cfg(feature = "workflow")]
-use crate::services::workflow::WorkflowService;
 #[cfg(feature = "clamav")]
 use mindia_services::ClamAVService;
+use mindia_services::S3Service;
 #[cfg(feature = "semantic-search")]
 use mindia_services::SemanticSearchProvider;
-use mindia_services::S3Service;
 
 // ----- Sub-state types -----
 
 /// Database pool, analytics, cleanup, and all repositories that are not tied to a specific service.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct DbState {
     pub pool: PgPool,
     pub analytics: AnalyticsService,
@@ -143,6 +144,7 @@ pub struct DatabaseConfig {
 /// Task queue and related handlers.
 #[cfg(all(feature = "content-moderation", feature = "video"))]
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -160,6 +162,7 @@ pub struct TaskState {
 
 #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -175,6 +178,7 @@ pub struct TaskState {
 
 /// Webhook delivery and retry services.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct WebhookState {
     pub webhook_service: WebhookService,
     pub webhook_retry_service: WebhookRetryService,
@@ -182,6 +186,7 @@ pub struct WebhookState {
 
 #[cfg(feature = "plugin")]
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct PluginState {
     pub plugin_registry: Arc<PluginRegistry>,
     pub plugin_service: PluginService,
@@ -279,7 +284,3 @@ fn _assert_app_state_send_sync() {
     assert_send::<AppState>();
     assert_sync::<AppState>();
 }
-</think>
-Fixing SecurityConfig: supporting both feature and non-feature cases.
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-StrReplace

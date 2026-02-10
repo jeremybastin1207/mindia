@@ -1,12 +1,15 @@
 use crate::auth::models::TenantContext;
 use crate::error::HttpAppError;
-use axum::{extract::{Path, Query, State}, response::Json};
+use axum::{
+    extract::{Path, Query, State},
+    response::Json,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::state::AppState;
-use mindia_core::AppError;
 use mindia_core::models::{TaskListQuery, TaskResponse, TaskStats};
+use mindia_core::AppError;
 
 /// List tasks with optional filters
 #[tracing::instrument(skip(state))]
@@ -17,7 +20,8 @@ pub async fn list_tasks(
 ) -> Result<Json<serde_json::Value>, HttpAppError> {
     tracing::debug!("Listing tasks with filters: {:?}", query);
 
-    let tasks = state.tasks
+    let tasks = state
+        .tasks
         .task_repository
         .list_tasks(tenant_ctx.tenant_id, query)
         .await
@@ -43,7 +47,8 @@ pub async fn get_task(
 ) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::debug!(task_id = %task_id, "Getting task details");
 
-    let task = state.tasks
+    let task = state
+        .tasks
         .task_repository
         .get_task(tenant_ctx.tenant_id, task_id)
         .await
@@ -70,13 +75,16 @@ pub async fn cancel_task(
 ) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::info!(task_id = %task_id, "Cancelling task");
 
-    let task = state.tasks
+    let task = state
+        .tasks
         .task_repository
         .cancel_task(tenant_ctx.tenant_id, task_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, task_id = %task_id, "Failed to cancel task");
-            AppError::BadRequest("Failed to cancel task - task not found or not in cancellable state".to_string())
+            AppError::BadRequest(
+                "Failed to cancel task - task not found or not in cancellable state".to_string(),
+            )
         })?;
 
     tracing::info!(task_id = %task_id, "Task cancelled successfully");
@@ -93,13 +101,16 @@ pub async fn retry_task(
 ) -> Result<Json<TaskResponse>, HttpAppError> {
     tracing::info!(task_id = %task_id, "Manually retrying task");
 
-    let task = state.tasks
+    let task = state
+        .tasks
         .task_repository
         .retry_task(tenant_ctx.tenant_id, task_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, task_id = %task_id, "Failed to retry task");
-            AppError::BadRequest("Failed to retry task - task not found or not in failed state".to_string())
+            AppError::BadRequest(
+                "Failed to retry task - task not found or not in failed state".to_string(),
+            )
         })?;
 
     tracing::info!(task_id = %task_id, "Task retry scheduled successfully");
@@ -115,7 +126,8 @@ pub async fn get_task_stats(
 ) -> Result<Json<TaskStats>, HttpAppError> {
     tracing::debug!("Getting task statistics");
 
-    let stats = state.tasks
+    let stats = state
+        .tasks
         .task_repository
         .get_stats(tenant_ctx.tenant_id)
         .await

@@ -23,10 +23,10 @@ pub mod document_processor;
 
 mod config_impls;
 
+pub use config_impls::MediaLimitsConfig;
 pub use image_processor::{ImageMetadata, ImageProcessorImpl};
 pub use service::MediaUploadService;
 pub use traits::{MediaProcessor, MediaUploadConfig};
-pub use config_impls::MediaLimitsConfig;
 
 #[cfg(feature = "document")]
 pub use document_processor::DocumentProcessorImpl;

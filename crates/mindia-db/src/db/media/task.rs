@@ -101,9 +101,6 @@ impl TaskRepository {
             "Task inserted successfully, sending notification"
         );
 
-        // Notify workers so they can wake immediately instead of waiting for poll interval
-        // This is inside the transaction to ensure atomicity
-        // Make pg_notify non-fatal - workers will poll if LISTEN/NOTIFY fails
         if let Err(e) = sqlx::query("SELECT pg_notify('mindia_new_task', '')")
             .execute(&mut *tx)
             .await
@@ -113,7 +110,6 @@ impl TaskRepository {
                 task_id = %task.id,
                 "Failed to send pg_notify for new task, workers will discover task via polling"
             );
-            // Don't return error - continue with commit
         } else {
             tracing::debug!(
                 task_id = %task.id,
@@ -121,7 +117,6 @@ impl TaskRepository {
             );
         }
 
-        // Commit the transaction
         tx.commit().await.map_err(|e| {
             tracing::error!(
                 error = %e,
@@ -285,9 +280,6 @@ impl TaskRepository {
             .await
             .context("Failed to begin transaction")?;
 
-        // Find and claim the next task across all tenants
-        // NOTE: Intentionally queries all tenants for shared worker pool design
-        // Task handlers must verify tenant access before processing
         let task: Option<Task> = sqlx::query_as::<Postgres, Task>(
             r#"
             SELECT
@@ -321,7 +313,6 @@ impl TaskRepository {
         .context("Failed to fetch next task")?;
 
         if let Some(task) = task {
-            // Update the task status to running
             let updated_task: Task = sqlx::query_as::<Postgres, Task>(
                 r#"
                 UPDATE tasks
@@ -580,7 +571,10 @@ impl TaskRepository {
 
     /// Check if any dependency has failed or cancelled (used to cancel downstream workflow tasks).
     #[tracing::instrument(skip(self))]
-    pub async fn check_any_dependency_failed_or_cancelled(&self, depends_on: &[Uuid]) -> Result<bool> {
+    pub async fn check_any_dependency_failed_or_cancelled(
+        &self,
+        depends_on: &[Uuid],
+    ) -> Result<bool> {
         if depends_on.is_empty() {
             return Ok(false);
         }
@@ -734,8 +728,6 @@ impl TaskRepository {
     /// Returns the number of tasks reaped.
     #[tracing::instrument(skip(self))]
     pub async fn reap_stale_running_tasks(&self, grace_period_secs: i64) -> Result<u64> {
-        use sqlx::Row;
-
         // Reset to pending where retry_count < max_retries
         let reset_result = sqlx::query(
             r#"

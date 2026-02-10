@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct ApiClient {
     client: Client,
     base_url: String,
@@ -90,7 +91,10 @@ impl ApiClient {
 
         // Prevent path traversal attacks by rejecting paths containing '..'
         let path = std::path::Path::new(file_path);
-        if path.components().any(|c| c == std::path::Component::ParentDir) {
+        if path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
             return Err(anyhow::anyhow!("Invalid input: {}", path.display()));
         }
         let mut file =

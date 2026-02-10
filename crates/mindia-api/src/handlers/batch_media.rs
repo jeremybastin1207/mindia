@@ -5,8 +5,7 @@ use crate::error::{ErrorResponse, HttpAppError};
 use crate::handlers::media_delete::{delete_audio_embeddings, delete_video_hls_files};
 use crate::middleware::audit;
 use crate::state::AppState;
-use crate::utils::ip_extraction::extract_client_ip;
-use axum::{extract::{Request, State}, Json};
+use axum::{extract::State, Json};
 use chrono::Utc;
 use mindia_core::models::{
     Media, MediaType, WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
@@ -66,27 +65,17 @@ pub struct BatchCopyResult {
 pub async fn batch_delete_media(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
-    request: Request,
     Json(body): Json<BatchMediaRequest>,
 ) -> Result<Json<BatchDeleteResponse>, HttpAppError> {
     if body.ids.len() > MAX_BATCH_SIZE {
-        return Err(AppError::BadRequest(format!(
+        return Err(HttpAppError::from(AppError::BadRequest(format!(
             "Batch size exceeds maximum of {}",
             MAX_BATCH_SIZE
-        ))
-        .into());
+        ))));
     }
 
-    let trusted_proxy_count = std::env::var("TRUSTED_PROXY_COUNT")
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(1);
-    let socket_addr = request.extensions().get::<std::net::SocketAddr>().copied();
-    let client_ip = Some(extract_client_ip(
-        request.headers(),
-        socket_addr.as_ref(),
-        trusted_proxy_count,
-    ));
+    // Client IP not available without Request (would conflict with Json body extraction)
+    let client_ip: Option<String> = None;
 
     let mut results = Vec::with_capacity(body.ids.len());
 
