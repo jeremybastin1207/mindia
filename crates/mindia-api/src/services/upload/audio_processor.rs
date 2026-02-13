@@ -9,6 +9,7 @@ use super::traits::MediaProcessor;
 
 /// Audio metadata extracted from file
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct AudioMetadata {
     pub duration: Option<f64>,
     pub bitrate: Option<i32>,

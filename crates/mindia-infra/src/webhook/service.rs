@@ -227,14 +227,14 @@ impl WebhookService {
                     .await?
                     .context("Event not found after creation")?;
 
-                // Schedule retry
-                let next_retry_at = Utc::now() + calculate_next_retry_time(0);
+                // Schedule retry (use event.retry_count for backoff)
+                let next_retry_at = Utc::now() + calculate_next_retry_time(event.retry_count);
                 self.retry_repo
                     .enqueue(
                         event_id,
                         webhook_id,
                         event.tenant_id,
-                        0,
+                        event.retry_count,
                         next_retry_at,
                         Some(error_msg.clone()),
                     )

@@ -7,12 +7,29 @@ use mindia_core::models::{
 use mindia_core::validation;
 use mindia_core::AppError;
 use mindia_storage::Storage;
-use sqlx::{PgPool, Postgres};
+use mindia_core::models::StorageLocation;
+use sqlx::{PgPool, Postgres, Transaction};
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
 use super::storage::StorageLocationRepository;
+
+fn row_to_image_with_storage(row: MediaRow, loc: &StorageLocation) -> Image {
+    to_image(&row.to_media_item(), loc, &row.type_metadata_parsed())
+}
+
+fn row_to_video_with_storage(row: MediaRow, loc: &StorageLocation) -> Video {
+    to_video(&row.to_media_item(), loc, &row.type_metadata_parsed())
+}
+
+fn row_to_audio_with_storage(row: MediaRow, loc: &StorageLocation) -> Audio {
+    to_audio(&row.to_media_item(), loc, &row.type_metadata_parsed())
+}
+
+fn row_to_document_with_storage(row: MediaRow, loc: &StorageLocation) -> Document {
+    to_document(&row.to_media_item(), loc, &row.type_metadata_parsed())
+}
 
 /// Unified media repository
 ///
@@ -240,6 +257,67 @@ impl MediaRepository {
         self.row_to_image(row).await
     }
 
+    /// Create image record within a transaction (storage_location + media insert). Caller must upload to storage first and cleanup on failure.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_image_from_storage_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        tenant_id: Uuid,
+        id: Uuid,
+        filename: String,
+        original_filename: String,
+        content_type: String,
+        file_size: i64,
+        width: Option<i32>,
+        height: Option<i32>,
+        store_behavior: String,
+        store_permanently: bool,
+        expires_at: Option<DateTime<Utc>>,
+        folder_id: Option<Uuid>,
+        storage_key: String,
+        storage_url: String,
+    ) -> Result<Image, AppError> {
+        let now = Utc::now();
+        let backend = self.storage.backend_type();
+        let loc = self
+            .storage_locations
+            .create_tx(tx, backend, None, storage_key, storage_url)
+            .await?;
+        let type_metadata = TypeMetadata::Image { width, height }.to_json_value();
+
+        let row: MediaRow = sqlx::query_as::<Postgres, MediaRow>(
+            r#"
+            INSERT INTO media (
+                id, tenant_id, storage_id, media_type,
+                filename, original_filename, content_type, file_size,
+                uploaded_at, updated_at,
+                store_behavior, store_permanently, expires_at, folder_id, type_metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(loc.id)
+        .bind(MediaType::Image)
+        .bind(&filename)
+        .bind(&original_filename)
+        .bind(&content_type)
+        .bind(file_size)
+        .bind(now)
+        .bind(now)
+        .bind(&store_behavior)
+        .bind(store_permanently)
+        .bind(expires_at)
+        .bind(folder_id)
+        .bind(&type_metadata)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        Ok(row_to_image_with_storage(row, &loc))
+    }
+
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "select", media_type = "image", db.record_id = %id))]
     pub async fn get_image(&self, tenant_id: Uuid, id: Uuid) -> Result<Option<Image>, AppError> {
         let row: Option<MediaRow> = sqlx::query_as::<Postgres, MediaRow>(
@@ -447,6 +525,73 @@ impl MediaRepository {
         .await?;
 
         self.row_to_video(row).await
+    }
+
+    /// Create video record within a transaction. Caller must upload to storage first and cleanup on failure.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_video_from_storage_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        tenant_id: Uuid,
+        id: Uuid,
+        filename: String,
+        original_filename: String,
+        content_type: String,
+        file_size: i64,
+        store_behavior: String,
+        store_permanently: bool,
+        expires_at: Option<DateTime<Utc>>,
+        folder_id: Option<Uuid>,
+        storage_key: String,
+        storage_url: String,
+    ) -> Result<Video, AppError> {
+        let now = Utc::now();
+        let backend = self.storage.backend_type();
+        let loc = self
+            .storage_locations
+            .create_tx(tx, backend, None, storage_key, storage_url)
+            .await?;
+        let type_metadata = TypeMetadata::Video {
+            width: None,
+            height: None,
+            duration: None,
+            processing_status: Some(ProcessingStatus::Pending),
+            hls_master_playlist: None,
+            variants: None,
+        }
+        .to_json_value();
+
+        let row: MediaRow = sqlx::query_as::<Postgres, MediaRow>(
+            r#"
+            INSERT INTO media (
+                id, tenant_id, storage_id, media_type,
+                filename, original_filename, content_type, file_size,
+                uploaded_at, updated_at,
+                store_behavior, store_permanently, expires_at, folder_id, type_metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(loc.id)
+        .bind(MediaType::Video)
+        .bind(&filename)
+        .bind(&original_filename)
+        .bind(&content_type)
+        .bind(file_size)
+        .bind(now)
+        .bind(now)
+        .bind(&store_behavior)
+        .bind(store_permanently)
+        .bind(expires_at)
+        .bind(folder_id)
+        .bind(&type_metadata)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        Ok(row_to_video_with_storage(row, &loc))
     }
 
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "select", media_type = "video", db.record_id = %id))]
@@ -699,6 +844,75 @@ impl MediaRepository {
         self.row_to_audio(row).await
     }
 
+    /// Create audio record within a transaction. Caller must upload to storage first and cleanup on failure.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_audio_from_storage_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        tenant_id: Uuid,
+        id: Uuid,
+        filename: String,
+        original_filename: String,
+        content_type: String,
+        file_size: i64,
+        duration: Option<f64>,
+        bitrate: Option<i32>,
+        sample_rate: Option<i32>,
+        channels: Option<i32>,
+        store_behavior: String,
+        store_permanently: bool,
+        expires_at: Option<DateTime<Utc>>,
+        folder_id: Option<Uuid>,
+        storage_key: String,
+        storage_url: String,
+    ) -> Result<Audio, AppError> {
+        let now = Utc::now();
+        let backend = self.storage.backend_type();
+        let loc = self
+            .storage_locations
+            .create_tx(tx, backend, None, storage_key, storage_url)
+            .await?;
+        let type_metadata = TypeMetadata::Audio {
+            duration,
+            bitrate,
+            sample_rate,
+            channels,
+        }
+        .to_json_value();
+
+        let row: MediaRow = sqlx::query_as::<Postgres, MediaRow>(
+            r#"
+            INSERT INTO media (
+                id, tenant_id, storage_id, media_type,
+                filename, original_filename, content_type, file_size,
+                uploaded_at, updated_at,
+                store_behavior, store_permanently, expires_at, folder_id, type_metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(loc.id)
+        .bind(MediaType::Audio)
+        .bind(&filename)
+        .bind(&original_filename)
+        .bind(&content_type)
+        .bind(file_size)
+        .bind(now)
+        .bind(now)
+        .bind(&store_behavior)
+        .bind(store_permanently)
+        .bind(expires_at)
+        .bind(folder_id)
+        .bind(&type_metadata)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        Ok(row_to_audio_with_storage(row, &loc))
+    }
+
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "select", media_type = "audio", db.record_id = %id))]
     pub async fn get_audio(&self, tenant_id: Uuid, id: Uuid) -> Result<Option<Audio>, AppError> {
         let row: Option<MediaRow> = sqlx::query_as::<Postgres, MediaRow>(
@@ -891,6 +1105,66 @@ impl MediaRepository {
         .await?;
 
         self.row_to_document(row).await
+    }
+
+    /// Create document record within a transaction. Caller must upload to storage first and cleanup on failure.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_document_from_storage_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        tenant_id: Uuid,
+        id: Uuid,
+        filename: String,
+        original_filename: String,
+        content_type: String,
+        file_size: i64,
+        page_count: Option<i32>,
+        store_behavior: String,
+        store_permanently: bool,
+        expires_at: Option<DateTime<Utc>>,
+        folder_id: Option<Uuid>,
+        storage_key: String,
+        storage_url: String,
+    ) -> Result<Document, AppError> {
+        let now = Utc::now();
+        let backend = self.storage.backend_type();
+        let loc = self
+            .storage_locations
+            .create_tx(tx, backend, None, storage_key, storage_url)
+            .await?;
+        let type_metadata = TypeMetadata::Document { page_count }.to_json_value();
+
+        let row: MediaRow = sqlx::query_as::<Postgres, MediaRow>(
+            r#"
+            INSERT INTO media (
+                id, tenant_id, storage_id, media_type,
+                filename, original_filename, content_type, file_size,
+                uploaded_at, updated_at,
+                store_behavior, store_permanently, expires_at, folder_id, type_metadata
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(loc.id)
+        .bind(MediaType::Document)
+        .bind(&filename)
+        .bind(&original_filename)
+        .bind(&content_type)
+        .bind(file_size)
+        .bind(now)
+        .bind(now)
+        .bind(&store_behavior)
+        .bind(store_permanently)
+        .bind(expires_at)
+        .bind(folder_id)
+        .bind(&type_metadata)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        Ok(row_to_document_with_storage(row, &loc))
     }
 
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "select", media_type = "document", db.record_id = %id))]

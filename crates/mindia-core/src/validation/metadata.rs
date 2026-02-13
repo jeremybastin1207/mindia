@@ -9,6 +9,9 @@
 use anyhow::{Context, Result};
 use regex::Regex;
 use serde_json;
+use std::sync::OnceLock;
+
+static METADATA_KEY_PATTERN: OnceLock<Regex> = OnceLock::new();
 
 /// Maximum length for metadata key names (64 characters)
 pub const MAX_METADATA_KEY_LENGTH: usize = 64;
@@ -43,9 +46,10 @@ pub fn validate_metadata_key(key: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Metadata key cannot be empty"));
     }
 
-    // Validate pattern: a-z, A-Z, 0-9, underscore, hyphen, dot, colon
-    let pattern = Regex::new(r"^[a-zA-Z0-9_\-\.:]+$")
-        .context("Failed to compile metadata key validation regex")?;
+    // Validate pattern: a-z, A-Z, 0-9, underscore, hyphen, dot, colon (compiled once)
+    let pattern = METADATA_KEY_PATTERN.get_or_init(|| {
+        Regex::new(r"^[a-zA-Z0-9_\-\.:]+$").expect("metadata key regex is valid")
+    });
 
     if !pattern.is_match(key) {
         return Err(anyhow::anyhow!(

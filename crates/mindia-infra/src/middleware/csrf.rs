@@ -125,16 +125,24 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Response {
         .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
         .unwrap_or(false);
 
-    let csrf_secret = std::env::var("CSRF_SECRET")
-        .or_else(|_| std::env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| {
+    let csrf_secret = match std::env::var("CSRF_SECRET").or_else(|_| std::env::var("JWT_SECRET")) {
+        Ok(secret) => secret,
+        Err(_) => {
             if is_production {
-                tracing::error!("CSRF_SECRET not configured in production environment! Using insecure default. Please set CSRF_SECRET or JWT_SECRET environment variable.");
-            } else {
-                tracing::warn!("CSRF_SECRET not configured, using insecure default. This should be set in production.");
+                tracing::error!("CSRF_SECRET not configured in production. Set CSRF_SECRET or JWT_SECRET.");
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({
+                        "error": "Server misconfiguration",
+                        "message": "CSRF protection disabled. Set CSRF_SECRET or JWT_SECRET."
+                    })),
+                )
+                    .into_response();
             }
+            tracing::warn!("CSRF_SECRET not configured, using insecure default. Set CSRF_SECRET in production.");
             "default-csrf-secret-change-in-production".to_string()
-        });
+        }
+    };
 
     // Extract CSRF token from header
     let header_token = request

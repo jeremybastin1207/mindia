@@ -83,9 +83,15 @@ Authorization: Bearer <token>
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `q` | string | Yes | Natural language search query |
+| `q` | string | No* | Natural language search query (max 16 KB). *Required for semantic/combined mode unless metadata filters are used. |
 | `type` | string | No | Filter by type: `image`, `video`, `audio`, `document` |
-| `limit` | integer | No | Number of results (1-100, default: 20) |
+| `limit` | integer | No | Number of results to request (1-100, default: 20) |
+| `offset` | integer | No | Number of results to skip for pagination (default: 0) |
+| `search_mode` | string | No | `metadata`, `semantic`, or `both` (default: `both`) |
+| `min_similarity` | float | No | Minimum similarity score 0.0–1.0 (default: 0.3). Results below this are excluded. |
+| `folder_id` | UUID | No | Restrict results to a folder and its subfolders |
+
+**Pagination and similarity**: Limit and offset are applied in the database; then results are filtered by `min_similarity`. So `count` in the response is the number of items *after* similarity filtering (you may get fewer than `limit`). Pagination skips rows before filtering, so "page 2" is the next `limit` rows from the full ordered set, then filtered—not the next `limit` items that pass `min_similarity`.
 
 ### Response
 

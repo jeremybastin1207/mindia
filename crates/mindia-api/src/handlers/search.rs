@@ -6,9 +6,10 @@ use axum::{
     Json,
 };
 use mindia_core::models::{EntityType, SearchQuery, SearchResult};
+use mindia_core::validation::validate_metadata_key;
 use mindia_core::AppError;
 use mindia_db::media::metadata_search::MetadataFilters;
-use mindia_services::SemanticSearchProvider;
+use mindia_services::{normalize_embedding_dim, SemanticSearchProvider};
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -85,6 +86,8 @@ fn parse_metadata_filters_from_query(query_str: Option<&str>) -> Result<Metadata
                             "Metadata key cannot be empty".to_string(),
                         ));
                     }
+                    validate_metadata_key(metadata_key)
+                        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
                     filters.exact.push((metadata_key.to_string(), value));
                 } else if key.starts_with("metadata_min.") {
                     let metadata_key = key.trim_start_matches("metadata_min.");
@@ -93,7 +96,8 @@ fn parse_metadata_filters_from_query(query_str: Option<&str>) -> Result<Metadata
                             "Metadata key cannot be empty".to_string(),
                         ));
                     }
-                    // Find or create range entry
+                    validate_metadata_key(metadata_key)
+                        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
                     if let Some(existing) = filters.ranges.iter_mut().find(|r| r.0 == metadata_key)
                     {
                         existing.1 = Some(value);
@@ -109,7 +113,8 @@ fn parse_metadata_filters_from_query(query_str: Option<&str>) -> Result<Metadata
                             "Metadata key cannot be empty".to_string(),
                         ));
                     }
-                    // Find or create range entry
+                    validate_metadata_key(metadata_key)
+                        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
                     if let Some(existing) = filters.ranges.iter_mut().find(|r| r.0 == metadata_key)
                     {
                         existing.2 = Some(value);
@@ -125,6 +130,8 @@ fn parse_metadata_filters_from_query(query_str: Option<&str>) -> Result<Metadata
                             "Metadata key cannot be empty".to_string(),
                         ));
                     }
+                    validate_metadata_key(metadata_key)
+                        .map_err(|e| AppError::InvalidInput(e.to_string()))?;
                     filters
                         .text_contains
                         .push((metadata_key.to_string(), value));
@@ -186,6 +193,7 @@ async fn execute_semantic_search(
             tracing::error!(error = %e, "Failed to generate query embedding");
             AppError::Internal(format!("Failed to generate query embedding: {}", e))
         })?;
+    let query_embedding = normalize_embedding_dim(query_embedding);
 
     state
         .db
@@ -200,7 +208,7 @@ async fn execute_semantic_search(
         )
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, tenant_id = %tenant_id, "Failed to search embeddings");
+            tracing::error!(error = %e.to_string(), tenant_id = %tenant_id, "Failed to search embeddings");
             AppError::Internal(format!("Failed to search embeddings: {}", e))
         })
 }
@@ -235,30 +243,36 @@ async fn execute_combined_search(
         })
 }
 
+/// Substrings used to map repository anyhow errors to AppError variants.
+/// Keep in sync with error messages from MetadataSearchRepository / metadata search code.
+const SEARCH_ERR_TOO_MANY_FILTERS: &str = "Too many metadata filters";
+const SEARCH_ERR_NOT_IMPLEMENTED: &str = "not yet implemented";
+
 /// Convert anyhow::Error to AppError with proper error type detection
 fn convert_search_error(e: anyhow::Error) -> AppError {
     let error_msg = e.to_string();
-    if error_msg.contains("Too many metadata filters") {
+    if error_msg.contains(SEARCH_ERR_TOO_MANY_FILTERS) {
         AppError::MetadataFilterLimitExceeded(error_msg)
-    } else if error_msg.contains("not yet implemented") {
+    } else if error_msg.contains(SEARCH_ERR_NOT_IMPLEMENTED) {
         AppError::InvalidMetadataFilter(error_msg)
     } else {
         AppError::Internal(format!("Search error: {}", error_msg))
     }
 }
 
-/// Generate embedding from query text
+/// Generate embedding from query text. Ensures dimension matches DB (pgvector).
 async fn generate_query_embedding(
     semantic_search: &(dyn SemanticSearchProvider + Send + Sync),
     query: &str,
 ) -> Result<Vec<f32>, AppError> {
-    semantic_search
+    let vec = semantic_search
         .generate_embedding(query)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to generate query embedding");
             AppError::Internal(format!("Failed to generate query embedding: {}", e))
-        })
+        })?;
+    Ok(normalize_embedding_dim(vec))
 }
 
 /// Determine search strategy based on mode and available parameters
@@ -300,6 +314,8 @@ fn determine_search_strategy(
     get,
     path = "/api/v0/search",
     tag = "search",
+    summary = "Search media by semantic query and/or metadata filters",
+    description = "Returns matching media. For semantic search, limit and offset are applied in the database; then results are filtered in memory by min_similarity. Thus count is the number of results after similarity filtering (you may receive fewer than limit). Pagination (offset) skips rows before filtering, so page boundaries depend on the full result set ordering, not only on items passing min_similarity.",
     params(
         SearchQuery
     ),
@@ -343,6 +359,9 @@ pub async fn search_files(
         if filters.is_empty() {
             None
         } else {
+            filters
+                .validate()
+                .map_err(|e| AppError::InvalidInput(e.to_string()))?;
             Some(filters)
         }
     };

@@ -4,6 +4,8 @@ use crate::middleware::json_response_with_event;
 use crate::services::upload::{DocumentProcessorImpl, MediaUploadConfig, MediaUploadService};
 use crate::state::AppState;
 use crate::telemetry::wide_event::WideEvent;
+use crate::utils::ip_extraction::ClientIpOpt;
+use crate::utils::transaction::with_transaction;
 use crate::utils::upload::parse_store_parameter;
 use axum::{
     extract::{Multipart, Query, State},
@@ -53,6 +55,7 @@ pub async fn upload_document(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Query(query): Query<StoreQuery>,
+    ClientIpOpt(client_ip): ClientIpOpt,
     multipart: Multipart,
 ) -> Result<Response<axum::body::Body>, HttpAppError> {
     // Create a wide event for this request (middleware will merge with its event)
@@ -118,6 +121,8 @@ pub async fn upload_document(
             store_permanently,
             expires_at,
             store_behavior.clone(),
+            Some(tenant_ctx.user_id),
+            client_ip,
         )
         .await
     {
@@ -125,25 +130,30 @@ pub async fn upload_document(
         Err(e) => return Ok(error_response_with_event(HttpAppError::from(e), wide_event)),
     };
 
-    let document = match state
-        .media
-        .repository
-        .create_document_from_storage(
-            upload_data.tenant_id,
-            upload_data.file_id,
-            upload_data.uuid_filename.clone(),
-            upload_data.safe_original_filename.clone(),
-            upload_data.content_type.clone(),
-            upload_data.file_size,
-            None, // page_count can be added later if needed
-            upload_data.store_behavior.clone(),
-            upload_data.store_permanently,
-            upload_data.expires_at,
-            None, // folder_id
-            upload_data.storage_key.clone(),
-            upload_data.storage_url.clone(),
-        )
-        .await
+    let document = match with_transaction(&state.db.pool, |tx| {
+        let repo = state.media.repository.clone();
+        let ud = upload_data.clone();
+        async move {
+            repo.create_document_from_storage_tx(
+                tx,
+                ud.tenant_id,
+                ud.file_id,
+                ud.uuid_filename,
+                ud.safe_original_filename,
+                ud.content_type,
+                ud.file_size,
+                None, // page_count can be added later if needed
+                ud.store_behavior,
+                ud.store_permanently,
+                ud.expires_at,
+                None,
+                ud.storage_key,
+                ud.storage_url,
+            )
+            .await
+        }
+    })
+    .await
     {
         Ok(document) => {
             wide_event.with_business_context(|ctx| {
@@ -153,12 +163,11 @@ pub async fn upload_document(
             document
         }
         Err(e) => {
-            // Cleanup storage on database failure
             let storage_key = upload_data.storage_key.clone();
             let storage = state.media.storage.clone();
             tokio::spawn(async move {
                 if let Err(cleanup_err) = storage.delete(&storage_key).await {
-                    tracing::debug!(
+                    tracing::warn!(
                         error = %cleanup_err,
                         storage_key = %storage_key,
                         "Failed to cleanup storage file after DB error"

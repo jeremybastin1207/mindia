@@ -3,8 +3,6 @@
 //! Provides helpers for executing multiple database operations within a transaction
 //! to ensure atomicity and data consistency.
 
-#![allow(dead_code)]
-
 use mindia_core::AppError;
 use sqlx::{PgPool, Postgres, Transaction};
 

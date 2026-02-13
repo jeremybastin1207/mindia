@@ -14,12 +14,12 @@ fn load_dotenv() {
     // Try to load .env from current directory first (override so .env wins over existing vars)
     if let Ok(current_dir) = env::current_dir() {
         let env_path = current_dir.join(".env");
-        if env_path.is_file() {
-            if dotenvy::from_path_override(&env_path).is_ok() {
-                return;
-            }
-            // from_path_override failed (e.g. parse error); try upward search as fallback
+        if env_path.is_file()
+            && dotenvy::from_path_override(&env_path).is_ok()
+        {
+            return;
         }
+        // from_path_override failed (e.g. parse error); try upward search as fallback
     }
 
     // Fallback: search upward from current dir; override so .env file wins
@@ -99,6 +99,8 @@ pub struct MediaProcessorConfig {
     pub clamav_host: String,
     pub clamav_port: u16,
     pub clamav_fail_closed: bool,
+    /// Content moderation (e.g. AWS Rekognition) for uploads.
+    pub content_moderation_enabled: bool,
     // Semantic search configuration
     // Uses Claude Vision (ANTHROPIC_API_KEY) + Voyage AI embeddings (VOYAGE_API_KEY)
     pub semantic_search_enabled: bool,
@@ -338,6 +340,10 @@ impl Config {
 
     pub fn clamav_fail_closed(&self) -> bool {
         self.as_media().clamav_fail_closed
+    }
+
+    pub fn content_moderation_enabled(&self) -> bool {
+        self.as_media().content_moderation_enabled
     }
 
     pub fn semantic_search_enabled(&self) -> bool {
@@ -777,6 +783,11 @@ impl MediaProcessorConfig {
                 .to_lowercase()
                 .parse()
                 .unwrap_or(is_production),
+            content_moderation_enabled: env::var("CONTENT_MODERATION_ENABLED")
+                .unwrap_or_else(|_| "false".to_string())
+                .to_lowercase()
+                .parse()
+                .unwrap_or(false),
             semantic_search_enabled: env::var("SEMANTIC_SEARCH_ENABLED")
                 .unwrap_or_else(|_| "false".to_string())
                 .to_lowercase()
@@ -913,6 +924,29 @@ impl MediaProcessorConfig {
         if self.email_alerts_enabled && (self.smtp_host.is_none() || self.smtp_from.is_none()) {
             return Err(anyhow::anyhow!(
                 "EMAIL_ALERTS_ENABLED=true requires SMTP_HOST and SMTP_FROM to be set"
+            ));
+        }
+
+        if self.semantic_search_enabled
+            && self.anthropic_api_key.is_none()
+            && self.voyage_api_key.is_none()
+        {
+            return Err(anyhow::anyhow!(
+                "SEMANTIC_SEARCH_ENABLED=true requires ANTHROPIC_API_KEY or VOYAGE_API_KEY to be set"
+            ));
+        }
+
+        if self.base.server_port == 0 || self.base.server_port > 65535 {
+            return Err(anyhow::anyhow!(
+                "PORT must be between 1 and 65535, got {}",
+                self.base.server_port
+            ));
+        }
+
+        if self.base.http_rate_limit_per_minute == 0 || self.base.http_rate_limit_per_minute > 100_000 {
+            return Err(anyhow::anyhow!(
+                "HTTP_RATE_LIMIT_PER_MINUTE must be between 1 and 100000, got {}",
+                self.base.http_rate_limit_per_minute
             ));
         }
 

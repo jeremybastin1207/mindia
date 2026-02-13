@@ -64,6 +64,8 @@ impl MediaUploadService {
         store_permanently: bool,
         expires_at: Option<DateTime<chrono::Utc>>,
         store_behavior: String,
+        audit_user_id: Option<Uuid>,
+        audit_client_ip: Option<String>,
     ) -> Result<(super::types::UploadData, M), AppError>
     where
         M: Send + 'static,
@@ -93,6 +95,8 @@ impl MediaUploadService {
                 store_permanently,
                 expires_at,
                 store_behavior,
+                audit_user_id,
+                audit_client_ip,
             )
             .await?;
 
@@ -149,9 +153,11 @@ impl MediaUploadService {
         store_permanently: bool,
         expires_at: Option<DateTime<chrono::Utc>>,
         store_behavior: String,
+        audit_user_id: Option<Uuid>,
+        audit_client_ip: Option<String>,
     ) -> Result<super::types::UploadData, AppError> {
         let file_uuid = Uuid::new_v4();
-        let safe_original_filename = sanitize_filename(&file.original_filename);
+        let safe_original_filename = sanitize_filename(&file.original_filename)?;
         let uuid_filename = format!("{}.{}", file_uuid, file.extension);
         let file_size = file.data.len();
 
@@ -186,12 +192,12 @@ impl MediaUploadService {
 
         audit::log_file_upload(
             tenant_id,
-            None, // user_id not available in this context
+            audit_user_id,
             file_uuid,
             safe_original_filename.clone(),
             file_size as i64,
             file.content_type.clone(),
-            None, // client_ip not available in this context
+            audit_client_ip,
         );
 
         Ok(super::types::UploadData {
@@ -377,11 +383,7 @@ impl MediaUploadService {
             }
         }
 
-        // Check if content moderation is enabled
-        let moderation_enabled = std::env::var("CONTENT_MODERATION_ENABLED")
-            .ok()
-            .and_then(|v| v.parse::<bool>().ok())
-            .unwrap_or(false);
+        let moderation_enabled = self.state.config.content_moderation_enabled();
 
         if !moderation_enabled {
             tracing::debug!(
@@ -447,8 +449,8 @@ impl MediaUploadService {
             let entity_id_w = entity_id;
             let entity_type_w = entity_type.to_string();
             let content_type_w = content_type.clone();
-            let folder_id_w = folder_id;
-            let metadata_w = metadata.clone();
+            let folder_id_w = _folder_id;
+            let metadata_w = _metadata.clone();
             tokio::spawn(async move {
                 if let Err(e) = workflow_service
                     .match_and_trigger(

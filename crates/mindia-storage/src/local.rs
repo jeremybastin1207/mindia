@@ -47,7 +47,6 @@ impl LocalStorage {
     /// This function validates that the storage key doesn't contain path traversal
     /// sequences that could escape the base storage directory.
     fn key_to_path(&self, storage_key: &str) -> StorageResult<PathBuf> {
-        // Reject obvious traversal attempts early
         if storage_key.contains("..") || storage_key.starts_with('/') {
             return Err(StorageError::InvalidKey(
                 "Storage key contains invalid characters".to_string(),
@@ -61,30 +60,28 @@ impl LocalStorage {
             StorageError::ConfigError(format!("Failed to canonicalize base path: {}", e))
         })?;
 
-        // Try to canonicalize the full path (may fail if file doesn't exist yet)
-        // If it exists, ensure it's under base_path
+        // If file exists, canonicalize and ensure it's under base_path (strip_prefix is safer than starts_with for symlinks)
         if let Ok(canonical) = path.canonicalize() {
-            if !canonical.starts_with(&base_canonical) {
+            if canonical.strip_prefix(&base_canonical).is_err() {
                 return Err(StorageError::InvalidKey(
                     "Storage key resolves outside storage directory".to_string(),
                 ));
             }
         } else {
-            // File doesn't exist yet, validate by checking parent components
-            // Ensure all path components are within base_path
+            // File doesn't exist yet; validate parent chain with strip_prefix
             let mut current = path.clone();
             loop {
                 if current == self.base_path {
                     break;
                 }
                 if let Some(parent) = current.parent() {
-                    if parent == self.base_path || parent.starts_with(&self.base_path) {
-                        current = parent.to_path_buf();
-                    } else {
+                    let parent_buf = parent.to_path_buf();
+                    if parent_buf.strip_prefix(&self.base_path).is_err() && parent_buf != self.base_path {
                         return Err(StorageError::InvalidKey(
                             "Storage key resolves outside storage directory".to_string(),
                         ));
                     }
+                    current = parent_buf;
                 } else {
                     break;
                 }
@@ -264,6 +261,14 @@ impl Storage for LocalStorage {
     async fn exists(&self, storage_key: &str) -> StorageResult<bool> {
         let path = self.key_to_path(storage_key)?;
         Ok(tokio::fs::try_exists(&path).await.unwrap_or(false))
+    }
+
+    async fn content_length(&self, storage_key: &str) -> StorageResult<u64> {
+        let path = self.key_to_path(storage_key)?;
+        let meta = fs::metadata(&path)
+            .await
+            .map_err(|e| StorageError::BackendError(e.to_string()))?;
+        Ok(meta.len())
     }
 
     async fn copy(&self, from_key: &str, to_key: &str) -> StorageResult<String> {

@@ -77,7 +77,11 @@ pub async fn validate_url_for_ssrf(
             }
         }
         Err(e) => {
-            tracing::warn!(host = %host_without_port, error = %e, "Failed to resolve hostname for SSRF validation");
+            tracing::warn!(host = %host_without_port, error = %e, "DNS resolution failed for SSRF validation");
+            return Err(format!(
+                "Hostname could not be resolved (SSRF check): {}",
+                e
+            ));
         }
     }
 

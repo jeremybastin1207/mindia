@@ -4,7 +4,7 @@ Mindia can scan uploaded files for malware using [ClamAV](https://www.clamav.net
 
 ## Overview
 
-- **When**: Scans run during upload, before files are written to storage
+- **When**: Scans run during upload, before files are written to storage. For **multipart** uploads, scanning happens in the API pipeline. For **chunked** uploads, the assembled file is scanned at completion (when the client calls the complete endpoint).
 - **What**: Images, videos, audio, documents (all uploaded media types)
 - **How**: Connects to a ClamAV daemon via TCP
 - **Timeout**: 30 seconds per scan

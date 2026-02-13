@@ -100,7 +100,7 @@ pub struct SearchQuery {
     #[param(minimum = 1, maximum = 100, example = 20)]
     pub limit: Option<i64>,
 
-    /// Offset for pagination (default: 0, min: 0)
+    /// Offset for pagination (default: 0, min: 0). Applied in DB before min_similarity filtering; page boundaries are over the full ordered result set.
     #[param(minimum = 0, example = 0)]
     pub offset: Option<i64>,
 
@@ -109,8 +109,8 @@ pub struct SearchQuery {
     #[param(example = "both")]
     pub search_mode: Option<String>,
 
-    /// Minimum similarity score for semantic search results (0.0 to 1.0, default: 0.3)
-    /// Filters out results below this threshold
+    /// Minimum similarity score for semantic search results (0.0 to 1.0, default: 0.3).
+    /// Applied after limit/offset in the DB: results below this threshold are dropped, so count may be less than limit.
     #[param(minimum = 0.0, maximum = 1.0, example = 0.3)]
     pub min_similarity: Option<f32>,
 
@@ -139,36 +139,23 @@ impl SearchQuery {
             }
         }
 
-        // Validate search mode if provided
-        if let Some(ref mode) = self.search_mode {
-            match mode.to_lowercase().as_str() {
-                "metadata" | "semantic" | "both" => {}
-                _ => {
-                    return Err(format!(
-                        "Invalid search mode: '{}'. Must be 'metadata', 'semantic', or 'both'",
-                        mode
-                    ));
-                }
-            }
-        }
-
-        // Validate entity type if provided
-        if let Some(ref type_str) = self.entity_type {
-            match type_str.to_lowercase().as_str() {
-                "image" | "video" | "document" | "audio" => {}
-                _ => {
-                    return Err(format!(
-                        "Invalid entity type: '{}'. Must be 'image', 'video', 'document', or 'audio'",
-                        type_str
-                    ));
-                }
-            }
-        }
+        // search_mode and entity_type are validated by the handler via SearchStrategy::from_str and parse_entity_type
 
         // Validate min_similarity if provided
         if let Some(min_sim) = self.min_similarity {
             if !(0.0..=1.0).contains(&min_sim) {
                 return Err("min_similarity must be between 0.0 and 1.0".to_string());
+            }
+        }
+
+        // Validate query length for semantic search (DoS/cost guard)
+        const MAX_QUERY_LEN: usize = 16 * 1024; // 16 KB
+        if let Some(ref q) = self.q {
+            if q.len() > MAX_QUERY_LEN {
+                return Err(format!(
+                    "Query parameter 'q' must not exceed {} characters",
+                    MAX_QUERY_LEN
+                ));
             }
         }
 

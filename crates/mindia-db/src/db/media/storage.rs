@@ -3,7 +3,7 @@
 use mindia_core::models::StorageLocation;
 use mindia_core::AppError;
 use mindia_core::StorageBackend;
-use sqlx::{PgPool, Postgres};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// Row type for storage_locations table (for FromRow).
@@ -60,6 +60,32 @@ impl StorageLocationRepository {
         .bind(&key)
         .bind(&url)
         .fetch_one(&self.pool)
+        .await?;
+        Ok(row.to_storage_location())
+    }
+
+    /// Insert a new storage location within a transaction.
+    #[tracing::instrument(skip(self, tx), fields(db.table = "storage_locations"))]
+    pub async fn create_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        backend: StorageBackend,
+        bucket: Option<String>,
+        key: String,
+        url: String,
+    ) -> Result<StorageLocation, AppError> {
+        let row: StorageLocationRow = sqlx::query_as::<Postgres, StorageLocationRow>(
+            r#"
+            INSERT INTO storage_locations (backend, bucket, key, url)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, backend, bucket, key, url
+            "#,
+        )
+        .bind(backend)
+        .bind(&bucket)
+        .bind(&key)
+        .bind(&url)
+        .fetch_one(&mut **tx)
         .await?;
         Ok(row.to_storage_location())
     }

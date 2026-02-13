@@ -36,6 +36,7 @@ pub struct UploadResult<E> {
 /// This struct contains all the information needed to create a database entity
 /// after a file has been uploaded to storage. This avoids the need for complex
 /// closure patterns that cause type inference issues with Axum.
+#[derive(Clone)]
 pub struct UploadData {
     /// Tenant ID
     pub tenant_id: Uuid,

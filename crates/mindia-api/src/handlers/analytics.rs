@@ -1,8 +1,8 @@
 use crate::auth::models::TenantContext;
+use crate::error::HttpAppError;
 use crate::state::AppState;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::{IntoResponse, Json},
 };
 use mindia_core::models::{
@@ -26,20 +26,14 @@ use std::sync::Arc;
 pub async fn get_traffic_summary(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AnalyticsQuery>,
-) -> impl IntoResponse {
-    match state.db.analytics.get_traffic_summary(query).await {
-        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to get traffic summary");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to retrieve traffic summary"
-                })),
-            )
-                .into_response()
-        }
-    }
+) -> Result<impl IntoResponse, HttpAppError> {
+    let summary = state
+        .db
+        .analytics
+        .get_traffic_summary(query)
+        .await
+        .map_err(HttpAppError::from)?;
+    Ok(Json(summary))
 }
 
 #[utoipa::path(
@@ -57,20 +51,14 @@ pub async fn get_traffic_summary(
 pub async fn get_url_statistics(
     State(state): State<Arc<AppState>>,
     Query(query): Query<AnalyticsQuery>,
-) -> impl IntoResponse {
-    match state.db.analytics.get_url_statistics(query).await {
-        Ok(stats) => (StatusCode::OK, Json(stats)).into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to get URL statistics");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to retrieve URL statistics"
-                })),
-            )
-                .into_response()
-        }
-    }
+) -> Result<impl IntoResponse, HttpAppError> {
+    let stats = state
+        .db
+        .analytics
+        .get_url_statistics(query)
+        .await
+        .map_err(HttpAppError::from)?;
+    Ok(Json(stats))
 }
 
 #[utoipa::path(
@@ -82,20 +70,16 @@ pub async fn get_url_statistics(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn get_storage_summary(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    match state.db.analytics.get_storage_summary().await {
-        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to get storage summary");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to retrieve storage summary"
-                })),
-            )
-                .into_response()
-        }
-    }
+pub async fn get_storage_summary(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    let summary = state
+        .db
+        .analytics
+        .get_storage_summary()
+        .await
+        .map_err(HttpAppError::from)?;
+    Ok(Json(summary))
 }
 
 #[utoipa::path(
@@ -107,26 +91,18 @@ pub async fn get_storage_summary(State(state): State<Arc<AppState>>) -> impl Int
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn refresh_storage_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    match state.db.analytics.refresh_storage_metrics().await {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "message": "Storage metrics refreshed successfully"
-            })),
-        )
-            .into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to refresh storage metrics");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to refresh storage metrics"
-                })),
-            )
-                .into_response()
-        }
-    }
+pub async fn refresh_storage_metrics(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpAppError> {
+    state
+        .db
+        .analytics
+        .refresh_storage_metrics()
+        .await
+        .map_err(HttpAppError::from)?;
+    Ok(Json(serde_json::json!({
+        "message": "Storage metrics refreshed successfully"
+    })))
 }
 
 #[utoipa::path(
@@ -146,25 +122,14 @@ pub async fn list_audit_logs(
     tenant_ctx: TenantContext,
     Query(query): Query<AuditLogQuery>,
     State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
-    match state
+) -> Result<impl IntoResponse, HttpAppError> {
+    let response = state
         .db
         .analytics
         .list_audit_logs(Some(tenant_ctx.tenant_id), query)
         .await
-    {
-        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to list audit logs");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to retrieve audit logs"
-                })),
-            )
-                .into_response()
-        }
-    }
+        .map_err(HttpAppError::from)?;
+    Ok(Json(response))
 }
 
 #[utoipa::path(
@@ -185,30 +150,15 @@ pub async fn get_audit_log(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Path(id): Path<i64>,
-) -> impl IntoResponse {
-    match state
+) -> Result<impl IntoResponse, HttpAppError> {
+    let log = state
         .db
         .analytics
         .get_audit_log(id, Some(tenant_ctx.tenant_id))
         .await
-    {
-        Ok(Some(log)) => (StatusCode::OK, Json(log)).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({
-                "error": "Audit log not found"
-            })),
-        )
-            .into_response(),
-        Err(e) => {
-            tracing::error!(error = %e, "Failed to get audit log");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Failed to retrieve audit log"
-                })),
-            )
-                .into_response()
-        }
+        .map_err(HttpAppError::from)?;
+    match log {
+        Some(l) => Ok(Json(l)),
+        None => Err(mindia_core::AppError::NotFound("Audit log not found".to_string()).into()),
     }
 }

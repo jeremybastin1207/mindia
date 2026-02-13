@@ -28,5 +28,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Code review (security and correctness)**:
+  - **Transactions**: Upload handlers (image, video, audio, document) now create media records inside a DB transaction; workflow service creates execution after all step tasks are submitted and persists in a single transaction to avoid partial state.
+  - **Metadata search**: Range and text_contains filters now use parameterized `jsonb_each` (key bound as parameter) instead of interpolating keys into SQL.
+  - **SSRF**: DNS resolution failure in SSRF validation now fails closed (rejects request) in both API and webhook code paths.
+  - **CSRF**: In production, missing `CSRF_SECRET` (and `JWT_SECRET` fallback) now returns 503 instead of using an insecure default.
+  - **S3 upload_stream**: Uses multipart upload with 8 MiB parts instead of loading the entire stream into memory.
+  - **Config**: Added validation for PORT (1–65535), HTTP_RATE_LIMIT_PER_MINUTE (1–100000), semantic search (requires ANTHROPIC_API_KEY or VOYAGE_API_KEY when enabled). Added `CONTENT_MODERATION_ENABLED` to config and upload service (no longer read from env only).
+  - **Chunked upload**: Rejects `chunk_size == 0` to avoid panic; cleanup delete failures are logged as warnings; filename sanitization returns an error on path traversal instead of a generic name.
+  - **Webhook retry**: Initial delivery failure now uses `event.retry_count` for backoff when scheduling retry.
+  - **Analytics handlers**: Errors are converted via `HttpAppError::from` to preserve context.
+  - **Local storage**: Path-under-base validation uses `strip_prefix` where applicable.
+  - **Auth**: Per-IP rate limiting for failed auth attempts (10 failures per 15 minutes, then 429 Too Many Requests).
 - **Unified media state**: All handlers and job/task code now use `state.media.repository` for images and videos (replacing former `state.image`, `state.video`, and `state.video_db`). No API or config changes.
+- **Upload media (security and consistency)**:
+  - **Content-Type validation**: Multipart uploads now validate MIME type by exact match (normalized, no parameters) instead of substring, preventing allowlist bypass (e.g. `x/image/jpeg`).
+  - **Chunked completion**: Actual file size is verified against the declared size; DB stores the actual size. Chunked completion runs ClamAV when enabled (same as multipart).
+  - **Chunked uploads**: Max file size per media type and max chunk count (10,000) are enforced at session start. Completion rejects assembled size exceeding declared size.
+  - **Multipart**: Only one field named `file` is accepted; requests with multiple file fields are rejected.
+  - **Audit**: File upload audit log now includes `user_id` and `client_ip` when available (set by auth middleware and passed from upload handlers).
+  - **Workflow**: Fixed `notify_upload` workflow block using correct parameters (`_folder_id`, `_metadata`) when the `workflow` feature is enabled.
+  - **Storage**: New `content_length` method on the Storage trait for size verification. Chunked completion documents in-code that the assembled file is buffered in memory (bounded by per-type limits).
+- **Code review follow-ups**:
+  - **Security**: Fixed comment typo in SSRF validation ("i6ternal" → "internal"). Confirmed no logging of MASTER_API_KEY or database URLs.
+  - **Documentation**: Added *Operational security* subsection in [docs/configuration.md](docs/configuration.md) (MASTER_API_KEY, CORS, TRUSTED_PROXY_COUNT, URL_UPLOAD_ALLOWLIST, CLAMAV_FAIL_CLOSED).
+  - **Analytics handlers**: All analytics endpoints now return `Result<_, HttpAppError>` for consistent error handling and logging.
+  - **Routes**: Route registration split into `setup/routes/` (mod.rs, domains.rs, health.rs) for readability.
+  - **Health checks**: Shared `run_check` helper in `routes/health.rs` to deduplicate timeout-and-status logic used by `/health` and `/health/deep`.
+  - **Dead code**: Justified `#[allow(dead_code)]` on app sub-state types (DbState, TaskState, WebhookState, PluginState) and compile-time assertion in handlers.
+- **Search API**: Query parameter `q` limited to 16 KB. Metadata filter keys validated with `validate_metadata_key` at the API boundary; filter count (max 10) validated in the handler. Query embeddings normalized to DB dimension before use. OpenAPI and [docs/semantic-search.md](docs/semantic-search.md) document pagination and `min_similarity` (count is after filtering; offset applies before filtering).
+
+### Removed
+
+- **Presigned upload API**: Endpoints `POST /api/v0/uploads/presigned` and `POST /api/v0/uploads/complete` have been removed. Direct-to-S3 single-file uploads bypass server-side validation (size, virus scan, content-type) and are not secure. Use multipart upload (`POST /api/v0/images`, etc.) or chunked upload (`/api/v0/uploads/chunked/*`) instead.
 

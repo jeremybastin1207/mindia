@@ -184,7 +184,7 @@ pub async fn upload_image_from_url(
     .map_err(|e: anyhow::Error| AppError::InvalidInput(format!("Invalid image file: {}", e)))?;
 
     let file_uuid = Uuid::new_v4();
-    let safe_original_filename = sanitize_filename(&original_filename);
+    let safe_original_filename = sanitize_filename(&original_filename).map_err(HttpAppError::from)?;
     let uuid_filename = format!("{}.{}", file_uuid, extension);
 
     let file_size = processed_data.len();

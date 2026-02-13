@@ -39,7 +39,7 @@ use mindia_services::SemanticSearchProvider;
 
 /// Database pool, analytics, cleanup, and all repositories that are not tied to a specific service.
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Used via FromRef and in setup::services; not all fields referenced in every build
 pub struct DbState {
     pub pool: PgPool,
     pub analytics: AnalyticsService,
@@ -117,7 +117,7 @@ impl MediaConfig {
     }
 }
 
-/// S3 storage configuration (for presigned URLs, chunked uploads).
+/// S3 storage configuration (for chunked uploads).
 #[derive(Clone)]
 pub struct S3Config {
     pub service: S3Service,
@@ -144,7 +144,7 @@ pub struct DatabaseConfig {
 /// Task queue and related handlers.
 #[cfg(all(feature = "content-moderation", feature = "video"))]
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Used via FromRef and in setup::services; variant depends on features
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -154,6 +154,7 @@ pub struct TaskState {
 
 #[cfg(all(feature = "content-moderation", not(feature = "video")))]
 #[derive(Clone)]
+#[allow(dead_code)] // Used via FromRef and in setup::services
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -162,7 +163,7 @@ pub struct TaskState {
 
 #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Used via FromRef and in setup::services
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -171,6 +172,7 @@ pub struct TaskState {
 
 #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
 #[derive(Clone)]
+#[allow(dead_code)] // Used via FromRef and in setup::services
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
@@ -178,7 +180,7 @@ pub struct TaskState {
 
 /// Webhook delivery and retry services.
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Used via FromRef and in setup::services; not all fields in every code path
 pub struct WebhookState {
     pub webhook_service: WebhookService,
     pub webhook_retry_service: WebhookRetryService,
@@ -186,7 +188,7 @@ pub struct WebhookState {
 
 #[cfg(feature = "plugin")]
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Used via FromRef and in setup::services
 pub struct PluginState {
     pub plugin_registry: Arc<PluginRegistry>,
     pub plugin_service: PluginService,

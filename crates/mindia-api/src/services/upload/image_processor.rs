@@ -8,6 +8,7 @@ use mindia_services::ImageProcessor;
 use super::traits::MediaProcessor;
 
 /// Image metadata extracted from file
+#[derive(Clone)]
 pub struct ImageMetadata {
     pub dimensions: ImageDimensions,
 }

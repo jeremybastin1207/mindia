@@ -93,8 +93,6 @@ Plugin management and execution:
 
 ### Uploads
 Advanced upload methods:
-- **Generate Presigned URL** - Get presigned URL for direct S3 upload
-- **Complete Presigned Upload** - Complete direct upload after S3 upload
 - **Start Chunked Upload** - Start chunked upload session for large files
 - **Record Chunk Upload** - Record successful chunk upload
 - **Complete Chunked Upload** - Complete chunked upload after all chunks uploaded

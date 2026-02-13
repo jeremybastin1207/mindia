@@ -14,7 +14,7 @@ use tokio::net::lookup_host;
 /// 1. Checks URL scheme (must be http/https)
 /// 2. Extracts and validates hostname
 /// 3. Checks URL allowlist if configured (defense in depth)
-/// 4. Checks for private/i6ternal IP addresses in hostname
+/// 4. Checks for private/internal IP addresses in hostname
 /// 5. Checks for localhost and internal hostnames
 /// 6. Resolves hostname to IP and validates resolved IPs (prevents DNS rebinding)
 ///
@@ -102,10 +102,11 @@ pub async fn validate_url_for_ssrf(
             }
         }
         Err(e) => {
-            // DNS resolution failure - could be legitimate or could be blocked
-            // Log but allow (defense in depth - we already validated hostname format)
-            // In strict mode, we could reject on DNS failure, but that might break legitimate use cases
-            tracing::warn!(host = %host_without_port, error = %e, "Failed to resolve hostname for SSRF validation");
+            tracing::warn!(host = %host_without_port, error = %e, "DNS resolution failed for SSRF validation");
+            return Err(format!(
+                "Hostname could not be resolved (SSRF check): {}",
+                e
+            ));
         }
     }
 

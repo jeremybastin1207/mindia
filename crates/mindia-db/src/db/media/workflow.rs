@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use sqlx::{PgPool, Postgres};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use mindia_core::models::{Workflow, WorkflowExecution, WorkflowExecutionStatus};
@@ -125,7 +125,6 @@ impl WorkflowRepository {
         metadata_filter: Option<Option<serde_json::Value>>,
     ) -> Result<Option<Workflow>> {
         let now = Utc::now();
-        // Build dynamic update: only non-None fields
         let w = sqlx::query_as::<Postgres, Workflow>(
             r#"
             UPDATE workflows
@@ -223,7 +222,6 @@ impl WorkflowRepository {
         .await
         .context("Failed to match workflows for upload")?;
 
-        // Filter by metadata_filter: if set, metadata must contain the required keys/values
         let filtered: Vec<Workflow> = if let Some(meta) = metadata {
             rows.into_iter()
                 .filter(|w| match &w.metadata_filter {
@@ -306,6 +304,64 @@ impl WorkflowExecutionRepository {
         .await
         .context("Failed to create workflow execution")?;
         Ok(e)
+    }
+
+    pub async fn create_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        workflow_id: Uuid,
+        tenant_id: Uuid,
+        media_id: Uuid,
+        task_ids: Vec<Uuid>,
+        stop_on_failure: bool,
+    ) -> Result<WorkflowExecution> {
+        let status = if task_ids.is_empty() {
+            WorkflowExecutionStatus::Completed
+        } else {
+            WorkflowExecutionStatus::Pending
+        };
+        let now = Utc::now();
+        let e = sqlx::query_as::<Postgres, WorkflowExecution>(
+            r#"
+            INSERT INTO workflow_executions (
+                workflow_id, tenant_id, media_id, status, task_ids, current_step, stop_on_failure,
+                created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8)
+            RETURNING id, workflow_id, tenant_id, media_id, status, task_ids, current_step, stop_on_failure,
+                created_at, updated_at
+            "#,
+        )
+        .bind(workflow_id)
+        .bind(tenant_id)
+        .bind(media_id)
+        .bind(status)
+        .bind(&task_ids)
+        .bind(stop_on_failure)
+        .bind(now)
+        .bind(now)
+        .fetch_one(&mut **tx)
+        .await
+        .context("Failed to create workflow execution in transaction")?;
+        Ok(e)
+    }
+
+    pub async fn create_in_transaction(
+        &self,
+        workflow_id: Uuid,
+        tenant_id: Uuid,
+        media_id: Uuid,
+        task_ids: Vec<Uuid>,
+        stop_on_failure: bool,
+    ) -> Result<WorkflowExecution> {
+        let pool = self.pool.clone();
+        let repo = self.clone();
+        crate::db::transaction::with_transaction(&pool, move |tx| {
+            Box::pin(async move {
+                repo.create_tx(tx, workflow_id, tenant_id, media_id, task_ids, stop_on_failure).await
+            })
+        })
+        .await
     }
 
     pub async fn get(&self, execution_id: Uuid) -> Result<Option<WorkflowExecution>> {

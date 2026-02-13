@@ -90,6 +90,9 @@ pub trait Storage: Send + Sync {
     /// Check if a file exists
     async fn exists(&self, storage_key: &str) -> StorageResult<bool>;
 
+    /// Get the size in bytes of an object, if it exists.
+    async fn content_length(&self, storage_key: &str) -> StorageResult<u64>;
+
     /// Copy a file from one key to another
     ///
     /// This is useful for processing workflows (e.g., copying original

@@ -120,6 +120,15 @@ impl Storage for MockStorage {
         Ok(self.files.lock().unwrap().contains_key(storage_key))
     }
 
+    async fn content_length(&self, storage_key: &str) -> StorageResult<u64> {
+        self.files
+            .lock()
+            .unwrap()
+            .get(storage_key)
+            .map(|v| v.len() as u64)
+            .ok_or_else(|| StorageError::NotFound(storage_key.to_string()))
+    }
+
     async fn copy(&self, from_key: &str, to_key: &str) -> StorageResult<String> {
         let data = self.download(from_key).await?;
         self.files.lock().unwrap().insert(to_key.to_string(), data);

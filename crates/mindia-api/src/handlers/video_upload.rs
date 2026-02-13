@@ -6,6 +6,8 @@ use crate::services::upload::{
 };
 use crate::state::AppState;
 use crate::telemetry::wide_event::WideEvent;
+use crate::utils::ip_extraction::ClientIpOpt;
+use crate::utils::transaction::with_transaction;
 use crate::utils::upload::parse_store_parameter;
 use axum::{
     extract::{Multipart, Query, State},
@@ -60,6 +62,7 @@ pub async fn upload_video(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Query(query): Query<StoreQuery>,
+    ClientIpOpt(client_ip): ClientIpOpt,
     multipart: Multipart,
 ) -> Result<Response, HttpAppError> {
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -103,6 +106,8 @@ pub async fn upload_video(
             store_permanently,
             expires_at,
             store_behavior.clone(),
+            Some(tenant_ctx.user_id),
+            client_ip,
         )
         .await
     {
@@ -110,36 +115,34 @@ pub async fn upload_video(
         Err(e) => return Ok(error_response_with_event(HttpAppError::from(e), wide_event)),
     };
 
-    let file_uuid = upload_data.file_id;
-    let uuid_filename = upload_data.uuid_filename.clone();
-    let safe_original_filename = upload_data.safe_original_filename.clone();
-    let content_type = upload_data.content_type.clone();
-    let file_size = upload_data.file_size;
-    let storage_key = upload_data.storage_key.clone();
-    let storage_url = upload_data.storage_url.clone();
-
     wide_event.with_business_context(|ctx| {
-        ctx.file_size = Some(file_size as u64);
+        ctx.file_size = Some(upload_data.file_size as u64);
     });
 
-    let video = match state
-        .media
-        .repository
-        .create_video_from_storage(
-            tenant_ctx.tenant_id,
-            file_uuid,
-            uuid_filename,
-            safe_original_filename,
-            content_type,
-            file_size,
-            store_behavior.clone(),
-            store_permanently,
-            expires_at,
-            None,
-            storage_key.clone(),
-            storage_url.clone(),
-        )
-        .await
+    let video = match with_transaction(&state.db.pool, |tx| {
+        let repo = state.media.repository.clone();
+        let ud = upload_data.clone();
+        let sb = store_behavior.clone();
+        async move {
+            repo.create_video_from_storage_tx(
+                tx,
+                ud.tenant_id,
+                ud.file_id,
+                ud.uuid_filename,
+                ud.safe_original_filename,
+                ud.content_type,
+                ud.file_size,
+                sb,
+                store_permanently,
+                expires_at,
+                None,
+                ud.storage_key,
+                ud.storage_url,
+            )
+            .await
+        }
+    })
+    .await
     {
         Ok(vid) => {
             wide_event.with_business_context(|ctx| {
@@ -155,10 +158,11 @@ pub async fn upload_video(
                 retriable: true,
                 stack_trace: None,
             });
+            let storage_key = upload_data.storage_key.clone();
             let storage = state.media.storage.clone();
             tokio::spawn(async move {
                 if let Err(cleanup_err) = storage.delete(&storage_key).await {
-                    tracing::debug!(
+                    tracing::warn!(
                         error = %cleanup_err,
                         storage_key = %storage_key,
                         "Failed to cleanup storage file after DB error"
@@ -169,6 +173,7 @@ pub async fn upload_video(
         }
     };
 
+    let file_uuid = video.id;
     let payload = VideoTranscodePayload {
         video_id: file_uuid,
     };

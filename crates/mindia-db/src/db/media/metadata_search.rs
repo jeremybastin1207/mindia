@@ -380,6 +380,7 @@ impl MetadataSearchRepository {
         _query_embedding: Option<Vec<f32>>,
         _filters: &Option<MetadataFilters>,
         _entity_type: Option<EntityType>,
+        _folder_id: Option<Uuid>,
         _limit: i64,
         _offset: i64,
     ) -> Result<Vec<SearchResult>> {
@@ -513,71 +514,32 @@ impl MetadataSearchRepository {
             param_index += 1;
         }
 
-        // Add range filter conditions
-        // CRITICAL: Keys are validated via validate_metadata_key() which ensures they only
-        // contain safe characters (alphanumeric, underscore, hyphen, dot, colon). Then we
-        // escape single quotes as defense in depth. Values are parameterized.
+        // Add range filter conditions using jsonb_each so keys are parameterized (no SQL interpolation).
         for (key, min_val, max_val) in &filters.ranges {
-            let validated_key = validate_key(key)
+            validate_key(key)
                 .with_context(|| format!("Invalid metadata key in range filter: '{}'", key))?;
-
-            // Additional safety: Ensure key doesn't contain SQL injection attempts
-            // Even though validate_metadata_key should prevent this, add defense in depth
-            if validated_key.contains('\'')
-                || validated_key.contains(';')
-                || validated_key.contains('\\')
-            {
-                return Err(anyhow::anyhow!(
-                    "Invalid characters in metadata key: '{}'",
-                    validated_key
-                ));
-            }
-
-            // Escape single quotes in key for SQL safety (defense in depth)
-            let escaped_key = validated_key.replace('\'', "''");
-
-            if min_val.is_some() {
-                query_parts.push(format!(
-                    "AND (m.metadata->'user'->>'{}')::text >= ${}::text",
-                    escaped_key, param_index
-                ));
-                param_index += 1;
-            }
-            if max_val.is_some() {
-                query_parts.push(format!(
-                    "AND (m.metadata->'user'->>'{}')::text <= ${}::text",
-                    escaped_key, param_index
-                ));
-                param_index += 1;
-            }
+            query_parts.push(format!(
+                "AND EXISTS (SELECT 1 FROM jsonb_each(m.metadata->'user') AS j(key, value) WHERE j.key = ${} AND (${}::text IS NULL OR j.value::text >= ${}) AND (${}::text IS NULL OR j.value::text <= ${}))",
+                param_index,
+                param_index + 1,
+                param_index + 1,
+                param_index + 2,
+                param_index + 2
+            ));
+            param_index += 3;
         }
 
-        // Add text contains filter conditions
-        // CRITICAL: Same validation and escaping as range filters
+        // Add text contains filter conditions using jsonb_each so keys are parameterized.
         for (key, _) in &filters.text_contains {
-            let validated_key = validate_key(key).with_context(|| {
+            validate_key(key).with_context(|| {
                 format!("Invalid metadata key in text_contains filter: '{}'", key)
             })?;
-
-            // Additional safety check
-            if validated_key.contains('\'')
-                || validated_key.contains(';')
-                || validated_key.contains('\\')
-            {
-                return Err(anyhow::anyhow!(
-                    "Invalid characters in metadata key: '{}'",
-                    validated_key
-                ));
-            }
-
-            // Escape single quotes in key for SQL safety (defense in depth)
-            let escaped_key = validated_key.replace('\'', "''");
-
             query_parts.push(format!(
-                "AND (m.metadata->'user'->>'{}')::text ILIKE ${}",
-                escaped_key, param_index
+                "AND EXISTS (SELECT 1 FROM jsonb_each(m.metadata->'user') AS j(key, value) WHERE j.key = ${} AND j.value::text ILIKE ${})",
+                param_index,
+                param_index + 1
             ));
-            param_index += 1;
+            param_index += 2;
         }
 
         query_parts.push("ORDER BY m.uploaded_at DESC".to_string());
@@ -597,20 +559,25 @@ impl MetadataSearchRepository {
         if let Some(fid) = folder_id {
             query = query.bind(fid);
         }
-        for (_, min_val, max_val) in &filters.ranges {
-            if let Some(ref min) = min_val {
-                query = query.bind(min.clone());
-            }
-            if let Some(ref max) = max_val {
-                query = query.bind(max.clone());
-            }
+        for (key, min_val, max_val) in &filters.ranges {
+            let validated_key = validate_key(key)
+                .with_context(|| format!("Invalid metadata key in range filter: '{}'", key))?;
+            query = query
+                .bind(validated_key)
+                .bind(min_val.clone())
+                .bind(max_val.clone());
         }
-        for (_, pattern) in &filters.text_contains {
+        for (key, pattern) in &filters.text_contains {
+            let validated_key = validate_key(key).with_context(|| {
+                format!("Invalid metadata key in text_contains filter: '{}'", key)
+            })?;
             let escaped_pattern = pattern
                 .replace('\\', "\\\\")
                 .replace('%', "\\%")
                 .replace('_', "\\_");
-            query = query.bind(format!("%{}%", escaped_pattern));
+            query = query
+                .bind(validated_key)
+                .bind(format!("%{}%", escaped_pattern));
         }
         query = query.bind(limit).bind(offset);
 

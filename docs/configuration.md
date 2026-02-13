@@ -12,6 +12,7 @@ Complete reference for all Mindia environment variables and configuration option
 - [Server Configuration](#server-configuration)
 - [Media Upload Limits](#media-upload-limits)
 - [Security Configuration](#security-configuration)
+- [Operational security](#operational-security)
 - [Video Transcoding](#video-transcoding)
 - [Semantic Search](#semantic-search)
 - [Task Queue Configuration](#task-queue-configuration)
@@ -339,6 +340,18 @@ AUDIO_ALLOWED_CONTENT_TYPES=audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/fla
 ---
 
 ## Security Configuration
+
+### Operational security
+
+Summary of security-sensitive settings for production:
+
+| Setting | Purpose |
+|--------|--------|
+| **MASTER_API_KEY** | Required. Must be at least 32 characters. Used for Bearer auth; never log or expose. |
+| **CORS_ORIGINS** | Do not use `*` in production; set to specific allowed origins. |
+| **TRUSTED_PROXY_COUNT** | Number of proxies in front of the app (e.g. 1 for a single load balancer). Used to derive client IP from `X-Forwarded-For`; set to 0 if not behind a proxy. |
+| **URL_UPLOAD_ALLOWLIST** | Optional. Comma-separated list of allowed hostnames for image upload-from-URL (e.g. `example.com,cdn.example.com`). If set, only URLs from these domains are allowed (SSRF defense in depth). |
+| **CLAMAV_FAIL_CLOSED** | When ClamAV is enabled: `true` rejects uploads if scan is unavailable (recommended for production); `false` allows uploads when ClamAV is down. See [ClamAV](clamav.md). |
 
 ### CORS_ORIGINS
 

@@ -27,7 +27,6 @@ pub mod metadata;
 pub mod named_transformations;
 #[cfg(feature = "plugin")]
 pub mod plugins;
-pub mod presigned_upload;
 pub mod search;
 pub mod tasks;
 pub mod transform;
@@ -41,6 +40,7 @@ pub mod webhooks;
 #[cfg(feature = "workflow")]
 pub mod workflows;
 
+/// Compile-time assertion that Multipart is Send (required for axum handlers).
 #[allow(dead_code)]
 fn _assert_multipart_send() {
     use axum::extract::Multipart;

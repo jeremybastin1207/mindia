@@ -28,7 +28,7 @@ impl WorkflowService {
         }
     }
 
-    /// Trigger a workflow on a media item: create execution and chain of plugin tasks.
+    /// Trigger a workflow on a media item: submit all step tasks, then create execution in a transaction.
     pub async fn trigger_workflow(
         &self,
         tenant_id: Uuid,
@@ -49,11 +49,6 @@ impl WorkflowService {
             anyhow::bail!("Workflow has no steps");
         }
         let stop_on_failure = workflow.stop_on_failure;
-
-        let execution = self
-            .execution_repo
-            .create(workflow_id, tenant_id, media_id, vec![], stop_on_failure)
-            .await?;
 
         let mut task_ids = Vec::with_capacity(steps.len());
         let mut depends_on: Option<Vec<Uuid>> = None;
@@ -87,10 +82,11 @@ impl WorkflowService {
             depends_on = Some(vec![task_id]);
         }
 
-        self.execution_repo
-            .update_task_ids(execution.id, &task_ids)
+        let execution = self
+            .execution_repo
+            .create_in_transaction(workflow_id, tenant_id, media_id, task_ids.clone(), stop_on_failure)
             .await
-            .context("Update workflow execution task_ids")?;
+            .context("Create workflow execution in transaction")?;
 
         let mut out = execution;
         out.task_ids = task_ids;

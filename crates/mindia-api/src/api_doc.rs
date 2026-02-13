@@ -77,9 +77,7 @@ pub fn get_openapi_spec() -> utoipa::openapi::OpenApi {
         handlers::media_delete::delete_media,
         handlers::batch_media::batch_delete_media,
         handlers::batch_media::batch_copy_media,
-        // Uploads (Presigned & Chunked)
-        handlers::presigned_upload::generate_presigned_url,
-        handlers::presigned_upload::complete_upload,
+        // Uploads (Chunked resumable)
         handlers::chunked_upload::start_chunked_upload,
         handlers::chunked_upload::record_chunk_upload,
         handlers::chunked_upload::complete_chunked_upload,
@@ -155,8 +153,6 @@ pub fn get_openapi_spec() -> utoipa::openapi::OpenApi {
             handlers::config::CorsConfig,
             handlers::config::ClamAVConfig,
             // Upload models
-            models::PresignedUploadRequest,
-            models::PresignedUploadResponse,
             models::CompleteUploadRequest,
             models::CompleteUploadResponse,
             handlers::chunked_upload::StartChunkedUploadRequest,

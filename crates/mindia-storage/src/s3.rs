@@ -9,7 +9,9 @@ use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::path::Path;
 use object_store::signer::Signer;
 use object_store::Error as ObjectStoreError;
-use object_store::{ObjectStoreExt, PutPayload, Result as ObjectResult};
+use object_store::{
+    ObjectStore, ObjectStoreExt, PutMultipartOptions, PutPayload, Result as ObjectResult,
+};
 use std::pin::Pin;
 use std::time::Duration;
 use tokio::io::AsyncRead;
@@ -37,7 +39,6 @@ impl S3Storage {
         region: String,
         endpoint_url: Option<String>,
     ) -> StorageResult<Self> {
-        // Build AmazonS3 object store from environment and explicit settings.
         let mut builder = AmazonS3Builder::from_env()
             .with_region(region.clone())
             .with_bucket_name(bucket.clone());
@@ -77,14 +78,9 @@ impl S3Storage {
     /// For S3-compatible providers, uses the endpoint URL if provided
     fn generate_url(&self, key: &str) -> String {
         if let Some(ref endpoint) = self.endpoint_url {
-            // For S3-compatible providers, construct URL from endpoint
-            // Remove trailing slash if present
             let base_url = endpoint.trim_end_matches('/');
-            // Some providers use path-style, others use virtual-hosted-style
-            // We'll use path-style for compatibility: {endpoint}/{bucket}/{key}
             format!("{}/{}/{}", base_url, self.bucket, key)
         } else {
-            // Standard AWS S3 URL format
             format!(
                 "https://{}.s3.{}.amazonaws.com/{}",
                 self.bucket, self.region, key
@@ -268,6 +264,15 @@ impl Storage for S3Storage {
         }
     }
 
+    async fn content_length(&self, storage_key: &str) -> StorageResult<u64> {
+        let location = Path::from(storage_key.to_string());
+        let meta = self.store.head(&location).await.map_err(|e| match &e {
+            ObjectStoreError::NotFound { .. } => StorageError::NotFound(storage_key.to_string()),
+            _ => StorageError::BackendError(e.to_string()),
+        })?;
+        Ok(meta.size)
+    }
+
     async fn copy(&self, from_key: &str, to_key: &str) -> StorageResult<String> {
         let start = std::time::Instant::now();
         let from = Path::from(from_key.to_string());
@@ -303,41 +308,58 @@ impl Storage for S3Storage {
     ) -> StorageResult<(String, String)> {
         let key = Self::generate_key(tenant_id, filename);
         let start = std::time::Instant::now();
-        // For simplicity, read the entire stream into memory and upload in a single put.
-        // This is less optimal for very large files but significantly simplifies the
-        // implementation while still benefiting from object_store's S3 integration.
-        let mut buffer = Vec::new();
-        let mut temp_buf = vec![0u8; 8192];
+        let location = Path::from(key.clone());
+
+        // S3 requires parts (except last) to be at least 5 MiB; use 8 MiB for compatibility.
+        const PART_SIZE: usize = 8 * 1024 * 1024;
+        let mut read_buf = vec![0u8; 64 * 1024]; // 64 KiB read chunks
+
+        let mut multipart = self
+            .store
+            .put_multipart_opts(&location, PutMultipartOptions::default())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, key = %key, "S3 multipart upload start failed");
+                StorageError::UploadFailed(e.to_string())
+            })?;
+
+        let mut part_futures = Vec::new();
+        let mut part_buffer = Vec::with_capacity(PART_SIZE);
+        let mut total_size: u64 = 0;
 
         loop {
-            let bytes_read = tokio::io::AsyncReadExt::read(&mut reader, &mut temp_buf)
+            let n = tokio::io::AsyncReadExt::read(&mut reader, &mut read_buf)
                 .await
                 .map_err(|e| {
                     StorageError::UploadFailed(format!("Failed to read from stream: {}", e))
                 })?;
 
-            if bytes_read == 0 {
+            if n == 0 {
                 break;
             }
 
-            buffer.extend_from_slice(&temp_buf[..bytes_read]);
+            total_size += n as u64;
+            part_buffer.extend_from_slice(&read_buf[..n]);
+
+            if part_buffer.len() >= PART_SIZE {
+                let chunk = Bytes::from(std::mem::take(&mut part_buffer));
+                part_futures.push(multipart.put_part(PutPayload::from(chunk)));
+            }
         }
 
-        let size = buffer.len() as u64;
-        let bytes = Bytes::from(buffer);
-        let location = Path::from(key.clone());
+        if !part_buffer.is_empty() {
+            part_futures.push(multipart.put_part(PutPayload::from(Bytes::from(part_buffer))));
+        }
 
-        let result: ObjectResult<_> = self.store.put(&location, PutPayload::from(bytes)).await;
+        for part in part_futures {
+            part.await.map_err(|e| {
+                tracing::error!(error = %e, key = %key, "S3 multipart put_part failed");
+                StorageError::UploadFailed(e.to_string())
+            })?;
+        }
 
-        result.map_err(|e| {
-            tracing::error!(
-                error = %e,
-                bucket = %self.bucket,
-                key = %key,
-                size_bytes = size,
-                duration_ms = start.elapsed().as_secs_f64() * 1000.0,
-                "S3 stream upload failed"
-            );
+        multipart.complete().await.map_err(|e| {
+            tracing::error!(error = %e, key = %key, "S3 multipart complete failed");
             StorageError::UploadFailed(e.to_string())
         })?;
 
@@ -346,7 +368,7 @@ impl Storage for S3Storage {
         tracing::info!(
             bucket = %self.bucket,
             key = %key,
-            size_bytes = size,
+            size_bytes = total_size,
             duration_ms = start.elapsed().as_secs_f64() * 1000.0,
             "S3 stream upload successful"
         );

@@ -24,4 +24,4 @@ pub use mindia_processing::{
 pub use mindia_storage::{create_storage, Storage, StorageError, StorageResult};
 pub use s3::S3Service;
 #[cfg(feature = "semantic-search")]
-pub use semantic_search::{SemanticSearchProvider, EMBEDDING_DIM};
+pub use semantic_search::{normalize_embedding_dim, SemanticSearchProvider, EMBEDDING_DIM};

@@ -2,28 +2,72 @@ use crate::auth::api_key::{extract_key_prefix, verify_api_key};
 use crate::auth::models::TenantContext;
 use crate::error::HttpAppError;
 use crate::middleware::audit;
-use crate::utils::ip_extraction::extract_client_ip;
+use crate::utils::ip_extraction::{extract_client_ip, ClientIp};
 use axum::{
     extract::{Request, State},
+    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use mindia_core::AppError;
 use mindia_db::{ApiKeyRepository, TenantRepository};
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use subtle::ConstantTimeEq;
+use tokio::sync::Mutex;
 
-/// Generated API key prefix (keys start with mk_live_)
 const API_KEY_PREFIX: &str = "mk_live_";
+
+#[derive(Clone)]
+pub struct AuthFailureLimiter {
+    inner: Arc<Mutex<HashMap<String, (u32, Instant)>>>,
+    max_failures: u32,
+    window: Duration,
+}
+
+impl AuthFailureLimiter {
+    pub fn new(max_failures: u32, window_seconds: u64) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(HashMap::new())),
+            max_failures,
+            window: Duration::from_secs(window_seconds),
+        }
+    }
+
+    pub async fn record_failure(&self, ip: &str) -> bool {
+        let mut guard = self.inner.lock().await;
+        let now = Instant::now();
+        let (count, reset_at) = guard.entry(ip.to_string()).or_insert((0, now + self.window));
+        if now >= *reset_at {
+            *count = 0;
+            *reset_at = now + self.window;
+        }
+        *count += 1;
+        *count >= self.max_failures
+    }
+
+    pub async fn is_blocked(&self, ip: &str) -> bool {
+        let mut guard = self.inner.lock().await;
+        if let Some((count, reset_at)) = guard.get(ip) {
+            if Instant::now() >= *reset_at {
+                guard.remove(ip);
+                return false;
+            }
+            return *count >= self.max_failures;
+        }
+        false
+    }
+}
 
 #[derive(Clone)]
 pub struct AuthState {
     pub master_api_key: String,
     pub api_key_repository: ApiKeyRepository,
     pub tenant_repository: TenantRepository,
+    pub auth_failure_limiter: Option<Arc<AuthFailureLimiter>>,
 }
 
-/// Constant-time comparison of two strings to prevent timing attacks on API key validation.
 fn secure_compare(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
@@ -31,13 +75,28 @@ fn secure_compare(a: &str, b: &str) -> bool {
     a.as_bytes().ct_eq(b.as_bytes()).into()
 }
 
-/// Middleware to authenticate requests using master API key
 pub async fn auth_middleware(
     State(auth_state): State<Arc<AuthState>>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    // Extract Authorization header
+    let trusted_proxy_count = std::env::var("TRUSTED_PROXY_COUNT")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(1);
+    let socket_addr = request.extensions().get::<std::net::SocketAddr>().copied();
+    let client_ip = Some(extract_client_ip(
+        request.headers(),
+        socket_addr.as_ref(),
+        trusted_proxy_count,
+    ));
+    let client_ip_str = client_ip.as_deref().unwrap_or("unknown");
+    if let Some(ref limiter) = auth_state.auth_failure_limiter {
+        if limiter.is_blocked(client_ip_str).await {
+            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+        }
+    }
+
     let auth_header = match request
         .headers()
         .get("Authorization")
@@ -45,6 +104,11 @@ pub async fn auth_middleware(
     {
         Some(h) => h,
         None => {
+            if let Some(ref limiter) = auth_state.auth_failure_limiter {
+                if limiter.record_failure(client_ip_str).await {
+                    return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+                }
+            }
             audit::log_authentication_attempt(
                 None,
                 None,
@@ -61,8 +125,12 @@ pub async fn auth_middleware(
         }
     };
 
-    // Check for Bearer token
     if !auth_header.starts_with("Bearer ") {
+        if let Some(ref limiter) = auth_state.auth_failure_limiter {
+            if limiter.record_failure(client_ip_str).await {
+                return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+            }
+        }
         audit::log_authentication_attempt(
             None,
             None,
@@ -79,27 +147,13 @@ pub async fn auth_middleware(
     }
 
     let token = &auth_header[7..]; // Remove "Bearer " prefix
-
-    // Extract client IP and user agent for audit logging
-    let trusted_proxy_count = std::env::var("TRUSTED_PROXY_COUNT")
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(1);
-    let socket_addr = request.extensions().get::<std::net::SocketAddr>().copied();
-    let client_ip = Some(extract_client_ip(
-        request.headers(),
-        socket_addr.as_ref(),
-        trusted_proxy_count,
-    ));
     let user_agent = request
         .headers()
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
-    // First check: master API key (constant-time comparison to prevent timing attacks)
     if secure_compare(token, &auth_state.master_api_key) {
-        // Master key: use default tenant context
         use crate::auth::models::UserRole;
         use mindia_core::constants::{DEFAULT_TENANT_ID, DEFAULT_USER_ID};
         use mindia_core::models::{Tenant, TenantStatus};
@@ -125,17 +179,19 @@ pub async fn auth_middleware(
             Some(tenant_context.tenant_id),
             Some(tenant_context.user_id),
             None,
-            client_ip,
+            client_ip.clone(),
             user_agent,
             true,
             None,
         );
 
+        request.extensions_mut().insert(ClientIp(
+            client_ip.clone().unwrap_or_else(|| "unknown".to_string()),
+        ));
         request.extensions_mut().insert(tenant_context);
         return next.run(request).await;
     }
 
-    // Second check: generated API key (mk_live_* format)
     if token.starts_with(API_KEY_PREFIX) {
         match authenticate_generated_key(
             token,
@@ -147,7 +203,6 @@ pub async fn auth_middleware(
         .await
         {
             Ok((tenant_context, api_key_id)) => {
-                // Update last_used_at asynchronously (best-effort, don't block)
                 let api_key_repo = auth_state.api_key_repository.clone();
                 tokio::spawn(async move {
                     let _ = api_key_repo.update_last_used(api_key_id).await;
@@ -157,16 +212,24 @@ pub async fn auth_middleware(
                     Some(tenant_context.tenant_id),
                     Some(tenant_context.user_id),
                     Some(api_key_id),
-                    client_ip,
+                    client_ip.clone(),
                     user_agent,
                     true,
                     None,
                 );
 
+                request.extensions_mut().insert(ClientIp(
+                    client_ip.clone().unwrap_or_else(|| "unknown".to_string()),
+                ));
                 request.extensions_mut().insert(tenant_context);
                 return next.run(request).await;
             }
             Err(e) => {
+                if let Some(ref limiter) = auth_state.auth_failure_limiter {
+                    if limiter.record_failure(client_ip_str).await {
+                        return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+                    }
+                }
                 audit::log_authentication_attempt(
                     None,
                     None,
@@ -181,7 +244,11 @@ pub async fn auth_middleware(
         }
     }
 
-    // Neither master key nor valid generated key
+    if let Some(ref limiter) = auth_state.auth_failure_limiter {
+        if limiter.record_failure(client_ip_str).await {
+            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+        }
+    }
     audit::log_authentication_attempt(
         None,
         None,
@@ -194,7 +261,6 @@ pub async fn auth_middleware(
     HttpAppError(AppError::Unauthorized("Invalid API key".to_string())).into_response()
 }
 
-/// Authenticate using a generated API key (mk_live_*). Returns TenantContext and api_key_id on success.
 async fn authenticate_generated_key(
     token: &str,
     api_key_repo: &ApiKeyRepository,

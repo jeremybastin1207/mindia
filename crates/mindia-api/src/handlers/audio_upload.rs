@@ -6,6 +6,8 @@ use crate::services::upload::{
 };
 use crate::state::AppState;
 use crate::telemetry::wide_event::WideEvent;
+use crate::utils::ip_extraction::ClientIpOpt;
+use crate::utils::transaction::with_transaction;
 use crate::utils::upload::parse_store_parameter;
 use axum::{
     extract::{Multipart, Query, State},
@@ -55,6 +57,7 @@ pub async fn upload_audio(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
     Query(query): Query<StoreQuery>,
+    ClientIpOpt(client_ip): ClientIpOpt,
     multipart: Multipart,
 ) -> Result<Response, HttpAppError> {
     let request_id = uuid::Uuid::new_v4().to_string();
@@ -99,6 +102,8 @@ pub async fn upload_audio(
             store_permanently,
             expires_at,
             store_behavior.clone(),
+            Some(tenant_ctx.user_id),
+            client_ip,
         )
         .await
     {
@@ -106,28 +111,35 @@ pub async fn upload_audio(
         Err(e) => return Ok(error_response_with_event(HttpAppError::from(e), wide_event)),
     };
 
-    let audio = match state
-        .media
-        .repository
-        .create_audio_from_storage(
-            tenant_ctx.tenant_id,
-            upload_data.file_id,
-            upload_data.uuid_filename.clone(),
-            upload_data.safe_original_filename.clone(),
-            upload_data.content_type.clone(),
-            upload_data.file_size,
-            metadata.duration,
-            metadata.bitrate,
-            metadata.sample_rate,
-            metadata.channels,
-            store_behavior,
-            store_permanently,
-            expires_at,
-            None,
-            upload_data.storage_key.clone(),
-            upload_data.storage_url.clone(),
-        )
-        .await
+    let audio = match with_transaction(&state.db.pool, |tx| {
+        let repo = state.media.repository.clone();
+        let ud = upload_data.clone();
+        let meta = metadata.clone();
+        let sb = store_behavior.clone();
+        async move {
+            repo.create_audio_from_storage_tx(
+                tx,
+                ud.tenant_id,
+                ud.file_id,
+                ud.uuid_filename,
+                ud.safe_original_filename,
+                ud.content_type,
+                ud.file_size,
+                meta.duration,
+                meta.bitrate,
+                meta.sample_rate,
+                meta.channels,
+                sb,
+                store_permanently,
+                expires_at,
+                None,
+                ud.storage_key,
+                ud.storage_url,
+            )
+            .await
+        }
+    })
+    .await
     {
         Ok(a) => {
             wide_event.with_business_context(|ctx| {
@@ -136,11 +148,11 @@ pub async fn upload_audio(
             a
         }
         Err(e) => {
-            let storage = state.media.storage.clone();
             let storage_key = upload_data.storage_key.clone();
+            let storage = state.media.storage.clone();
             tokio::spawn(async move {
                 if let Err(cleanup_err) = storage.delete(&storage_key).await {
-                    tracing::debug!(
+                    tracing::warn!(
                         error = %cleanup_err,
                         storage_key = %storage_key,
                         "Failed to cleanup storage after DB error"

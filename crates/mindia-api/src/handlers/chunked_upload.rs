@@ -1,13 +1,11 @@
-//! Chunked upload handlers for large file uploads
+//! Chunked upload handlers for large file uploads.
 //!
-//! This module contains planned features for resumable uploads
-
-// This module contains planned features not yet fully implemented
-#![allow(dead_code)]
+//! Resumable uploads via presigned chunk URLs; completion assembles chunks and creates the media record.
 
 use crate::auth::models::TenantContext;
 use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
+use crate::utils::upload::handle_clamav_scan;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -16,6 +14,7 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use mindia_core::models::presigned_upload::{CompleteUploadRequest, CompleteUploadResponse};
+use mindia_core::models::MediaType;
 use mindia_core::AppError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -138,8 +137,35 @@ pub async fn start_chunked_upload(
         )));
     }
 
-    // Calculate chunk count
+    // Max file size and chunk count limits (align with multipart limits per media type)
+    const MAX_CHUNK_COUNT: i32 = 10_000;
+    let media_type_enum = match media_type.as_str() {
+        "image" => MediaType::Image,
+        "video" => MediaType::Video,
+        "audio" => MediaType::Audio,
+        "document" => MediaType::Document,
+        _ => unreachable!(),
+    };
+    let limits = state.media.limits_for(media_type_enum);
+    if request.file_size > limits.max_file_size as u64 {
+        return Err(HttpAppError::from(AppError::PayloadTooLarge(format!(
+            "File size exceeds maximum allowed for {} ({} MB)",
+            media_type,
+            limits.max_file_size / 1024 / 1024
+        ))));
+    }
+    if request.chunk_size == 0 {
+        return Err(HttpAppError::from(AppError::InvalidInput(
+            "chunk_size must be greater than 0".to_string(),
+        )));
+    }
     let chunk_count = request.file_size.div_ceil(request.chunk_size) as i32;
+    if chunk_count > MAX_CHUNK_COUNT {
+        return Err(HttpAppError::from(AppError::InvalidInput(format!(
+            "Chunk count {} exceeds maximum {}; use a larger chunk_size",
+            chunk_count, MAX_CHUNK_COUNT
+        ))));
+    }
 
     // Generate session ID and file ID
     let session_id = Uuid::new_v4();
@@ -436,8 +462,9 @@ pub async fn complete_chunked_upload(
     let final_filename = format!("{}.{}", file_id, extension);
     let final_s3_key = format!("uploads/{}", final_filename);
 
-    // Download each chunk from storage and concatenate server-side into the final object.
-    // This is simpler and backend-agnostic compared to low-level S3 multipart copy.
+    // Download each chunk and concatenate in memory, then upload. Total size is bounded by
+    // the per-media-type limit enforced in start_chunked_upload. For very large files,
+    // consider streaming assembly (e.g. S3 multipart upload with part copies) in the future.
     let mut total_bytes = 0u64;
     let mut combined = Vec::new();
 
@@ -456,6 +483,25 @@ pub async fn complete_chunked_upload(
 
         total_bytes += bytes.len() as u64;
         combined.extend_from_slice(&bytes);
+    }
+
+    // Use actual assembled size for DB; reject if it exceeds declared size
+    let declared = session.file_size.max(0) as u64;
+    if total_bytes > declared {
+        return Err(HttpAppError::from(AppError::InvalidInput(format!(
+            "Assembled file size {} bytes exceeds declared size {} bytes",
+            total_bytes, session.file_size
+        ))));
+    }
+    let file_size_for_record = total_bytes as i64;
+
+    // Virus scan when ClamAV is enabled (chunked path skips server-side upload pipeline)
+    if state.security.clamav_enabled {
+        #[cfg(feature = "clamav")]
+        if let Some(ref clamav) = state.security.clamav {
+            let scan_result = clamav.scan_bytes(&combined).await;
+            handle_clamav_scan(scan_result, &session.filename).await?;
+        }
     }
 
     state
@@ -478,9 +524,14 @@ pub async fn complete_chunked_upload(
         "Chunked upload assembled by concatenating chunks via storage backend"
     );
 
-    // Delete chunk files from storage (cleanup)
     for chunk in chunks.iter() {
-        let _ = state.media.storage.delete(&chunk.s3_key).await;
+        if let Err(e) = state.media.storage.delete(&chunk.s3_key).await {
+            tracing::warn!(
+                error = %e,
+                storage_key = %chunk.s3_key,
+                "Failed to delete chunk during cleanup"
+            );
+        }
     }
 
     // Generate storage URL (S3-compatible)
@@ -527,7 +578,7 @@ pub async fn complete_chunked_upload(
                     final_s3_key.clone(),
                     s3_url.clone(),
                     session.content_type.clone(),
-                    session.file_size,
+                    file_size_for_record,
                     None,
                     None,
                     None,
@@ -559,7 +610,7 @@ pub async fn complete_chunked_upload(
                     final_s3_key.clone(),
                     s3_url.clone(),
                     session.content_type.clone(),
-                    session.file_size,
+                    file_size_for_record,
                     None,
                     None,
                     None,
@@ -591,7 +642,7 @@ pub async fn complete_chunked_upload(
                     final_s3_key.clone(),
                     s3_url.clone(),
                     session.content_type.clone(),
-                    session.file_size,
+                    file_size_for_record,
                     None,
                     None,
                     None,
@@ -623,7 +674,7 @@ pub async fn complete_chunked_upload(
                     final_s3_key.clone(),
                     s3_url.clone(),
                     session.content_type.clone(),
-                    session.file_size,
+                    file_size_for_record,
                     None,
                     None,
                     None,
@@ -667,7 +718,7 @@ pub async fn complete_chunked_upload(
         filename: session.filename.clone(),
         url: s3_url.clone(),
         content_type: session.content_type.clone(),
-        file_size: session.file_size,
+        file_size: file_size_for_record,
         entity_type: session.media_type.clone(),
         uploaded_at: Some(Utc::now()),
         deleted_at: None,
@@ -709,7 +760,7 @@ pub async fn complete_chunked_upload(
         id: media_id,
         url: s3_url,
         content_type: session.content_type,
-        file_size: session.file_size,
+        file_size: file_size_for_record,
         uploaded_at: Utc::now(),
     }))
 }
