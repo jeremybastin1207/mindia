@@ -91,15 +91,12 @@ impl MetadataSearchRepository {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<SearchResult>> {
-        // Validate filter count
         filters.validate()?;
 
-        // For exact matches only, use @> containment operator (most efficient with GIN index)
         if !filters.exact.is_empty()
             && filters.ranges.is_empty()
             && filters.text_contains.is_empty()
         {
-            // Build JSON object for exact matches
             let mut exact_obj = serde_json::Map::new();
             for (key, value) in &filters.exact {
                 exact_obj.insert(key.clone(), serde_json::Value::String(value.clone()));
@@ -168,7 +165,6 @@ impl MetadataSearchRepository {
             return self.rows_to_search_results(rows);
         }
 
-        // For complex queries (ranges or text contains), build dynamic query
         if !filters.ranges.is_empty() || !filters.text_contains.is_empty() {
             return self
                 .search_by_metadata_complex(
@@ -182,7 +178,6 @@ impl MetadataSearchRepository {
                 .await;
         }
 
-        // If no filters at all, return empty
         Ok(Vec::new())
     }
 

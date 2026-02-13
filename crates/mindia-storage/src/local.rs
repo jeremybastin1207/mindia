@@ -27,7 +27,6 @@ impl LocalStorage {
     pub async fn new(base_path: impl Into<PathBuf>, base_url: String) -> StorageResult<Self> {
         let base_path = base_path.into();
 
-        // Ensure base directory exists
         fs::create_dir_all(&base_path).await.map_err(|e| {
             StorageError::ConfigError(format!(
                 "Failed to create storage directory {}: {}",
@@ -55,12 +54,10 @@ impl LocalStorage {
 
         let path = self.base_path.join(storage_key);
 
-        // Canonicalize the base path for comparison
         let base_canonical = self.base_path.canonicalize().map_err(|e| {
             StorageError::ConfigError(format!("Failed to canonicalize base path: {}", e))
         })?;
 
-        // If file exists, canonicalize and ensure it's under base_path (strip_prefix is safer than starts_with for symlinks)
         if let Ok(canonical) = path.canonicalize() {
             if canonical.strip_prefix(&base_canonical).is_err() {
                 return Err(StorageError::InvalidKey(
@@ -68,7 +65,6 @@ impl LocalStorage {
                 ));
             }
         } else {
-            // File doesn't exist yet; validate parent chain with strip_prefix
             let mut current = path.clone();
             loop {
                 if current == self.base_path {
@@ -225,7 +221,6 @@ impl Storage for LocalStorage {
         let start = std::time::Instant::now();
 
         if !tokio::fs::try_exists(&path).await.unwrap_or(false) {
-            // Not an error if file doesn't exist
             return Ok(());
         }
 
@@ -248,13 +243,7 @@ impl Storage for LocalStorage {
         storage_key: &str,
         _expires_in: Duration,
     ) -> StorageResult<String> {
-        // Validate the storage key first
         self.key_to_path(storage_key)?;
-
-        // For local storage, we just return the regular URL
-        // In a production setup, you might want to implement
-        // signed URLs with expiration tokens (HMAC-based signatures)
-        // For now, this is acceptable for development/testing environments
         Ok(self.generate_url(storage_key))
     }
 
@@ -321,12 +310,10 @@ impl Storage for LocalStorage {
 
         self.ensure_parent_dir(&path).await?;
 
-        // Create file and stream data directly to it
         let mut file = fs::File::create(&path).await.map_err(|e| {
             StorageError::UploadFailed(format!("Failed to create file {}: {}", path.display(), e))
         })?;
 
-        // Stream data from reader to file without buffering entire content
         let bytes_copied = tokio::io::copy(&mut reader, &mut file).await.map_err(|e| {
             StorageError::UploadFailed(format!(
                 "Failed to write stream to file {}: {}",
@@ -363,20 +350,16 @@ impl Storage for LocalStorage {
             return Err(StorageError::NotFound(storage_key.to_string()));
         }
 
-        // Open file for reading
         let file = fs::File::open(&path).await.map_err(|e| {
             StorageError::DownloadFailed(format!("Failed to open file {}: {}", path.display(), e))
         })?;
 
-        // Convert file to async reader stream
         let reader = tokio_util::io::ReaderStream::new(file);
 
-        // Convert stream to Bytes chunks with error handling
         let stream = reader.map(|result| {
             result.map_err(|e| StorageError::DownloadFailed(format!("Failed to read chunk: {}", e)))
         });
 
-        // Wrap with logging (use owned key/path to satisfy 'static)
         let key = storage_key.to_string();
         let path_display = path.display().to_string();
         let logged_stream = stream.map(move |item| {
@@ -447,7 +430,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Deleting non-existent file should not error
         let result = storage.delete("nonexistent/file.txt").await;
         assert!(result.is_ok());
     }

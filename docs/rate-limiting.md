@@ -9,7 +9,8 @@ Mindia implements rate limiting to ensure fair usage and protect server resource
 **Current Status**: Rate limiting configuration available but specific limits depend on your deployment configuration.
 
 **When Enabled**:
-- Limits per tenant/user
+- Limits per tenant/user (general API rate limit, configurable via `HTTP_RATE_LIMIT_PER_MINUTE`)
+- **Authentication**: Failed login/API-key attempts are rate limited per IP (e.g. 10 failures per 15 minutes); exceeding returns 429 to mitigate brute force
 - Tracked by IP address
 - Sliding window algorithm
 - 429 status code when exceeded

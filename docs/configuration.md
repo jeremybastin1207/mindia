@@ -222,7 +222,8 @@ Port for the HTTP server.
 PORT=3000
 ```
 
-**Default**: `3000`
+**Default**: `3000`  
+**Range**: `1–65535` (validated at startup)
 
 **Notes**:
 - Use `8080` or `8000` if 3000 is taken
@@ -255,6 +256,17 @@ REQUEST_TIMEOUT_SECS=60
 ```
 
 **Default**: `60`. Minimum: `1`.
+
+### HTTP_RATE_LIMIT_PER_MINUTE
+
+Global rate limit per IP (requests per minute). When exceeded, the server returns 429 Too Many Requests.
+
+```env
+HTTP_RATE_LIMIT_PER_MINUTE=100
+```
+
+**Default**: `100`  
+**Range**: `1–100000`
 
 ### Health endpoints
 
@@ -553,7 +565,7 @@ HLS_VARIANTS=360p,480p,720p,1080p
 
 ### SEMANTIC_SEARCH_ENABLED
 
-Enable semantic search using **Anthropic/Claude** (cloud, paid API). Requires `ANTHROPIC_API_KEY`.
+Enable semantic search using **Anthropic/Claude** or **Voyage AI** (cloud, paid APIs). When enabled, at least one of `ANTHROPIC_API_KEY` or `VOYAGE_API_KEY` must be set (validated at startup).
 
 ```env
 SEMANTIC_SEARCH_ENABLED=true
@@ -561,6 +573,9 @@ ANTHROPIC_API_KEY=your-api-key
 ANTHROPIC_VISION_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_EMBEDDING_MODEL=embed-v3
 ```
+
+Alternatively you can use Voyage for embeddings: set `VOYAGE_API_KEY` and `VOYAGE_EMBEDDING_MODEL` (vision/descriptions still use Anthropic when configured).
+
 - **ANTHROPIC_EMBEDDING_MODEL**: default `embed-v3` (modern). Use `embed-1` if your account only has the older model.
 
 See [Semantic Search](semantic-search.md) for details.

@@ -17,7 +17,6 @@ pub fn parse_store_parameter(
         ));
     }
 
-    // Resolve store_permanently based on store_behavior and config
     let store_permanently = match store_behavior.as_str() {
         "1" => true,
         "0" => false,
@@ -25,7 +24,6 @@ pub fn parse_store_parameter(
         _ => auto_store_enabled, // fallback
     };
 
-    // Calculate expiration time (24 hours from now if not storing permanently)
     let expires_at = if !store_permanently {
         Some(Utc::now() + Duration::hours(24))
     } else {

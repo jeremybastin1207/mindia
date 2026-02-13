@@ -31,17 +31,67 @@ Mindia's semantic search allows you to find images, videos, audio, and documents
 
 ## Setup
 
-Semantic search uses **Anthropic/Claude** (cloud). No local models. Uses Claude for vision and document summarization, and Anthropic’s embeddings API for vectors. Requires an [Anthropic API key](https://console.anthropic.com/).
+Semantic search uses **Anthropic/Claude** or **Voyage AI** (cloud). No local models. When enabled, at least one of [Anthropic API key](https://console.anthropic.com/) or Voyage API key must be set. Claude is used for vision and document summarization; embeddings can use Anthropic or Voyage.
 
 1. **Enable in Mindia**
 
 ```env
 SEMANTIC_SEARCH_ENABLED=true
-SEMANTIC_SEARCH_PROVIDER=anthropic
 ANTHROPIC_API_KEY=your-api-key
 ANTHROPIC_VISION_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_EMBEDDING_MODEL=embed-v3
 ```
+
+2. **Optional**: Override vision or embedding model. Default embedding model is `embed-v3` (modern); use `ANTHROPIC_EMBEDDING_MODEL=embed-1` if your account only has the older model.
+
+### Restart Mindia
+
+```bash
+# If running locally
+cargo run --bin mindia-api
+
+# If using Docker
+docker-compose restart mindia
+```
+
+### Index Existing Files
+
+If you uploaded files before enabling semantic search, generate embeddings:
+
+```bash
+cargo run --bin generate_embeddings
+```
+
+This processes all existing files and creates search indexes.
+
+## Search API
+
+### Endpoint
+
+```
+GET /api/v0/search
+```
+
+### Headers
+
+```
+Authorization: Bearer <token>
+```
+</think>
+Checking the current state of the paragraph:
+<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
+Read’s embeddings API for vectors. When enabled, at least one of [Anthropic API key](https://console.anthropic.com/) or Voyage API key must be set. Claude is used for vision and document summarization; embeddings can use Anthropic or Voyage.
+
+1. **Enable in Mindia**
+
+```env
+SEMANTIC_SEARCH_ENABLED=true
+ANTHROPIC_API_KEY=your-api-key
+ANTHROPIC_VISION_MODEL=claude-sonnet-4-20250514
+ANTHROPIC_EMBEDDING_MODEL=embed-v3
+```
+
+Alternatively, use Voyage for embeddings: set `VOYAGE_API_KEY` and `VOYAGE_EMBEDDING_MODEL` (e.g. `voyage-3`). Vision/summarization still use Anthropic when configured.
 
 2. **Optional**: Override vision or embedding model. Default embedding model is `embed-v3` (modern); use `ANTHROPIC_EMBEDDING_MODEL=embed-1` if your account only has the older model.
 
