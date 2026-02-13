@@ -7,34 +7,23 @@ use std::env;
 
 use crate::storage_types::StorageBackend;
 
-/// Validate required env vars before loading full config. Call at startup for clear errors.
-pub fn validate_env() -> Result<(), anyhow::Error> {
-    // Best-effort: load `.env` if present (dotenvy searches current dir and parents).
-    // This is mainly for local development; in production environments, real env vars
-    // should already be set and this call will be a no-op.
-    let _ = dotenvy::dotenv();
-
-    // MEDIA_PROCESSOR_DATABASE_URL takes precedence over DATABASE_URL if both are set.
-    let database_url = env::var("MEDIA_PROCESSOR_DATABASE_URL")
-        .ok()
-        .or_else(|| env::var("DATABASE_URL").ok())
-        .ok_or_else(|| anyhow::anyhow!("MEDIA_PROCESSOR_DATABASE_URL or DATABASE_URL must be set"))?;
-
-    if !database_url.starts_with("postgresql://") {
-        return Err(anyhow::anyhow!(
-            "DATABASE_URL must be a PostgreSQL connection string (postgresql://...)"
-        ));
+/// Load .env file from current directory or search upward.
+/// Uses override so that .env values take precedence over existing env vars (e.g. empty JWT_SECRET).
+/// Best-effort: does not fail if .env is missing or unreadable.
+fn load_dotenv() {
+    // Try to load .env from current directory first (override so .env wins over existing vars)
+    if let Ok(current_dir) = env::current_dir() {
+        let env_path = current_dir.join(".env");
+        if env_path.is_file() {
+            if dotenvy::from_path_override(&env_path).is_ok() {
+                return;
+            }
+            // from_path_override failed (e.g. parse error); try upward search as fallback
+        }
     }
 
-    let jwt = env::var("JWT_SECRET").map_err(|_| anyhow::anyhow!("JWT_SECRET must be set"))?;
-    if jwt.len() < 32 {
-        return Err(anyhow::anyhow!(
-            "JWT_SECRET must be at least 32 characters (got {})",
-            jwt.len()
-        ));
-    }
-
-    Ok(())
+    // Fallback: search upward from current dir; override so .env file wins
+    let _ = dotenvy::dotenv_override();
 }
 
 // Common constants
@@ -178,7 +167,6 @@ impl Config {
     }
 
     pub fn from_env() -> Result<Self, anyhow::Error> {
-        validate_env()?;
         let config = MediaProcessorConfig::from_env()?;
         Ok(Config(Box::new(config)))
     }
@@ -560,7 +548,7 @@ impl Config {
 
 impl MediaProcessorConfig {
     pub fn from_env() -> Result<Self, anyhow::Error> {
-        dotenvy::dotenv().ok();
+        load_dotenv();
 
         const MAX_FILE_SIZE_MB: usize = 10;
         const MAX_VIDEO_SIZE_MB: usize = 500;
@@ -607,13 +595,13 @@ impl MediaProcessorConfig {
             .unwrap_or(MAX_FILE_SIZE_MB);
 
         let allowed_extensions = env::var("ALLOWED_EXTENSIONS")
-            .unwrap_or_else(|_| "jpg,jpeg,png,gif,webp".to_string())
+            .unwrap_or_else(|_| "jpg,jpeg,png,gif,webp,avif".to_string())
             .split(',')
             .map(|s| s.trim().to_lowercase())
             .collect();
 
         let allowed_content_types = env::var("ALLOWED_CONTENT_TYPES")
-            .unwrap_or_else(|_| "image/jpeg,image/png,image/gif,image/webp".to_string())
+            .unwrap_or_else(|_| "image/jpeg,image/png,image/gif,image/webp,image/avif".to_string())
             .split(',')
             .map(|s| s.trim().to_lowercase())
             .collect();
@@ -685,11 +673,8 @@ impl MediaProcessorConfig {
 
         let config = MediaProcessorConfig {
             base,
-            database_url: env::var("MEDIA_PROCESSOR_DATABASE_URL")
-                .or_else(|_| env::var("DATABASE_URL"))
-                .map_err(|_| {
-                    anyhow::anyhow!("MEDIA_PROCESSOR_DATABASE_URL or DATABASE_URL must be set")
-                })?,
+            database_url: env::var("DATABASE_URL")
+                .map_err(|_| anyhow::anyhow!("DATABASE_URL must be set"))?,
             service_api_key: env::var("SERVICE_API_KEY").ok(),
             storage_backend,
             s3_bucket: env::var("S3_BUCKET").ok(),
@@ -921,7 +906,7 @@ impl MediaProcessorConfig {
 
         if !self.database_url.starts_with("postgresql://") {
             return Err(anyhow::anyhow!(
-                "MEDIA_PROCESSOR_DATABASE_URL must be a valid PostgreSQL connection string"
+                "DATABASE_URL must be a valid PostgreSQL connection string"
             ));
         }
 

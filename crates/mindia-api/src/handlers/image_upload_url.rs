@@ -54,6 +54,16 @@ fn default_store() -> String {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, query),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        url = %query.url,
+        store = %query.store,
+        operation = "upload_image_from_url"
+    )
+)]
 pub async fn upload_image_from_url(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,

@@ -4,7 +4,14 @@ version.workspace = true
 edition.workspace = true
 
 [package.metadata.cargo-machete]
-ignored = ["hex", "hmac", "sha2", "lru", "mindia-core", "mindia-db"]  # Optional deps/used via features
+ignored = [
+    "hex",
+    "hmac",
+    "sha2",
+    "lru",
+    "mindia-core",
+    "mindia-db",
+] # Optional deps/used via features
 
 [dependencies]
 mindia-core = { path = "../mindia-core" }
@@ -25,8 +32,8 @@ sha2 = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 
 # Optional dependencies
-aws-config = { workspace = true, optional = true }
-aws-sdk-s3 = { workspace = true, optional = true }
+object_store = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
 clamav-client = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 lru = { workspace = true, optional = true }
@@ -57,7 +64,7 @@ audio = []
 document = []
 
 # Storage backends
-storage-s3 = ["dep:aws-sdk-s3", "dep:aws-config"]
+storage-s3 = ["dep:object_store", "dep:http"]
 storage-local = []
 
 # Optional services

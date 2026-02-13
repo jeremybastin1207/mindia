@@ -26,6 +26,24 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        image_id = %id,
+        operation = "get_image"
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        image_id = %id,
+        operation = "get_image"
+    )
+)]
 pub async fn get_image(
     Path(id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
@@ -73,6 +91,17 @@ fn default_limit() -> i64 {
     responses(
         (status = 200, description = "List of images", body = Vec<ImageResponse>),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, pagination),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        limit = pagination.limit,
+        offset = pagination.offset,
+        folder_id = ?pagination.folder_id,
+        operation = "list_images"
     )
 )]
 pub async fn list_images(

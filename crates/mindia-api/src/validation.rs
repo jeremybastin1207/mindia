@@ -28,6 +28,7 @@ pub fn validate_extension_content_type_match(
         "png" => vec!["image/png"],
         "gif" => vec!["image/gif"],
         "webp" => vec!["image/webp"],
+        "avif" => vec!["image/avif"],
         "svg" => vec!["image/svg+xml"],
         "bmp" => vec!["image/bmp"],
         "ico" => vec!["image/x-icon", "image/vnd.microsoft.icon"],

@@ -52,6 +52,10 @@ pub struct ClamAVConfig {
         (status = 200, description = "Service configuration", body = ConfigResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(operation = "get_config")
+)]
 pub async fn get_config(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let config = ConfigResponse {
         s3: state.s3.as_ref().map(|s3| S3Config {

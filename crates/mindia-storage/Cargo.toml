@@ -18,21 +18,17 @@ thiserror = { workspace = true }
 urlencoding = "2.1"
 futures = "0.3"
 tokio-util = { workspace = true }
-# Optional dependencies
-aws-config = { workspace = true, optional = true }
-aws-sdk-s3 = { workspace = true, optional = true }
+object_store = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 
 [features]
-default = [
-    "storage-s3",
-    "storage-local",
-]
+default = ["storage-s3", "storage-local"]
 
 # Storage backends
-storage-s3 = ["dep:aws-sdk-s3", "dep:aws-config"]
+storage-s3 = ["dep:object_store", "dep:http"]
 storage-local = []
 
 # Convenience features

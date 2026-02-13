@@ -4,8 +4,6 @@
 
 pub mod services;
 
-#[cfg(feature = "storage-s3")]
-pub use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 #[cfg(feature = "capacity")]
 pub use mindia_infra::CapacityChecker;
 #[cfg(feature = "cleanup")]

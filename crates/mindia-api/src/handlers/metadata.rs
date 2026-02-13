@@ -45,6 +45,15 @@ pub struct MetadataResponse {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        image_id = %id,
+        operation = "update_image_metadata"
+    )
+)]
 pub async fn update_image_metadata(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
@@ -67,6 +76,15 @@ pub async fn update_image_metadata(
         (status = 200, description = "Metadata updated", body = MetadataResponse),
         (status = 404, description = "Video not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        video_id = %id,
+        operation = "update_video_metadata"
     )
 )]
 pub async fn update_video_metadata(
@@ -93,6 +111,15 @@ pub async fn update_video_metadata(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        audio_id = %id,
+        operation = "update_audio_metadata"
+    )
+)]
 pub async fn update_audio_metadata(
     Path(id): Path<Uuid>,
     tenant_ctx: TenantContext,
@@ -115,6 +142,15 @@ pub async fn update_audio_metadata(
         (status = 200, description = "Metadata updated", body = MetadataResponse),
         (status = 404, description = "Document not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        document_id = %id,
+        operation = "update_document_metadata"
     )
 )]
 pub async fn update_document_metadata(
@@ -201,6 +237,16 @@ pub struct GetMetadataQuery {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_id = %id,
+        namespace = ?params.namespace,
+        operation = "get_metadata"
+    )
+)]
 pub async fn get_metadata(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -267,6 +313,16 @@ pub async fn get_metadata(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, value),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_id = %id,
+        metadata.key = %key,
+        operation = "update_metadata_key"
+    )
+)]
 pub async fn update_metadata_key(
     Path((id, key)): Path<(Uuid, String)>,
     tenant_ctx: TenantContext,
@@ -329,6 +385,16 @@ pub async fn update_metadata_key(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_id = %id,
+        metadata.key = %key,
+        operation = "get_metadata_key"
+    )
+)]
 pub async fn get_metadata_key(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -367,6 +433,16 @@ pub async fn get_metadata_key(
         (status = 204, description = "Metadata key deleted"),
         (status = 404, description = "Media or key not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_id = %id,
+        metadata.key = %key,
+        operation = "delete_metadata_key"
     )
 )]
 pub async fn delete_metadata_key(

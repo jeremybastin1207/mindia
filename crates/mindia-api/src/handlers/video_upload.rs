@@ -47,6 +47,15 @@ fn default_store() -> String {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, multipart),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        store = %query.store,
+        operation = "upload_video"
+    )
+)]
 pub async fn upload_video(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,

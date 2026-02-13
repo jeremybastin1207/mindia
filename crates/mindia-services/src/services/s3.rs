@@ -1,14 +1,15 @@
-use aws_config::meta::region::RegionProviderChain;
-use aws_config::retry::{RetryConfig, RetryMode};
-use aws_config::BehaviorVersion;
-use aws_sdk_s3::primitives::ByteStream;
-use aws_sdk_s3::Client;
 use bytes::Bytes;
+use http::Method;
+use object_store::aws::{AmazonS3, AmazonS3Builder};
+use object_store::path::Path;
+use object_store::signer::Signer;
+use object_store::ObjectStoreExt;
 use std::env;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct S3Service {
-    client: Client,
+    store: AmazonS3,
     default_bucket: Option<String>,
 }
 
@@ -19,25 +20,22 @@ impl S3Service {
         default_bucket: Option<String>,
         region: String,
     ) -> Result<Self, anyhow::Error> {
-        env::set_var("AWS_REGION", &region);
+        // Keep AWS_REGION for compatibility with existing tooling if not already set.
+        if env::var("AWS_REGION").is_err() {
+            env::set_var("AWS_REGION", &region);
+        }
 
-        let region_provider =
-            RegionProviderChain::first_try(aws_config::Region::new(region.clone()));
+        let mut builder = AmazonS3Builder::from_env().with_region(region.clone());
+        if let Some(ref bucket) = default_bucket {
+            builder = builder.with_bucket_name(bucket.clone());
+        }
 
-        let retry_config = RetryConfig::standard()
-            .with_max_attempts(5)
-            .with_retry_mode(RetryMode::Adaptive);
-
-        let config = aws_config::defaults(BehaviorVersion::latest())
-            .region(region_provider)
-            .retry_config(retry_config)
-            .load()
-            .await;
-
-        let client = Client::new(&config);
+        let store = builder
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build S3 object store: {}", e))?;
 
         Ok(S3Service {
-            client,
+            store,
             default_bucket,
         })
     }
@@ -62,17 +60,8 @@ impl S3Service {
         let start = std::time::Instant::now();
         let size = data.len() as u64;
 
-        let body = ByteStream::from(data);
-
-        let result = self
-            .client
-            .put_object()
-            .bucket(bucket)
-            .key(key)
-            .body(body)
-            .content_type(content_type)
-            .send()
-            .await;
+        let location = Path::from(key.to_string());
+        let result = self.store.put(&location, data.into()).await;
 
         let duration = start.elapsed().as_secs_f64();
 
@@ -110,13 +99,8 @@ impl S3Service {
     pub async fn delete_file(&self, bucket: &str, key: &str) -> Result<(), anyhow::Error> {
         let start = std::time::Instant::now();
 
-        let result = self
-            .client
-            .delete_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await;
+        let location = Path::from(key.to_string());
+        let result = self.store.delete(&location).await;
 
         let duration = start.elapsed().as_secs_f64();
 
@@ -148,18 +132,12 @@ impl S3Service {
     pub async fn get_file(&self, bucket: &str, key: &str) -> Result<Bytes, anyhow::Error> {
         let start = std::time::Instant::now();
 
-        let result = self
-            .client
-            .get_object()
-            .bucket(bucket)
-            .key(key)
-            .send()
-            .await;
+        let location = Path::from(key.to_string());
+        let result = self.store.get(&location).await;
 
         match result {
             Ok(response) => {
-                let data = response.body.collect().await?;
-                let bytes = data.into_bytes();
+                let bytes = response.bytes().await?;
                 let size = bytes.len() as u64;
                 let duration = start.elapsed().as_secs_f64();
 
@@ -190,22 +168,11 @@ impl S3Service {
         s3.bucket = %bucket
     ))]
     pub async fn create_bucket(&self, bucket: &str, region: &str) -> Result<(), anyhow::Error> {
-        use aws_sdk_s3::types::{BucketLocationConstraint, CreateBucketConfiguration};
-
-        let constraint = BucketLocationConstraint::from(region);
-        let cfg = CreateBucketConfiguration::builder()
-            .location_constraint(constraint)
-            .build();
-
-        self.client
-            .create_bucket()
-            .bucket(bucket)
-            .create_bucket_configuration(cfg)
-            .send()
-            .await?;
-
-        tracing::info!("S3 bucket created successfully");
-        Ok(())
+        // Bucket provisioning is no longer handled by this service when using object_store.
+        // Callers should manage bucket creation externally (e.g., via infrastructure tooling).
+        Err(anyhow::anyhow!(
+            "create_bucket is not supported; provision S3 buckets via infrastructure"
+        ))
     }
 
     /// Check if a bucket exists
@@ -216,17 +183,11 @@ impl S3Service {
         s3.bucket = %bucket
     ))]
     pub async fn bucket_exists(&self, bucket: &str) -> Result<bool, anyhow::Error> {
-        match self.client.head_bucket().bucket(bucket).send().await {
-            Ok(_) => Ok(true),
-            Err(e) => {
-                let err_str = e.to_string();
-                if err_str.contains("404") || err_str.contains("NotFound") {
-                    Ok(false)
-                } else {
-                    Err(e.into())
-                }
-            }
-        }
+        // object_store does not expose bucket-level existence checks directly.
+        // Treat this as unsupported; callers should handle this via infrastructure.
+        Err(anyhow::anyhow!(
+            "bucket_exists is not supported; check bucket existence via infrastructure"
+        ))
     }
 
     /// Get the default bucket
@@ -235,8 +196,8 @@ impl S3Service {
     }
 
     /// Get the S3 client (for advanced operations like multipart uploads)
-    pub fn client(&self) -> &Client {
-        &self.client
+    pub fn client(&self) -> &AmazonS3 {
+        &self.store
     }
 
     /// Generate a presigned PUT URL for direct S3 uploads
@@ -251,25 +212,18 @@ impl S3Service {
         content_type: &str,
         expires_in_seconds: u64,
     ) -> Result<String, anyhow::Error> {
-        use aws_sdk_s3::presigning::PresigningConfig;
-        use std::time::Duration;
-
-        let presigning_config = PresigningConfig::builder()
-            .expires_in(Duration::from_secs(expires_in_seconds))
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to create presigning config: {}", e))?;
-
-        let presigned_request = self
-            .client
-            .put_object()
-            .bucket(bucket)
-            .key(key)
-            .content_type(content_type)
-            .presigned(presigning_config)
+        let location = Path::from(key.to_string());
+        let url = self
+            .store
+            .signed_url(
+                Method::PUT,
+                &location,
+                Duration::from_secs(expires_in_seconds),
+            )
             .await
             .map_err(|e| anyhow::anyhow!("Failed to generate presigned URL: {}", e))?;
 
-        let url = presigned_request.uri().to_string();
+        let url = url.to_string();
 
         tracing::info!(
             expires_in_seconds = expires_in_seconds,
@@ -291,28 +245,10 @@ impl S3Service {
         content_type: &str,
         expires_in_seconds: u64,
     ) -> Result<PresignedPostData, anyhow::Error> {
-        use aws_sdk_s3::presigning::PresigningConfig;
-        use std::time::Duration;
-
-        let presigning_config = PresigningConfig::builder()
-            .expires_in(Duration::from_secs(expires_in_seconds))
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to create presigning config: {}", e))?;
-
-        // For POST, we need to create a presigned POST request
-        // AWS SDK doesn't have direct POST presigning, so we'll use PUT for now
-        // and document that clients should use PUT method
-        let presigned_request = self
-            .client
-            .put_object()
-            .bucket(bucket)
-            .key(key)
-            .content_type(content_type)
-            .presigned(presigning_config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to generate presigned URL: {}", e))?;
-
-        let url = presigned_request.uri().to_string();
+        // Reuse PUT-style presigned URL; clients should use PUT.
+        let url = self
+            .generate_presigned_put_url(bucket, key, content_type, expires_in_seconds)
+            .await?;
 
         tracing::info!(
             expires_in_seconds = expires_in_seconds,

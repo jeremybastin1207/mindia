@@ -12,6 +12,7 @@ use crate::middleware::{
 };
 use crate::state::AppState;
 use axum::{
+    extract::DefaultBodyLimit,
     http::{HeaderValue, Method, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post, put},
@@ -124,6 +125,9 @@ pub async fn setup_routes(
                 .max(config.max_document_size_bytes())
                 .max(config.max_audio_size_bytes()),
         ))
+        // Disable Axum's built-in 2MB DefaultBodyLimit since we enforce
+        // request size limits via RequestBodyLimitLayer above.
+        .layer(DefaultBodyLimit::disable())
         .layer(cors)
         .layer(trace_layer)
         .layer(axum::middleware::from_fn(request_id_middleware))

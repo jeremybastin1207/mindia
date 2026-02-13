@@ -273,10 +273,14 @@ curl -s -H "Authorization: Bearer $MASTER_KEY" http://localhost:3000/api/v0/imag
 ### Basic Docker
 
 ```bash
-# Build image
+# Option A: Build image directly
 docker build -t mindia .
 
-# Run container
+# Option B: Use interactive build wizard (choose Dockerfile, features, ports)
+chmod +x ./scripts/docker-build-wizard.sh
+./scripts/docker-build-wizard.sh
+
+# Then run container (example)
 docker run -d \
   --name mindia \
   -p 3000:3000 \

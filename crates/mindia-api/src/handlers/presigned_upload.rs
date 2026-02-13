@@ -22,6 +22,16 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_type = %request.media_type,
+        store = %request.store,
+        operation = "generate_presigned_url"
+    )
+)]
 pub async fn generate_presigned_url(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -133,6 +143,15 @@ pub async fn generate_presigned_url(
         (status = 400, description = "Invalid input", body = ErrorResponse),
         (status = 404, description = "Upload session not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        upload_id = %request.upload_id,
+        operation = "complete_upload"
     )
 )]
 pub async fn complete_upload(

@@ -449,6 +449,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -472,6 +473,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -495,6 +497,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -518,6 +521,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -541,6 +545,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -564,6 +569,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -587,6 +593,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -610,6 +617,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(60),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -635,6 +643,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -660,6 +669,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: None,
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -685,6 +695,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(60),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -726,6 +737,7 @@ mod tests {
             max_retries: 3,
             timeout_seconds: Some(3600),
             depends_on: None,
+            cancel_on_dep_failure: false,
             created_at,
             updated_at,
         };

@@ -36,7 +36,14 @@ fn default_limit() -> i64 {
 }
 
 /// Create a new API key
-#[tracing::instrument(skip(state, ctx))]
+#[tracing::instrument(
+    skip(state, ctx, request),
+    fields(
+        tenant_id = %ctx.tenant_id,
+        user_id = ?ctx.user_id,
+        operation = "create_api_key"
+    )
+)]
 pub async fn create_api_key(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
@@ -96,7 +103,16 @@ pub async fn create_api_key(
 }
 
 /// List API keys for the current tenant
-#[tracing::instrument(skip(state, ctx))]
+#[tracing::instrument(
+    skip(state, ctx, query),
+    fields(
+        tenant_id = %ctx.tenant_id,
+        user_id = ?ctx.user_id,
+        limit = query.limit,
+        offset = query.offset,
+        operation = "list_api_keys"
+    )
+)]
 pub async fn list_api_keys(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
@@ -121,7 +137,15 @@ pub async fn list_api_keys(
 }
 
 /// Get a single API key by ID
-#[tracing::instrument(skip(state, ctx))]
+#[tracing::instrument(
+    skip(state, ctx),
+    fields(
+        tenant_id = %ctx.tenant_id,
+        user_id = ?ctx.user_id,
+        api_key_id = %id,
+        operation = "get_api_key"
+    )
+)]
 pub async fn get_api_key(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,
@@ -139,7 +163,15 @@ pub async fn get_api_key(
 }
 
 /// Revoke (deactivate) an API key
-#[tracing::instrument(skip(state, ctx))]
+#[tracing::instrument(
+    skip(state, ctx),
+    fields(
+        tenant_id = %ctx.tenant_id,
+        user_id = ?ctx.user_id,
+        api_key_id = %id,
+        operation = "revoke_api_key"
+    )
+)]
 pub async fn revoke_api_key(
     State(state): State<Arc<AppState>>,
     ctx: TenantContext,

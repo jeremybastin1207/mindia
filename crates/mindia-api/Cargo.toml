@@ -36,6 +36,8 @@ mindia-infra = { path = "../mindia-infra", features = [
   "audio",
 ] }
 mindia-plugins = { path = "../mindia-plugins", optional = true }
+mimalloc = "0.1"
+landlock = { version = "0.3", optional = true }
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
@@ -189,6 +191,9 @@ full = [
   "observability-opentelemetry",
 ]
 minimal = ["api", "image", "storage-s3", "observability-basic"]
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = { version = "0.3" }
 
 [dev-dependencies]
 axum-test = "18"

@@ -12,7 +12,14 @@ use mindia_core::models::{TaskListQuery, TaskResponse, TaskStats};
 use mindia_core::AppError;
 
 /// List tasks with optional filters
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(
+    skip(state, query),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        operation = "list_tasks"
+    )
+)]
 pub async fn list_tasks(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -39,7 +46,15 @@ pub async fn list_tasks(
 }
 
 /// Get a task by ID
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        task_id = %task_id,
+        operation = "get_task"
+    )
+)]
 pub async fn get_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -67,7 +82,15 @@ pub async fn get_task(
 }
 
 /// Cancel a pending or scheduled task
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        task_id = %task_id,
+        operation = "cancel_task"
+    )
+)]
 pub async fn cancel_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -93,7 +116,15 @@ pub async fn cancel_task(
 }
 
 /// Retry a failed task
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        task_id = %task_id,
+        operation = "retry_task"
+    )
+)]
 pub async fn retry_task(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -119,7 +150,14 @@ pub async fn retry_task(
 }
 
 /// Get aggregated task statistics
-#[tracing::instrument(skip(state))]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        operation = "get_task_stats"
+    )
+)]
 pub async fn get_task_stats(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,

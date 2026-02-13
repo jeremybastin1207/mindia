@@ -22,22 +22,91 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- updated_at triggers (idempotent: drop then create)
-DO $$
-DECLARE
-    tname text;
-BEGIN
-    FOREACH tname IN ARRAY [
-        'tenants', 'folders', 'media', 'tasks', 'webhooks', 'webhook_retry_queue',
-        'api_keys', 'service_api_keys', 'presigned_upload_sessions', 'plugin_configs',
-        'plugin_executions', 'plugin_cost_summaries', 'embeddings', 'named_transformations'
-    ]
-    LOOP
-        EXECUTE format('DROP TRIGGER IF EXISTS trigger_%s_updated_at ON %I', tname, tname);
-        EXECUTE format('CREATE TRIGGER trigger_%s_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at()', tname, tname);
-    END LOOP;
-END
-$$;
+-- updated_at triggers (idempotent: drop then create, no loops)
+
+-- tenants
+DROP TRIGGER IF EXISTS trigger_tenants_updated_at ON tenants;
+CREATE TRIGGER trigger_tenants_updated_at
+    BEFORE UPDATE ON tenants
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- folders
+DROP TRIGGER IF EXISTS trigger_folders_updated_at ON folders;
+CREATE TRIGGER trigger_folders_updated_at
+    BEFORE UPDATE ON folders
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- media
+DROP TRIGGER IF EXISTS trigger_media_updated_at ON media;
+CREATE TRIGGER trigger_media_updated_at
+    BEFORE UPDATE ON media
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- tasks
+DROP TRIGGER IF EXISTS trigger_tasks_updated_at ON tasks;
+CREATE TRIGGER trigger_tasks_updated_at
+    BEFORE UPDATE ON tasks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- webhooks
+DROP TRIGGER IF EXISTS trigger_webhooks_updated_at ON webhooks;
+CREATE TRIGGER trigger_webhooks_updated_at
+    BEFORE UPDATE ON webhooks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- webhook_retry_queue
+DROP TRIGGER IF EXISTS trigger_webhook_retry_queue_updated_at ON webhook_retry_queue;
+CREATE TRIGGER trigger_webhook_retry_queue_updated_at
+    BEFORE UPDATE ON webhook_retry_queue
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- api_keys
+DROP TRIGGER IF EXISTS trigger_api_keys_updated_at ON api_keys;
+CREATE TRIGGER trigger_api_keys_updated_at
+    BEFORE UPDATE ON api_keys
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- service_api_keys
+DROP TRIGGER IF EXISTS trigger_service_api_keys_updated_at ON service_api_keys;
+CREATE TRIGGER trigger_service_api_keys_updated_at
+    BEFORE UPDATE ON service_api_keys
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- presigned_upload_sessions
+DROP TRIGGER IF EXISTS trigger_presigned_upload_sessions_updated_at ON presigned_upload_sessions;
+CREATE TRIGGER trigger_presigned_upload_sessions_updated_at
+    BEFORE UPDATE ON presigned_upload_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- plugin_configs
+DROP TRIGGER IF EXISTS trigger_plugin_configs_updated_at ON plugin_configs;
+CREATE TRIGGER trigger_plugin_configs_updated_at
+    BEFORE UPDATE ON plugin_configs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- plugin_executions
+DROP TRIGGER IF EXISTS trigger_plugin_executions_updated_at ON plugin_executions;
+CREATE TRIGGER trigger_plugin_executions_updated_at
+    BEFORE UPDATE ON plugin_executions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- plugin_cost_summaries
+DROP TRIGGER IF EXISTS trigger_plugin_cost_summaries_updated_at ON plugin_cost_summaries;
+CREATE TRIGGER trigger_plugin_cost_summaries_updated_at
+    BEFORE UPDATE ON plugin_cost_summaries
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- embeddings
+DROP TRIGGER IF EXISTS trigger_embeddings_updated_at ON embeddings;
+CREATE TRIGGER trigger_embeddings_updated_at
+    BEFORE UPDATE ON embeddings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- named_transformations
+DROP TRIGGER IF EXISTS trigger_named_transformations_updated_at ON named_transformations;
+CREATE TRIGGER trigger_named_transformations_updated_at
+    BEFORE UPDATE ON named_transformations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- RLS: session helper and authorization check
 CREATE OR REPLACE FUNCTION get_current_tenant_id()

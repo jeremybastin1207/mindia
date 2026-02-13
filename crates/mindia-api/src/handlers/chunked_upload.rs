@@ -17,7 +17,6 @@ use axum::{
 use chrono::{Duration, Utc};
 use mindia_core::models::presigned_upload::{CompleteUploadRequest, CompleteUploadResponse};
 use mindia_core::AppError;
-use mindia_services::{CompletedMultipartUpload, CompletedPart};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -437,93 +436,46 @@ pub async fn complete_chunked_upload(
     let final_filename = format!("{}.{}", file_id, extension);
     let final_s3_key = format!("uploads/{}", final_filename);
 
-    // Create multipart upload
-    let create_result = s3_config
-        .service
-        .client()
-        .create_multipart_upload()
-        .bucket(&s3_config.bucket)
-        .key(&final_s3_key)
-        .content_type(&session.content_type)
-        .send()
-        .await
-        .map_err(|e| AppError::S3(format!("Failed to create multipart upload: {}", e)))?;
-
-    let upload_id = create_result
-        .upload_id()
-        .ok_or_else(|| AppError::S3("No upload ID returned from S3".to_string()))?;
-
-    // Copy each chunk as a part using copy_part (server-side, no download)
-    let mut parts = Vec::new();
-    let mut part_number = 1u32;
+    // Download each chunk from storage and concatenate server-side into the final object.
+    // This is simpler and backend-agnostic compared to low-level S3 multipart copy.
     let mut total_bytes = 0u64;
+    let mut combined = Vec::new();
 
     for chunk in chunks.iter() {
-        // Get chunk size for range copy
-        let chunk_size = chunk.size;
-        total_bytes += chunk_size as u64;
-
-        // URL-encode the copy source per AWS S3 API requirements
-        let encoded_key = urlencoding::encode(&chunk.s3_key);
-        let copy_source = format!("{}/{}", s3_config.bucket, encoded_key);
-
-        // Copy chunk as a part (server-side operation)
-        let copy_part_result = s3_config
-            .service
-            .client()
-            .upload_part_copy()
-            .bucket(&s3_config.bucket)
-            .key(&final_s3_key)
-            .upload_id(upload_id)
-            .part_number(part_number as i32)
-            .copy_source(&copy_source)
-            .send()
+        let bytes = state
+            .media
+            .storage
+            .download(&chunk.s3_key)
             .await
             .map_err(|e| {
                 AppError::S3(format!(
-                    "Failed to copy chunk {} as part {}: {}",
-                    chunk.s3_key, part_number, e
+                    "Failed to download chunk {} from storage: {}",
+                    chunk.s3_key, e
                 ))
             })?;
 
-        let etag = copy_part_result
-            .copy_part_result()
-            .and_then(|r| r.e_tag())
-            .ok_or_else(|| AppError::S3(format!("No ETag returned for part {}", part_number)))?
-            .to_string();
-
-        let completed_part = CompletedPart::builder()
-            .part_number(part_number as i32)
-            .e_tag(etag)
-            .build();
-
-        parts.push(completed_part);
-        part_number += 1;
+        total_bytes += bytes.len() as u64;
+        combined.extend_from_slice(&bytes);
     }
 
-    // Complete multipart upload
-    let completed_parts = CompletedMultipartUpload::builder()
-        .set_parts(Some(parts))
-        .build();
-
-    s3_config
-        .service
-        .client()
-        .complete_multipart_upload()
-        .bucket(&s3_config.bucket)
-        .key(&final_s3_key)
-        .upload_id(upload_id)
-        .multipart_upload(completed_parts)
-        .send()
+    state
+        .media
+        .storage
+        .upload_with_key(&final_s3_key, combined, &session.content_type)
         .await
-        .map_err(|e| AppError::S3(format!("Failed to complete multipart upload: {}", e)))?;
+        .map_err(|e| {
+            AppError::S3(format!(
+                "Failed to upload assembled object {} to storage: {}",
+                final_s3_key, e
+            ))
+        })?;
 
     tracing::info!(
         session_id = %session_id,
         final_key = %final_s3_key,
         total_bytes = total_bytes,
-        parts = part_number - 1,
-        "Chunked upload assembled using server-side multipart copy"
+        parts = chunks.len(),
+        "Chunked upload assembled by concatenating chunks via storage backend"
     );
 
     // Delete chunk files from storage (cleanup)

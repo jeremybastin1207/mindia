@@ -5,6 +5,7 @@ mod error;
 mod handlers;
 mod http_metrics;
 mod job_queue;
+mod landlock;
 mod middleware;
 #[cfg(feature = "plugin")]
 mod plugins;
@@ -20,10 +21,17 @@ mod video_storage_impl;
 
 use mindia_core::Config;
 
+// Use mimalloc as the global allocator for better performance and lower fragmentation,
+// especially when running on musl-based systems inside containers.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 // ApiDoc moved to api_doc.rs
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    // Best-effort Landlock sandboxing on Linux.
+    landlock::linux::init();
     // Load configuration
     let config = Config::from_env()?;
 

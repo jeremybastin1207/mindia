@@ -90,6 +90,15 @@ pub(crate) async fn delete_audio_embeddings(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, wide_event, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        media_id = %id,
+        operation = "delete_media"
+    )
+)]
 pub async fn delete_media(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,

@@ -10,16 +10,25 @@ post {
   auth: bearer
 }
 
-auth:bearer {
-  token: {{accessToken}}
-}
-
 params:query {
   store: auto
 }
 
+auth:bearer {
+  token: {{accessToken}}
+}
+
 body:multipart-form {
-  file: @file(/path/to/your/video.mp4)
+  file: @file(/home/jba/Downloads/YTDown.com_YouTube_Muse-Unravelling-Supermassive-Black-Hole_Media_-66qG84KR2M_001_1080p.mp4)
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("videoId", res.body.id);
+    bru.setVar("videoUrl", res.body.url);
+    console.log("Video uploaded:", res.body.id);
+    console.log("Processing status:", res.body.processing_status);
+  }
 }
 
 docs {
@@ -60,13 +69,3 @@ docs {
   - completed: HLS variants ready for streaming
   - failed: Transcoding failed
 }
-
-script:post-response {
-  if (res.status === 201) {
-    bru.setVar("videoId", res.body.id);
-    bru.setVar("videoUrl", res.body.url);
-    console.log("Video uploaded:", res.body.id);
-    console.log("Processing status:", res.body.processing_status);
-  }
-}
-

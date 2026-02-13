@@ -25,6 +25,15 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        video_id = %id,
+        operation = "stream_master_playlist"
+    )
+)]
 pub async fn stream_master_playlist(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
@@ -83,6 +92,16 @@ pub async fn stream_master_playlist(
         (status = 200, description = "HLS variant playlist", content_type = "application/vnd.apple.mpegurl"),
         (status = 404, description = "Variant not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        video_id = %id,
+        variant = %variant,
+        operation = "stream_variant_playlist"
     )
 )]
 pub async fn stream_variant_playlist(
@@ -146,6 +165,15 @@ pub async fn stream_variant_playlist(
         (status = 400, description = "Invalid segment name", body = ErrorResponse),
         (status = 404, description = "Segment not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        video_id = %id,
+        variant = %variant,
+        segment = %segment,
+        operation = "stream_segment"
     )
 )]
 pub async fn stream_segment(

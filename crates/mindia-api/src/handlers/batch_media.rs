@@ -62,6 +62,15 @@ pub struct BatchCopyResult {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, body),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        batch_size = body.ids.len(),
+        operation = "batch_delete_media"
+    )
+)]
 pub async fn batch_delete_media(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -251,6 +260,15 @@ pub async fn batch_delete_media(
         (status = 200, description = "Batch copy completed", body = BatchCopyResponse),
         (status = 400, description = "Invalid request", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, body),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        batch_size = body.ids.len(),
+        operation = "batch_copy_media"
     )
 )]
 pub async fn batch_copy_media(

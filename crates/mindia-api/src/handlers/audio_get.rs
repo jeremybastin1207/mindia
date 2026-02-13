@@ -26,6 +26,15 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        audio_id = %id,
+        operation = "get_audio"
+    )
+)]
 pub async fn get_audio(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
@@ -72,6 +81,17 @@ fn default_limit() -> i64 {
     responses(
         (status = 200, description = "List of audios", body = Vec<AudioResponse>),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, pagination),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        limit = pagination.limit,
+        offset = pagination.offset,
+        folder_id = ?pagination.folder_id,
+        operation = "list_audios"
     )
 )]
 pub async fn list_audios(

@@ -24,6 +24,15 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        file_count = request.files.len(),
+        operation = "create_file_group"
+    )
+)]
 pub async fn create_file_group(
     tenant_ctx: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -71,6 +80,15 @@ pub async fn create_file_group(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        group_id = %id,
+        operation = "get_file_group"
+    )
+)]
 pub async fn get_file_group(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
@@ -111,6 +129,15 @@ pub async fn get_file_group(
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        group_id = %id,
+        operation = "get_file_group_info"
+    )
+)]
 pub async fn get_file_group_info(
     State(state): State<Arc<AppState>>,
     tenant_ctx: TenantContext,
@@ -143,6 +170,16 @@ pub async fn get_file_group_info(
         (status = 302, description = "Redirect to file URL"),
         (status = 404, description = "File group or file not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        group_id = %id,
+        index = index,
+        operation = "get_file_by_index"
     )
 )]
 pub async fn get_file_by_index(
@@ -192,6 +229,16 @@ pub async fn get_file_by_index(
         (status = 400, description = "Invalid format", body = ErrorResponse),
         (status = 404, description = "File group not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        group_id = %id,
+        format = %format_str,
+        operation = "get_group_archive"
     )
 )]
 pub async fn get_group_archive(
@@ -268,6 +315,15 @@ pub async fn get_group_archive(
         (status = 204, description = "File group deleted"),
         (status = 404, description = "File group not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        group_id = %id,
+        operation = "delete_file_group"
     )
 )]
 pub async fn delete_file_group(

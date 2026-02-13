@@ -270,7 +270,7 @@ REQUEST_TIMEOUT_SECS=60
 
 ```env
 MAX_FILE_SIZE_MB=10
-ALLOWED_EXTENSIONS=jpg,jpeg,png,gif,webp
+ALLOWED_EXTENSIONS=jpg,jpeg,png,gif,webp,avif
 ALLOWED_CONTENT_TYPES=image/jpeg,image/png,image/gif,image/webp
 ```
 

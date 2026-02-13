@@ -25,6 +25,15 @@ use uuid::Uuid;
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        image_id = %id,
+        operation = "download_image"
+    )
+)]
 pub async fn download_image(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,

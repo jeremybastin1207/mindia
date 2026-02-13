@@ -40,6 +40,15 @@ fn default_limit() -> i64 {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        video_id = %id,
+        operation = "get_video"
+    )
+)]
 pub async fn get_video(
     tenant_ctx: TenantContext,
     Path(id): Path<Uuid>,
@@ -72,6 +81,17 @@ pub async fn get_video(
     responses(
         (status = 200, description = "List of videos", body = Vec<VideoResponse>),
         (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = %tenant_ctx.tenant_id,
+        user_id = ?tenant_ctx.user_id,
+        limit = params.limit,
+        offset = params.offset,
+        folder_id = ?params.folder_id,
+        operation = "list_videos"
     )
 )]
 pub async fn list_videos(

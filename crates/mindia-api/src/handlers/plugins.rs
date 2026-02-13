@@ -26,6 +26,10 @@ use std::sync::Arc;
         (status = 401, description = "Unauthorized", body = ErrorResponse),
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(operation = "list_plugins")
+)]
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
@@ -63,6 +67,16 @@ pub async fn list_plugins(
         (status = 404, description = "Plugin not found", body = ErrorResponse),
     )
 )]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        plugin_name = %plugin_name,
+        media_id = ?request.media_id,
+        operation = "execute_plugin"
+    )
+)]
 pub async fn execute_plugin(
     tenant_context: TenantContext,
     Path(plugin_name): Path<String>,
@@ -97,6 +111,15 @@ pub async fn execute_plugin(
         (status = 404, description = "Plugin configuration not found", body = ErrorResponse),
     )
 )]
+#[tracing::instrument(
+    skip(state),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        plugin_name = %plugin_name,
+        operation = "get_plugin_config"
+    )
+)]
 pub async fn get_plugin_config(
     State(state): State<Arc<AppState>>,
     tenant_context: TenantContext,
@@ -127,6 +150,15 @@ pub async fn get_plugin_config(
         (status = 200, description = "Plugin configuration updated", body = PluginConfigResponse),
         (status = 400, description = "Invalid configuration", body = ErrorResponse),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+#[tracing::instrument(
+    skip(state, request),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        plugin_name = %plugin_name,
+        operation = "update_plugin_config"
     )
 )]
 pub async fn update_plugin_config(
@@ -170,6 +202,15 @@ pub struct PluginCostsQuery {
     responses(
         (status = 200, description = "Plugin usage/cost summary", body = PluginCostsResponse),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        plugin_name = ?params.plugin_name,
+        operation = "get_plugin_costs"
     )
 )]
 pub async fn get_plugin_costs(
@@ -232,6 +273,14 @@ pub async fn get_plugin_costs(
         (status = 401, description = "Unauthorized", body = ErrorResponse),
     )
 )]
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        operation = "get_plugin_costs_summary"
+    )
+)]
 pub async fn get_plugin_costs_summary(
     tenant_context: TenantContext,
     State(state): State<Arc<AppState>>,
@@ -253,6 +302,15 @@ pub async fn get_plugin_costs_summary(
     responses(
         (status = 200, description = "Plugin usage/cost for specific plugin", body = PluginCostsResponse),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
+    )
+)]
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = %tenant_context.tenant_id,
+        user_id = ?tenant_context.user_id,
+        plugin_name = %plugin_name,
+        operation = "get_plugin_costs_by_name"
     )
 )]
 pub async fn get_plugin_costs_by_name(

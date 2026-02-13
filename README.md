@@ -30,10 +30,6 @@ cargo run -p mindia-api
 - OpenTelemetry observability
 - Optional ClamAV virus scanning
 
-## Deploy to AWS
-
-Deploy Mindia to AWS with Terraform and Ansible (EC2, RDS PostgreSQL, S3, ALB, CloudFront, ClamAV). See [docs/deployment-aws.md](docs/deployment-aws.md) and [.deployment/README.md](.deployment/README.md).
-
 ## Documentation
 
 Full documentation is available at [https://jeremybastin1207.github.io/mindia/](https://jeremybastin1207.github.io/mindia/) including quick start, API reference, configuration, and feature guides.
