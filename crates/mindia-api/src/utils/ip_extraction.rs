@@ -3,10 +3,9 @@
 //! Provides secure extraction of client IP addresses from X-Forwarded-For headers
 //! with validation to prevent header spoofing attacks.
 
-use async_trait::async_trait;
 use axum::extract::FromRequestParts;
-use axum::http::HeaderMap;
 use axum::http::request::Parts;
+use axum::http::HeaderMap;
 use std::net::IpAddr;
 
 /// Client IP stored in request extensions by auth middleware for use in handlers.
@@ -17,19 +16,18 @@ pub struct ClientIp(pub String);
 #[derive(Clone, Debug)]
 pub struct ClientIpOpt(pub Option<String>);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for ClientIpOpt
 where
     S: Send + Sync,
 {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let ip = parts
-            .extensions
-            .get::<ClientIp>()
-            .map(|c| c.0.clone());
-        Ok(ClientIpOpt(ip))
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        let ip = parts.extensions.get::<ClientIp>().map(|c| c.0.clone());
+        async move { Ok(ClientIpOpt(ip)) }
     }
 }
 

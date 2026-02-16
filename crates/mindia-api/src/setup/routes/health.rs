@@ -1,11 +1,7 @@
 //! Health check handlers and response types.
 
 use crate::state::AppState;
-use axum::{
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{http::StatusCode, response::IntoResponse, Json};
 use std::fmt::Display;
 use std::future::Future;
 use std::sync::Arc;
@@ -113,7 +109,7 @@ pub async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
         "unhealthy",
     )
     .await;
-    let mut overall_healthy = response.database == "healthy";
+    let overall_healthy = response.database == "healthy";
 
     let storage = state.media.storage.clone();
     response.storage = run_check(
@@ -198,7 +194,7 @@ pub async fn deep_health_check(state: Arc<AppState>) -> impl IntoResponse {
         "unhealthy",
     )
     .await;
-    let mut overall_healthy = response.database == "healthy";
+    let overall_healthy = response.database == "healthy";
 
     let storage = state.media.storage.clone();
     response.storage = run_check(

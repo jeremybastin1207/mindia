@@ -84,7 +84,13 @@ impl WorkflowService {
 
         let execution = self
             .execution_repo
-            .create_in_transaction(workflow_id, tenant_id, media_id, task_ids.clone(), stop_on_failure)
+            .create_in_transaction(
+                workflow_id,
+                tenant_id,
+                media_id,
+                task_ids.clone(),
+                stop_on_failure,
+            )
             .await
             .context("Create workflow execution in transaction")?;
 

@@ -123,7 +123,7 @@ pub async fn upload_video(
         let repo = state.media.repository.clone();
         let ud = upload_data.clone();
         let sb = store_behavior.clone();
-        async move {
+        Box::pin(async move {
             repo.create_video_from_storage_tx(
                 tx,
                 ud.tenant_id,
@@ -140,7 +140,7 @@ pub async fn upload_video(
                 ud.storage_url,
             )
             .await
-        }
+        })
     })
     .await
     {
@@ -251,8 +251,8 @@ pub async fn upload_video(
     let moderation_payload = mindia_core::models::ContentModerationPayload {
         media_id: file_uuid,
         media_type: "video".to_string(),
-        s3_key: storage_key.clone(),
-        s3_url: storage_url.clone(),
+        s3_key: video.storage_key().to_string(),
+        s3_url: video.storage_url().to_string(),
     };
     if let Ok(moderation_payload_json) = serde_json::to_value(&moderation_payload) {
         if let Err(e) = state
@@ -278,7 +278,7 @@ pub async fn upload_video(
         let embedding_payload = GenerateEmbeddingPayload {
             entity_id: file_uuid,
             entity_type: "video".to_string(),
-            s3_url: storage_url,
+            s3_url: video.storage_url().to_string(),
         };
         if let Ok(embedding_payload_json) = serde_json::to_value(&embedding_payload) {
             if let Err(e) = state

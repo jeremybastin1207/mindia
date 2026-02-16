@@ -358,7 +358,15 @@ impl WorkflowExecutionRepository {
         let repo = self.clone();
         crate::db::transaction::with_transaction(&pool, move |tx| {
             Box::pin(async move {
-                repo.create_tx(tx, workflow_id, tenant_id, media_id, task_ids, stop_on_failure).await
+                repo.create_tx(
+                    tx,
+                    workflow_id,
+                    tenant_id,
+                    media_id,
+                    task_ids,
+                    stop_on_failure,
+                )
+                .await
             })
         })
         .await

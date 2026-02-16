@@ -38,7 +38,9 @@ impl AuthFailureLimiter {
     pub async fn record_failure(&self, ip: &str) -> bool {
         let mut guard = self.inner.lock().await;
         let now = Instant::now();
-        let (count, reset_at) = guard.entry(ip.to_string()).or_insert((0, now + self.window));
+        let (count, reset_at) = guard
+            .entry(ip.to_string())
+            .or_insert((0, now + self.window));
         if now >= *reset_at {
             *count = 0;
             *reset_at = now + self.window;
@@ -93,7 +95,11 @@ pub async fn auth_middleware(
     let client_ip_str = client_ip.as_deref().unwrap_or("unknown");
     if let Some(ref limiter) = auth_state.auth_failure_limiter {
         if limiter.is_blocked(client_ip_str).await {
-            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many failed auth attempts",
+            )
+                .into_response();
         }
     }
 
@@ -106,7 +112,11 @@ pub async fn auth_middleware(
         None => {
             if let Some(ref limiter) = auth_state.auth_failure_limiter {
                 if limiter.record_failure(client_ip_str).await {
-                    return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+                    return (
+                        StatusCode::TOO_MANY_REQUESTS,
+                        "Too many failed auth attempts",
+                    )
+                        .into_response();
                 }
             }
             audit::log_authentication_attempt(
@@ -128,7 +138,11 @@ pub async fn auth_middleware(
     if !auth_header.starts_with("Bearer ") {
         if let Some(ref limiter) = auth_state.auth_failure_limiter {
             if limiter.record_failure(client_ip_str).await {
-                return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+                return (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "Too many failed auth attempts",
+                )
+                    .into_response();
             }
         }
         audit::log_authentication_attempt(
@@ -227,7 +241,11 @@ pub async fn auth_middleware(
             Err(e) => {
                 if let Some(ref limiter) = auth_state.auth_failure_limiter {
                     if limiter.record_failure(client_ip_str).await {
-                        return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+                        return (
+                            StatusCode::TOO_MANY_REQUESTS,
+                            "Too many failed auth attempts",
+                        )
+                            .into_response();
                     }
                 }
                 audit::log_authentication_attempt(
@@ -246,7 +264,11 @@ pub async fn auth_middleware(
 
     if let Some(ref limiter) = auth_state.auth_failure_limiter {
         if limiter.record_failure(client_ip_str).await {
-            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Too many failed auth attempts",
+            )
+                .into_response();
         }
     }
     audit::log_authentication_attempt(

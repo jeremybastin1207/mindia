@@ -9,8 +9,14 @@ use std::sync::Arc;
 
 pub fn media_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/media/:id", API_PREFIX), get(handlers::media_get::get_media))
-        .route(&format!("{}/media/:id", API_PREFIX), delete(handlers::media_delete::delete_media))
+        .route(
+            &format!("{}/media/:id", API_PREFIX),
+            get(handlers::media_get::get_media),
+        )
+        .route(
+            &format!("{}/media/:id", API_PREFIX),
+            delete(handlers::media_delete::delete_media),
+        )
         .route(
             &format!("{}/media/batch/delete", API_PREFIX),
             post(handlers::batch_media::batch_delete_media),
@@ -24,13 +30,22 @@ pub fn media_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 pub fn image_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/images", API_PREFIX), post(handlers::image_upload::upload_image))
+        .route(
+            &format!("{}/images", API_PREFIX),
+            post(handlers::image_upload::upload_image),
+        )
         .route(
             &format!("{}/images/from-url", API_PREFIX),
             post(handlers::image_upload_url::upload_image_from_url),
         )
-        .route(&format!("{}/images", API_PREFIX), get(handlers::image_get::list_images))
-        .route(&format!("{}/images/:id", API_PREFIX), get(handlers::image_get::get_image))
+        .route(
+            &format!("{}/images", API_PREFIX),
+            get(handlers::image_get::list_images),
+        )
+        .route(
+            &format!("{}/images/:id", API_PREFIX),
+            get(handlers::image_get::get_image),
+        )
         .route(
             &format!("{}/images/:id/file", API_PREFIX),
             get(handlers::image_download::download_image),
@@ -50,9 +65,18 @@ pub fn video_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     #[cfg(feature = "video")]
     {
         Router::new()
-            .route(&format!("{}/videos", API_PREFIX), post(handlers::video_upload::upload_video))
-            .route(&format!("{}/videos", API_PREFIX), get(handlers::video_get::list_videos))
-            .route(&format!("{}/videos/:id", API_PREFIX), get(handlers::video_get::get_video))
+            .route(
+                &format!("{}/videos", API_PREFIX),
+                post(handlers::video_upload::upload_video),
+            )
+            .route(
+                &format!("{}/videos", API_PREFIX),
+                get(handlers::video_get::list_videos),
+            )
+            .route(
+                &format!("{}/videos/:id", API_PREFIX),
+                get(handlers::video_get::get_video),
+            )
             .route(
                 &format!("{}/videos/:id/metadata", API_PREFIX),
                 put(handlers::metadata::update_video_metadata),
@@ -85,7 +109,10 @@ pub fn document_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
                 &format!("{}/documents", API_PREFIX),
                 post(handlers::document_upload::upload_document),
             )
-            .route(&format!("{}/documents", API_PREFIX), get(handlers::document_get::list_documents))
+            .route(
+                &format!("{}/documents", API_PREFIX),
+                get(handlers::document_get::list_documents),
+            )
             .route(
                 &format!("{}/documents/:id", API_PREFIX),
                 get(handlers::document_get::get_document),
@@ -110,9 +137,18 @@ pub fn audio_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     #[cfg(feature = "audio")]
     {
         Router::new()
-            .route(&format!("{}/audios", API_PREFIX), post(handlers::audio_upload::upload_audio))
-            .route(&format!("{}/audios", API_PREFIX), get(handlers::audio_get::list_audios))
-            .route(&format!("{}/audios/:id", API_PREFIX), get(handlers::audio_get::get_audio))
+            .route(
+                &format!("{}/audios", API_PREFIX),
+                post(handlers::audio_upload::upload_audio),
+            )
+            .route(
+                &format!("{}/audios", API_PREFIX),
+                get(handlers::audio_get::list_audios),
+            )
+            .route(
+                &format!("{}/audios/:id", API_PREFIX),
+                get(handlers::audio_get::get_audio),
+            )
             .route(
                 &format!("{}/audios/:id/file", API_PREFIX),
                 get(handlers::audio_download::download_audio),
@@ -131,12 +167,30 @@ pub fn audio_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 pub fn folder_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/folders", API_PREFIX), post(handlers::folders::create_folder))
-        .route(&format!("{}/folders", API_PREFIX), get(handlers::folders::list_folders))
-        .route(&format!("{}/folders/tree", API_PREFIX), get(handlers::folders::get_folder_tree))
-        .route(&format!("{}/folders/:id", API_PREFIX), get(handlers::folders::get_folder))
-        .route(&format!("{}/folders/:id", API_PREFIX), put(handlers::folders::update_folder))
-        .route(&format!("{}/folders/:id", API_PREFIX), delete(handlers::folders::delete_folder))
+        .route(
+            &format!("{}/folders", API_PREFIX),
+            post(handlers::folders::create_folder),
+        )
+        .route(
+            &format!("{}/folders", API_PREFIX),
+            get(handlers::folders::list_folders),
+        )
+        .route(
+            &format!("{}/folders/tree", API_PREFIX),
+            get(handlers::folders::get_folder_tree),
+        )
+        .route(
+            &format!("{}/folders/:id", API_PREFIX),
+            get(handlers::folders::get_folder),
+        )
+        .route(
+            &format!("{}/folders/:id", API_PREFIX),
+            put(handlers::folders::update_folder),
+        )
+        .route(
+            &format!("{}/folders/:id", API_PREFIX),
+            delete(handlers::folders::delete_folder),
+        )
         .route(
             &format!("{}/media/:id/folder", API_PREFIX),
             put(handlers::folders::move_media),
@@ -191,13 +245,19 @@ pub fn analytics_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 pub fn search_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/search", API_PREFIX), get(handlers::search::search_files))
+        .route(
+            &format!("{}/search", API_PREFIX),
+            get(handlers::search::search_files),
+        )
         .with_state(state)
 }
 
 pub fn metadata_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/config", API_PREFIX), get(handlers::config::get_config))
+        .route(
+            &format!("{}/config", API_PREFIX),
+            get(handlers::config::get_config),
+        )
         .route(
             &format!("{}/media/:id/metadata", API_PREFIX),
             get(handlers::metadata::get_metadata),
@@ -213,8 +273,14 @@ pub fn metadata_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
 
 pub fn task_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
-        .route(&format!("{}/tasks", API_PREFIX), get(handlers::tasks::list_tasks))
-        .route(&format!("{}/tasks/:id", API_PREFIX), get(handlers::tasks::get_task))
+        .route(
+            &format!("{}/tasks", API_PREFIX),
+            get(handlers::tasks::list_tasks),
+        )
+        .route(
+            &format!("{}/tasks/:id", API_PREFIX),
+            get(handlers::tasks::get_task),
+        )
         .route(
             &format!("{}/tasks/:id/cancel", API_PREFIX),
             post(handlers::tasks::cancel_task),
@@ -295,7 +361,10 @@ pub fn plugin_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     #[cfg(feature = "plugin")]
     {
         Router::new()
-            .route(&format!("{}/plugins", API_PREFIX), get(handlers::plugins::list_plugins))
+            .route(
+                &format!("{}/plugins", API_PREFIX),
+                get(handlers::plugins::list_plugins),
+            )
             .route(
                 &format!("{}/plugins/costs", API_PREFIX),
                 get(handlers::plugins::get_plugin_costs),
@@ -378,7 +447,10 @@ pub fn upload_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
             post(handlers::chunked_upload::start_chunked_upload),
         )
         .route(
-            &format!("{}/uploads/chunked/:session_id/chunk/:chunk_index", API_PREFIX),
+            &format!(
+                "{}/uploads/chunked/:session_id/chunk/:chunk_index",
+                API_PREFIX
+            ),
             put(handlers::chunked_upload::record_chunk_upload),
         )
         .route(

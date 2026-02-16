@@ -950,14 +950,16 @@ impl MediaProcessorConfig {
             ));
         }
 
-        if self.base.server_port == 0 || self.base.server_port > 65535 {
+        if self.base.server_port == 0 {
             return Err(anyhow::anyhow!(
                 "PORT must be between 1 and 65535, got {}",
                 self.base.server_port
             ));
         }
 
-        if self.base.http_rate_limit_per_minute == 0 || self.base.http_rate_limit_per_minute > 100_000 {
+        if self.base.http_rate_limit_per_minute == 0
+            || self.base.http_rate_limit_per_minute > 100_000
+        {
             return Err(anyhow::anyhow!(
                 "HTTP_RATE_LIMIT_PER_MINUTE must be between 1 and 100000, got {}",
                 self.base.http_rate_limit_per_minute

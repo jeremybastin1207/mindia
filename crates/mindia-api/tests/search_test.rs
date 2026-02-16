@@ -155,7 +155,9 @@ async fn test_search_invalid_min_similarity() {
     let data: serde_json::Value = response.json();
     let error_msg = data["error"].as_str().unwrap_or("");
     assert!(
-        error_msg.contains("min_similarity") || error_msg.contains("0.0") || error_msg.contains("1.0"),
+        error_msg.contains("min_similarity")
+            || error_msg.contains("0.0")
+            || error_msg.contains("1.0"),
         "Error should mention min_similarity range: {}",
         error_msg
     );
@@ -205,7 +207,9 @@ async fn test_search_metadata_key_reserved() {
     let data: serde_json::Value = response.json();
     let error_msg = data["error"].as_str().unwrap_or("");
     assert!(
-        error_msg.contains("reserved") || error_msg.contains("metadata") || error_msg.contains("Invalid"),
+        error_msg.contains("reserved")
+            || error_msg.contains("metadata")
+            || error_msg.contains("Invalid"),
         "Error should mention reserved key or invalid metadata: {}",
         error_msg
     );

@@ -129,7 +129,9 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Response {
         Ok(secret) => secret,
         Err(_) => {
             if is_production {
-                tracing::error!("CSRF_SECRET not configured in production. Set CSRF_SECRET or JWT_SECRET.");
+                tracing::error!(
+                    "CSRF_SECRET not configured in production. Set CSRF_SECRET or JWT_SECRET."
+                );
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     axum::Json(serde_json::json!({

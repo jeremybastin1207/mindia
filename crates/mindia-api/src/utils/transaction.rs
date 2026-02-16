@@ -5,6 +5,7 @@
 
 use mindia_core::AppError;
 use sqlx::{PgPool, Postgres, Transaction};
+use std::pin::Pin;
 
 /// Execute a closure within a database transaction
 ///
@@ -13,29 +14,17 @@ use sqlx::{PgPool, Postgres, Transaction};
 ///
 /// # Arguments
 /// * `pool` - Database connection pool
-/// * `f` - Closure that receives a transaction and returns a Result
+/// * `f` - Closure that receives a transaction and returns a boxed future
 ///
 /// # Returns
 /// The result of the closure, or a database error if transaction management fails
-///
-/// # Example
-/// ```ignore
-/// use mindia_api::utils::transaction::with_transaction;
-/// use sqlx::PgPool;
-///
-/// async fn example(pool: &PgPool) -> Result<(), AppError> {
-///     with_transaction(pool, |mut tx| async move {
-///         // Perform multiple database operations
-///         sqlx::query("INSERT INTO table1 ...").execute(&mut *tx).await?;
-///         sqlx::query("INSERT INTO table2 ...").execute(&mut *tx).await?;
-///         Ok(())
-///     }).await
-/// }
-/// ```
-pub async fn with_transaction<T, F, Fut>(pool: &PgPool, f: F) -> Result<T, AppError>
+pub async fn with_transaction<T, F>(pool: &PgPool, f: F) -> Result<T, AppError>
 where
-    for<'a> F: FnOnce(&'a mut Transaction<'_, Postgres>) -> Fut + Send,
-    for<'a> Fut: std::future::Future<Output = Result<T, AppError>> + Send + 'a,
+    F: for<'a> FnOnce(
+        &'a mut Transaction<'_, Postgres>,
+    ) -> Pin<
+        Box<dyn std::future::Future<Output = Result<T, AppError>> + Send + 'a>,
+    >,
 {
     let mut tx = pool.begin().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to begin transaction");
@@ -70,19 +59,22 @@ where
 ///
 /// # Arguments
 /// * `pool` - Database connection pool
-/// * `f` - Closure that receives a transaction and returns a Result
+/// * `f` - Closure that receives a transaction and returns a boxed future
 /// * `max_retries` - Maximum number of retry attempts (default: 3)
 ///
 /// # Returns
 /// The result of the closure, or a database error if all retries fail
-pub async fn with_transaction_retry<T, F, Fut>(
+#[allow(dead_code)]
+pub async fn with_transaction_retry<T, F>(
     pool: &PgPool,
     f: F,
     max_retries: u32,
 ) -> Result<T, AppError>
 where
-    for<'a> F: Fn(&'a mut Transaction<'_, Postgres>) -> Fut + Send + Sync,
-    for<'a> Fut: std::future::Future<Output = Result<T, AppError>> + Send + 'a,
+    F: for<'a> Fn(
+        &'a mut Transaction<'_, Postgres>,
+    )
+        -> Pin<Box<dyn std::future::Future<Output = Result<T, AppError>> + Send + 'a>>,
 {
     let mut last_error = None;
 

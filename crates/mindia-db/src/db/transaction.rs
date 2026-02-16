@@ -132,7 +132,7 @@ where
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<R, E>> + Send + 'a>,
     >,
-    E: std::error::Error + Send + Sync + 'static,
+    E: Into<anyhow::Error> + Send + Sync + 'static,
 {
     let mut tx = pool.begin().await.context("Failed to begin transaction")?;
 
@@ -143,7 +143,7 @@ where
         }
         Err(e) => {
             tx.rollback().await.ok(); // Ignore rollback errors
-            Err(anyhow::Error::from(e))
+            Err(e.into())
         }
     }
 }

@@ -116,7 +116,7 @@ pub async fn upload_audio(
         let ud = upload_data.clone();
         let meta = metadata.clone();
         let sb = store_behavior.clone();
-        async move {
+        Box::pin(async move {
             repo.create_audio_from_storage_tx(
                 tx,
                 ud.tenant_id,
@@ -137,7 +137,7 @@ pub async fn upload_audio(
                 ud.storage_url,
             )
             .await
-        }
+        })
     })
     .await
     {

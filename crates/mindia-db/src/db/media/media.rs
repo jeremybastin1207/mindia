@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use mindia_core::models::StorageLocation;
 use mindia_core::models::{
     to_audio, to_document, to_image, to_video, Audio, AudioResponse, Document, DocumentResponse,
     Image, ImageResponse, Media, MediaRow, MediaType, ProcessingStatus, TypeMetadata, Video,
@@ -7,7 +8,6 @@ use mindia_core::models::{
 use mindia_core::validation;
 use mindia_core::AppError;
 use mindia_storage::Storage;
-use mindia_core::models::StorageLocation;
 use sqlx::{PgPool, Postgres, Transaction};
 use std::sync::Arc;
 use std::time::Duration;

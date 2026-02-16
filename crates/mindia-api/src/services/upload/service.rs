@@ -146,6 +146,7 @@ impl MediaUploadService {
     ///
     /// This method handles storage upload and returns all data needed to create
     /// the database entity. Database persistence is handled by the caller.
+    #[allow(clippy::too_many_arguments)]
     async fn upload_to_storage(
         &self,
         tenant_id: Uuid,

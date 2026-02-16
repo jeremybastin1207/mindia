@@ -510,7 +510,7 @@ impl MetadataSearchRepository {
         }
 
         // Add range filter conditions using jsonb_each so keys are parameterized (no SQL interpolation).
-        for (key, min_val, max_val) in &filters.ranges {
+        for (key, _min_val, _max_val) in &filters.ranges {
             validate_key(key)
                 .with_context(|| format!("Invalid metadata key in range filter: '{}'", key))?;
             query_parts.push(format!(

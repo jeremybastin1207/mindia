@@ -72,7 +72,9 @@ impl LocalStorage {
                 }
                 if let Some(parent) = current.parent() {
                     let parent_buf = parent.to_path_buf();
-                    if parent_buf.strip_prefix(&self.base_path).is_err() && parent_buf != self.base_path {
+                    if parent_buf.strip_prefix(&self.base_path).is_err()
+                        && parent_buf != self.base_path
+                    {
                         return Err(StorageError::InvalidKey(
                             "Storage key resolves outside storage directory".to_string(),
                         ));

@@ -133,7 +133,7 @@ pub async fn upload_document(
     let document = match with_transaction(&state.db.pool, |tx| {
         let repo = state.media.repository.clone();
         let ud = upload_data.clone();
-        async move {
+        Box::pin(async move {
             repo.create_document_from_storage_tx(
                 tx,
                 ud.tenant_id,
@@ -151,7 +151,7 @@ pub async fn upload_document(
                 ud.storage_url,
             )
             .await
-        }
+        })
     })
     .await
     {

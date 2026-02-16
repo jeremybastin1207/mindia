@@ -52,7 +52,8 @@ pub async fn extract_multipart_file(
         if field_name == "file" {
             if file_data.is_some() {
                 return Err(AppError::InvalidInput(
-                    "Multiple file fields are not allowed; send exactly one field named 'file'".to_string(),
+                    "Multiple file fields are not allowed; send exactly one field named 'file'"
+                        .to_string(),
                 ));
             }
             filename = field.file_name().map(|s: &str| s.to_string());
@@ -99,7 +100,10 @@ fn normalize_mime_type(content_type: &str) -> &str {
 /// Validate content type against allowlist. Compares normalized MIME type only (no parameter bypass).
 pub fn validate_content_type(content_type: &str, allowed_types: &[String]) -> Result<(), AppError> {
     let normalized = normalize_mime_type(content_type).to_lowercase();
-    if !allowed_types.iter().any(|ct| normalized == ct.to_lowercase()) {
+    if !allowed_types
+        .iter()
+        .any(|ct| normalized == ct.to_lowercase())
+    {
         return Err(AppError::InvalidInput(format!(
             "Invalid content type. Allowed types: {}",
             allowed_types.join(", ")

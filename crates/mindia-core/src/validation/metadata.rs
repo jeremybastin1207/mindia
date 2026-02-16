@@ -47,9 +47,8 @@ pub fn validate_metadata_key(key: &str) -> Result<()> {
     }
 
     // Validate pattern: a-z, A-Z, 0-9, underscore, hyphen, dot, colon (compiled once)
-    let pattern = METADATA_KEY_PATTERN.get_or_init(|| {
-        Regex::new(r"^[a-zA-Z0-9_\-\.:]+$").expect("metadata key regex is valid")
-    });
+    let pattern = METADATA_KEY_PATTERN
+        .get_or_init(|| Regex::new(r"^[a-zA-Z0-9_\-\.:]+$").expect("metadata key regex is valid"));
 
     if !pattern.is_match(key) {
         return Err(anyhow::anyhow!(

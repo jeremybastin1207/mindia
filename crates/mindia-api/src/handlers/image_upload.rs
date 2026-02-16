@@ -11,13 +11,13 @@ use serde::Deserialize;
 use crate::auth::models::TenantContext;
 use crate::error::{error_response_with_event, ErrorResponse, HttpAppError};
 use crate::middleware::json_response_with_event;
-use crate::utils::ip_extraction::ClientIpOpt;
-use crate::utils::transaction::with_transaction;
 use crate::services::upload::{
     ImageMetadata, ImageProcessorImpl, MediaProcessor, MediaUploadConfig, MediaUploadService,
 };
 use crate::state::{AppState, MediaConfig};
 use crate::telemetry::wide_event::WideEvent;
+use crate::utils::ip_extraction::ClientIpOpt;
+use crate::utils::transaction::with_transaction;
 use crate::utils::upload::parse_store_parameter;
 use chrono::Utc;
 
@@ -158,7 +158,7 @@ pub async fn upload_image(
         let repo = state.media.repository.clone();
         let ud = upload_data.clone();
         let meta = metadata.clone();
-        async move {
+        Box::pin(async move {
             repo.create_image_from_storage_tx(
                 tx,
                 ud.tenant_id,
@@ -177,7 +177,7 @@ pub async fn upload_image(
                 ud.storage_url,
             )
             .await
-        }
+        })
     })
     .await
     {

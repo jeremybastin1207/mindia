@@ -34,4 +34,7 @@ pub use mindia_storage::{
 pub use services::clamav::{ClamAVService, ScanResult};
 pub use services::s3::S3Service;
 #[cfg(feature = "semantic-search")]
-pub use services::{anthropic::AnthropicService, semantic_search::SemanticSearchProvider};
+pub use services::{
+    anthropic::AnthropicService,
+    semantic_search::{normalize_embedding_dim, SemanticSearchProvider},
+};

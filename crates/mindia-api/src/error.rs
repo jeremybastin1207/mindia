@@ -78,6 +78,12 @@ impl From<AppError> for HttpAppError {
     }
 }
 
+impl From<anyhow::Error> for HttpAppError {
+    fn from(err: anyhow::Error) -> Self {
+        HttpAppError(AppError::Internal(err.to_string()))
+    }
+}
+
 /// Helper function to log errors based on their log level
 fn log_error(error: &AppError) {
     let error_type = error.error_type();
