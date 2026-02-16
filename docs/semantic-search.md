@@ -75,7 +75,7 @@ GET /api/v0/search
 ### Headers
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer {token}
 ```
 </think>
 Checking the current state of the paragraph:
@@ -126,7 +126,7 @@ GET /api/v0/search
 ### Headers
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer {token}
 ```
 
 ### Query Parameters
