@@ -26,14 +26,15 @@ mindia-processing = { path = "../mindia-processing" }
 mindia-worker = { path = "../mindia-worker" }
 mindia-infra = { path = "../mindia-infra", features = [
   "analytics",
-  "webhook",
-  "rate-limit",
-  "cleanup",
-  "capacity",
   "archive",
-  "video",
-  "document",
   "audio",
+  "capacity",
+  "cleanup",
+  "document",
+  "middleware",
+  "rate-limit",
+  "video",
+  "webhook",
 ] }
 mindia-plugins = { path = "../mindia-plugins", optional = true }
 mimalloc = "0.1"

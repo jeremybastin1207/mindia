@@ -7,22 +7,35 @@ use std::env;
 
 use crate::storage_types::StorageBackend;
 
-/// Load .env file from current directory or search upward.
+/// Load .env file from current directory, executable directory, or search upward.
 /// Uses override so that .env values take precedence over existing env vars (e.g. empty JWT_SECRET).
 /// Best-effort: does not fail if .env is missing or unreadable.
-fn load_dotenv() {
-    // Try to load .env from current directory first (override so .env wins over existing vars)
+///
+/// Must be called before any sandbox (e.g. Landlock) that restricts filesystem access,
+/// otherwise .env cannot be read when running outside the allowed paths (e.g. outside `/app`).
+pub fn load_dotenv() {
+    // 1) Try current working directory (e.g. when run via `cargo run` from project root)
     if let Ok(current_dir) = env::current_dir() {
         let env_path = current_dir.join(".env");
-        if env_path.is_file()
-            && dotenvy::from_path_override(&env_path).is_ok()
-        {
+        if env_path.is_file() && dotenvy::from_path_override(&env_path).is_ok() {
             return;
         }
         // from_path_override failed (e.g. parse error); try upward search as fallback
     }
 
-    // Fallback: search upward from current dir; override so .env file wins
+    // 2) Try directory of the executable and walk upward (when cwd is not project root)
+    if let Ok(exe_path) = env::current_exe() {
+        let mut dir = exe_path.parent();
+        while let Some(d) = dir {
+            let env_path = d.join(".env");
+            if env_path.is_file() && dotenvy::from_path_override(&env_path).is_ok() {
+                return;
+            }
+            dir = d.parent();
+        }
+    }
+
+    // 3) Fallback: search upward from current dir
     let _ = dotenvy::dotenv_override();
 }
 
@@ -554,7 +567,7 @@ impl Config {
 
 impl MediaProcessorConfig {
     pub fn from_env() -> Result<Self, anyhow::Error> {
-        load_dotenv();
+        // load_dotenv is called by main() before Config::from_env(); not repeated here to avoid redundancy
 
         const MAX_FILE_SIZE_MB: usize = 10;
         const MAX_VIDEO_SIZE_MB: usize = 500;
@@ -636,6 +649,7 @@ impl MediaProcessorConfig {
                 .unwrap_or_else(|_| HTTP_RATE_LIMIT_PER_MINUTE.to_string())
                 .parse()
                 .unwrap_or(HTTP_RATE_LIMIT_PER_MINUTE),
+            // Fall back to default when env var is missing or invalid (avoids disabling tenant rate limit on typo)
             http_tenant_rate_limit_per_minute: env::var("HTTP_TENANT_RATE_LIMIT_PER_MINUTE")
                 .ok()
                 .and_then(|s| s.parse().ok())

@@ -1,5 +1,8 @@
 //! Workflow helpers for integration tests (upload → get → delete, etc.).
 
+#![allow(dead_code)]
+
+use axum_test::multipart::{MultipartForm, Part};
 use axum_test::TestServer;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -20,11 +23,14 @@ pub async fn upload_and_verify_image_workflow(
     user: &TestUser,
 ) -> ImageWorkflowResult {
     let png_data = fixtures::create_test_png(100, 100);
+    let part = Part::bytes(bytes::Bytes::from(png_data))
+        .file_name("image.png")
+        .mime_type("image/png");
+    let multipart = MultipartForm::new().add_part("file", part);
     let upload_response = client
         .post("/api/v0/images")
         .add_header("Authorization", format!("Bearer {}", user.token))
-        .add_header("Content-Type", "multipart/form-data")
-        .body(png_data)
+        .multipart(multipart)
         .await;
 
     assert!(upload_response.status_code() == 200 || upload_response.status_code() == 201);
@@ -32,7 +38,7 @@ pub async fn upload_and_verify_image_workflow(
     let image_id = Uuid::parse_str(
         upload_data
             .get("id")
-            .and_then(|v| v.as_str())
+            .and_then(|v: &serde_json::Value| v.as_str())
             .expect("Expected 'id' in upload response"),
     )
     .expect("Invalid UUID in upload response");

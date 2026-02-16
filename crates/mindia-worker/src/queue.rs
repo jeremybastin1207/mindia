@@ -1,4 +1,8 @@
 //! Task queue: worker pool, LISTEN/NOTIFY or polling, retry, and submission.
+//!
+//! Shutdown: [`TaskQueue::shutdown`] signals the pool to stop; it does not wait for
+//! in-flight tasks. For graceful shutdown, coordinate with your runtime and allow
+//! time for running tasks to finish before process exit.
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -18,6 +22,16 @@ use crate::context::TaskHandlerContext;
 
 /// Channel name for PostgreSQL LISTEN/NOTIFY when a new task is created.
 pub const TASK_NOTIFY_CHANNEL: &str = "mindia_new_task";
+
+/// Maximum delay in seconds before retrying a failed task. Caps exponential backoff
+/// so that high retry counts do not produce excessively long delays.
+pub const MAX_RETRY_BACKOFF_SECS: u64 = 300;
+
+/// Computes backoff in seconds for a given retry count (exponential with cap).
+#[inline]
+pub(crate) fn compute_retry_backoff_seconds(retry_count: i32) -> u64 {
+    (2_u64.pow(retry_count as u32)).min(MAX_RETRY_BACKOFF_SECS)
+}
 
 /// Optional sender to notify when a task finishes (e.g. for workflow execution updates).
 /// Not cloned into the worker; use with TaskQueue::new_with_task_finished.
@@ -77,14 +91,7 @@ impl TaskQueue {
 
         let repo_clone = repository.clone();
         let limiter_clone = rate_limiter.clone();
-        let config_clone = TaskQueueConfig {
-            max_workers: config.max_workers,
-            poll_interval_ms: config.poll_interval_ms,
-            default_timeout_seconds: config.default_timeout_seconds,
-            max_retries: config.max_retries,
-            stale_task_reap_interval_secs: config.stale_task_reap_interval_secs,
-            stale_task_grace_period_secs: config.stale_task_grace_period_secs,
-        };
+        let config_clone = config.clone();
 
         tokio::spawn(async move {
             Self::worker_pool(
@@ -441,7 +448,7 @@ impl TaskQueue {
 
                 // Retry if the error is recoverable and we haven't exceeded max retries
                 if task.can_retry() {
-                    let backoff_seconds = 2_u64.pow(task.retry_count as u32);
+                    let backoff_seconds = compute_retry_backoff_seconds(task.retry_count);
                     tracing::info!(
                         task_id = %task.id,
                         retry_count = task.retry_count + 1,
@@ -498,6 +505,14 @@ impl TaskQueue {
         }
     }
 
+    /// Signals the worker pool to stop claiming new tasks and exit the main loop.
+    ///
+    /// This method returns immediately after sending the signal; it does **not** wait for
+    /// the worker pool to finish or for in-flight tasks to complete. Already-spawned task
+    /// handlers continue running until they complete or time out. For graceful shutdown
+    /// (e.g. waiting for in-flight work before process exit), coordinate with your
+    /// runtime (e.g. tokio signal handler) and consider awaiting a "pool stopped" signal
+    /// or giving in-flight tasks a bounded time to finish before terminating.
     pub async fn shutdown(&self) {
         tracing::info!("Initiating task queue shutdown");
         let _ = self.shutdown_tx.send(()).await;
@@ -509,15 +524,55 @@ impl Clone for TaskQueue {
         Self {
             repository: self.repository.clone(),
             rate_limiter: self.rate_limiter.clone(),
-            config: TaskQueueConfig {
-                max_workers: self.config.max_workers,
-                poll_interval_ms: self.config.poll_interval_ms,
-                default_timeout_seconds: self.config.default_timeout_seconds,
-                max_retries: self.config.max_retries,
-                stale_task_reap_interval_secs: self.config.stale_task_reap_interval_secs,
-                stale_task_grace_period_secs: self.config.stale_task_grace_period_secs,
-            },
+            config: self.config.clone(),
             shutdown_tx: self.shutdown_tx.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_backoff_exponential_then_capped() {
+        assert_eq!(compute_retry_backoff_seconds(0), 1);
+        assert_eq!(compute_retry_backoff_seconds(1), 2);
+        assert_eq!(compute_retry_backoff_seconds(2), 4);
+        assert_eq!(compute_retry_backoff_seconds(8), 256);
+        assert_eq!(compute_retry_backoff_seconds(9), MAX_RETRY_BACKOFF_SECS);
+        assert_eq!(compute_retry_backoff_seconds(10), MAX_RETRY_BACKOFF_SECS);
+    }
+
+    #[test]
+    fn unrecoverable_task_error_detected() {
+        let err: anyhow::Error =
+            mindia_core::TaskError::unrecoverable(anyhow::anyhow!("bad config")).into();
+        let is_unrecoverable = err
+            .downcast_ref::<mindia_core::TaskError>()
+            .map(|te| !te.is_recoverable())
+            .unwrap_or(false);
+        assert!(is_unrecoverable);
+    }
+
+    #[test]
+    fn recoverable_task_error_detected() {
+        let err: anyhow::Error =
+            mindia_core::TaskError::recoverable(anyhow::anyhow!("network")).into();
+        let is_unrecoverable = err
+            .downcast_ref::<mindia_core::TaskError>()
+            .map(|te| !te.is_recoverable())
+            .unwrap_or(false);
+        assert!(!is_unrecoverable);
+    }
+
+    #[test]
+    fn non_task_error_treated_as_recoverable() {
+        let err: anyhow::Error = anyhow::anyhow!("generic error");
+        let is_unrecoverable = err
+            .downcast_ref::<mindia_core::TaskError>()
+            .map(|te| !te.is_recoverable())
+            .unwrap_or(false);
+        assert!(!is_unrecoverable);
     }
 }

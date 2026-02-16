@@ -455,7 +455,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Ignore until plugin supports configurable base URL for HTTP mocking
     async fn test_execute_success() {
-        // TODO: Implement when plugin supports configurable base URL
+        // TRACKED: Implement when plugin supports configurable base URL for testing.
         // This requires plugin modification to accept base_url parameter for testing
         // For full test, would need:
         // - Plugin with configurable base_url pointing to mockito server
@@ -467,21 +467,21 @@ mod tests {
     #[tokio::test]
     #[ignore] // Ignore until plugin supports configurable base URL
     async fn test_execute_upload_failure() {
-        // TODO: Test upload failure handling with configurable base URL
+        // TRACKED: Test upload failure handling with configurable base URL (requires plugin refactoring)
         unimplemented!("Requires plugin refactoring");
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_execute_transcription_error() {
-        // TODO: Test transcription error handling with configurable base URL
+        // TRACKED: Test transcription error handling with configurable base URL (requires plugin refactoring)
         unimplemented!("Requires plugin refactoring");
     }
 
     #[tokio::test]
     #[ignore]
     async fn test_execute_poll_timeout() {
-        // TODO: Test polling timeout after maximum attempts
+        // TRACKED: Test polling timeout after maximum attempts (requires plugin refactoring)
         unimplemented!("Requires plugin refactoring");
     }
 

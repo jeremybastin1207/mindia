@@ -1,0 +1,4 @@
+# Rustfmt configuration for consistent code formatting
+# See: https://rust-lang.github.io/rustfmt/
+
+max_width = 100

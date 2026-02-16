@@ -52,10 +52,7 @@ pub struct ClamAVConfig {
         (status = 200, description = "Service configuration", body = ConfigResponse)
     )
 )]
-#[tracing::instrument(
-    skip(state),
-    fields(operation = "get_config")
-)]
+#[tracing::instrument(skip(state), fields(operation = "get_config"))]
 pub async fn get_config(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let config = ConfigResponse {
         s3: state.s3.as_ref().map(|s3| S3Config {
@@ -63,7 +60,8 @@ pub async fn get_config(State(state): State<Arc<AppState>>) -> impl IntoResponse
             region: s3.region.clone(),
         }),
         upload: UploadConfig {
-            max_file_size_mb: state.media.image_max_file_size / 1024 / 1024,
+            max_file_size_mb: (state.media.image_max_file_size as u64).div_ceil(1024 * 1024)
+                as usize,
             max_file_size_bytes: state.media.image_max_file_size,
             allowed_extensions: state.media.image_allowed_extensions.clone(),
             allowed_content_types: state.media.image_allowed_content_types.clone(),

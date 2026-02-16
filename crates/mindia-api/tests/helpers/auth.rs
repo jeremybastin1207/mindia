@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use axum_test::TestServer;
 use mindia_db::TenantRepository;
 use uuid::Uuid;

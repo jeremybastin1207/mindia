@@ -1,5 +1,4 @@
 use crate::error::ErrorResponse;
-use async_trait::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::{request::Parts, StatusCode};
 use axum::Json;
@@ -62,7 +61,6 @@ pub struct TenantResponse {
 
 // Implement FromRequestParts for TenantContext to work with Multipart
 // Extension cannot be used with Multipart, so we extract directly from request parts
-#[async_trait]
 impl<S> FromRequestParts<S> for TenantContext
 where
     S: Send + Sync,

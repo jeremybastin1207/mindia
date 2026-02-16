@@ -30,6 +30,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    // Load .env before Landlock; once sandboxed we can only read under /app.
+    mindia_core::config::load_dotenv();
     // Best-effort Landlock sandboxing on Linux.
     landlock::linux::init();
     // Load configuration

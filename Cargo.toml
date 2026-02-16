@@ -85,10 +85,10 @@ opentelemetry-http = { version = "0.27" }
 opentelemetry-aws = { version = "0.14", features = ["trace"] }
 
 # HTTP/API dependencies (for api crate)
-axum = { version = "0.7", features = ["multipart"] }
+axum = { version = "0.8", features = ["multipart"] }
 tower = { version = "0.4", features = ["limit", "timeout"] }
 utoipa = { version = "5.2", features = ["axum_extras", "chrono", "uuid"] }
-utoipa-rapidoc = { version = "5.0", features = ["axum"] }
+utoipa-rapidoc = { version = "6", features = ["axum"] }
 utoipa-axum = "0.1"
 
 # Auth dependencies

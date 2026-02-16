@@ -4,13 +4,10 @@
 //! a comprehensive event throughout the request lifecycle and emit it
 //! once at the end with tail sampling.
 
-#![allow(dead_code)]
-
 use crate::auth::models::TenantContext;
-use crate::middleware::request_id::get_request_id;
+use crate::middleware::get_request_id;
 use crate::state::AppState;
 use crate::telemetry::wide_event::{TailSamplingConfig, WideEvent};
-use axum::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::{
@@ -55,7 +52,6 @@ impl axum::response::IntoResponse for WideEventRejection {
     }
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for WideEventCtx
 where
     S: Send + Sync,
@@ -344,17 +340,20 @@ fn get_sampling_config(_config: &mindia_core::Config) -> TailSamplingConfig {
 }
 
 /// Helper function to get wide event from request extensions
+#[allow(dead_code)] // Public API for handlers to enrich events
 pub fn get_wide_event(request: &Request) -> Option<&WideEventExtension> {
     request.extensions().get::<WideEventExtension>()
 }
 
 /// Helper function to get mutable wide event from request extensions
+#[allow(dead_code)] // Public API for handlers to enrich events
 pub fn get_wide_event_mut(request: &mut Request) -> Option<&mut WideEventExtension> {
     request.extensions_mut().get_mut::<WideEventExtension>()
 }
 
 /// Helper function for handlers to enrich the wide event with tenant context
 /// This should be called by handlers after extracting TenantContext
+#[allow(dead_code)] // Public API for handlers to enrich events
 pub fn enrich_wide_event_with_tenant(
     request: &mut Request,
     tenant_ctx: &TenantContext,
@@ -368,6 +367,7 @@ pub fn enrich_wide_event_with_tenant(
 }
 
 /// Helper function for handlers to enrich the wide event with business context
+#[allow(dead_code)] // Public API for handlers to enrich events
 pub fn enrich_wide_event_with_business<F>(request: &mut Request, f: F) -> Option<()>
 where
     F: FnOnce(&mut crate::telemetry::wide_event::BusinessContext),
@@ -382,6 +382,7 @@ where
 
 /// Helper function for handlers to store enriched event in response extensions
 /// This allows the middleware to pick up the enriched version after the request is processed
+#[allow(dead_code)] // Public API for handlers to enrich events
 pub fn store_enriched_event_in_response(response: &mut Response, event: WideEvent) {
     response.extensions_mut().insert(WideEventExtension(event));
 }

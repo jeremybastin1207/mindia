@@ -3,6 +3,7 @@
 use crate::auth::models::TenantContext;
 use crate::error::{ErrorResponse, HttpAppError};
 use crate::state::AppState;
+use anyhow::Error as AnyhowError;
 use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
@@ -26,10 +27,7 @@ use std::sync::Arc;
         (status = 401, description = "Unauthorized", body = ErrorResponse),
     )
 )]
-#[tracing::instrument(
-    skip(state),
-    fields(operation = "list_plugins")
-)]
+#[tracing::instrument(skip(state), fields(operation = "list_plugins"))]
 pub async fn list_plugins(
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, HttpAppError> {
@@ -90,12 +88,26 @@ pub async fn execute_plugin(
         .plugin_service
         .execute_plugin(tenant_id, &plugin_name, request.media_id)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to execute plugin: {}", e)))?;
+        .map_err(|e| HttpAppError::from(plugin_execution_error_to_app_error(e)))?;
 
     Ok(Json(ExecutePluginResponse {
         task_id,
         status: "pending".to_string(),
     }))
+}
+
+/// Map plugin execution errors to appropriate HTTP status codes (404, 400, 500)
+fn plugin_execution_error_to_app_error(e: AnyhowError) -> AppError {
+    let msg = e.to_string();
+    if msg.contains("Plugin not found") {
+        AppError::NotFound(msg)
+    } else if msg.contains("Plugin not configured for tenant")
+        || msg.contains("Plugin is not enabled")
+    {
+        AppError::BadRequest(msg)
+    } else {
+        AppError::Internal(format!("Failed to execute plugin: {}", e))
+    }
 }
 
 #[utoipa::path(
@@ -150,6 +162,7 @@ pub async fn get_plugin_config(
         (status = 200, description = "Plugin configuration updated", body = PluginConfigResponse),
         (status = 400, description = "Invalid configuration", body = ErrorResponse),
         (status = 401, description = "Unauthorized", body = ErrorResponse),
+        (status = 404, description = "Plugin not found", body = ErrorResponse),
     )
 )]
 #[tracing::instrument(
@@ -174,9 +187,26 @@ pub async fn update_plugin_config(
         .plugin_service
         .update_plugin_config(tenant_id, &plugin_name, request.enabled, request.config)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to update plugin config: {}", e)))?;
+        .map_err(|e| HttpAppError::from(plugin_config_error_to_app_error(e)))?;
 
     Ok(Json(PluginConfigResponse::from(config)))
+}
+
+/// Map plugin config update errors to appropriate HTTP status codes (404, 400, 500)
+fn plugin_config_error_to_app_error(e: AnyhowError) -> AppError {
+    let msg = e.to_string();
+    let msg_lower = msg.to_lowercase();
+    // Registry returns "Plugin 'x' not found"; service uses "Plugin not found"
+    if msg_lower.contains("plugin") && msg_lower.contains("not found") {
+        AppError::NotFound(msg)
+    } else if msg_lower.contains("invalid")
+        || msg_lower.contains("validation")
+        || msg_lower.contains("configuration")
+    {
+        AppError::BadRequest(msg)
+    } else {
+        AppError::Internal(format!("Failed to update plugin config: {}", e))
+    }
 }
 
 /// Query parameters for plugin costs endpoints
@@ -220,22 +250,29 @@ pub async fn get_plugin_costs(
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
 
+    // When both omitted, default to last 30 days so response period reflects the data
+    let now = Utc::now();
+    let (query_start, query_end) = match (params.period_start, params.period_end) {
+        (Some(s), Some(e)) => (s, e),
+        (Some(s), None) => (s, now),
+        (None, Some(e)) => (e - chrono::Duration::days(30), e),
+        (None, None) => (now - chrono::Duration::days(30), now),
+    };
+
     let summary = state
         .plugins
         .plugin_execution_repository
         .get_usage_summary(
             tenant_id,
             params.plugin_name.as_deref(),
-            params.period_start,
-            params.period_end,
+            Some(query_start),
+            Some(query_end),
         )
         .await
         .map_err(|e| AppError::Internal(format!("Failed to get plugin costs: {}", e)))?;
 
-    // Use filter period for response when provided, otherwise use current time
-    let now = Utc::now();
-    let period_start = params.period_start.unwrap_or(now);
-    let period_end = params.period_end.unwrap_or(now);
+    let period_start = query_start;
+    let period_end = query_end;
 
     let costs: Vec<PluginCostSummaryResponse> = summary
         .into_iter()

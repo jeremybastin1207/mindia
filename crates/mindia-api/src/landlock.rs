@@ -7,8 +7,8 @@
 #[cfg(target_os = "linux")]
 pub mod linux {
     use landlock::{
-        path_beneath_rules, Access, AccessFs, ABI, Ruleset, RulesetAttr, RulesetCreatedAttr,
-        RulesetStatus,
+        path_beneath_rules, Access, AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr,
+        RulesetStatus, ABI,
     };
     use tracing::{info, warn};
 
@@ -16,7 +16,8 @@ pub mod linux {
     ///
     /// Current policy:
     /// - Allow read-only access to `/app` (code, migrations, static files)
-    /// - Deny write access outside `/app`
+    /// - Allow read-write access to `/tmp` (temp files for video/audio processing, uploads)
+    /// - Deny write access outside these paths
     pub fn init() {
         // The Landlock ABI should be incremented (and tested) regularly.
         let abi = ABI::V1;
@@ -28,27 +29,26 @@ pub mod linux {
             .handle_access(access_all)
             .and_then(|r| r.create())
             .and_then(|r| r.add_rules(path_beneath_rules(&["/app"], access_read)))
+            .and_then(|r| r.add_rules(path_beneath_rules(&["/tmp"], access_all)))
             .and_then(|r| r.restrict_self());
 
         match result {
-            Ok(status) => {
-                match status.ruleset {
-                    RulesetStatus::FullyEnforced => info!(
+            Ok(status) => match status.ruleset {
+                RulesetStatus::FullyEnforced => info!(
+                    ?status,
+                    "Landlock sandbox fully enforced for /app (read) and /tmp (read-write)"
+                ),
+                RulesetStatus::PartiallyEnforced => info!(
+                    ?status,
+                    "Landlock sandbox partially enforced for /app (read) and /tmp (read-write)"
+                ),
+                RulesetStatus::NotEnforced => {
+                    warn!(
                         ?status,
-                        "Landlock sandbox fully enforced for /app (filesystem access restricted)"
-                    ),
-                    RulesetStatus::PartiallyEnforced => info!(
-                        ?status,
-                        "Landlock sandbox partially enforced for /app (filesystem access restricted)"
-                    ),
-                    RulesetStatus::NotEnforced => {
-                        warn!(
-                            ?status,
-                            "Landlock ruleset not enforced; kernel does not support requested features"
-                        );
-                    }
+                        "Landlock ruleset not enforced; kernel does not support requested features"
+                    );
                 }
-            }
+            },
             Err(err) => {
                 // Best-effort: log and continue without sandbox rather than crashing.
                 warn!(?err, "Landlock not enabled; continuing without sandbox");
@@ -62,4 +62,3 @@ pub mod linux {
     /// No-op on non-Linux targets.
     pub fn init() {}
 }
-

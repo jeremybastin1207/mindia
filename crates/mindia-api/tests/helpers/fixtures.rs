@@ -1,5 +1,7 @@
 //! Test fixtures: minimal PNG/PDF/video/audio blobs.
 
+#![allow(dead_code)]
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 

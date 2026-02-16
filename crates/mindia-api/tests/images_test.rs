@@ -5,6 +5,7 @@
 
 mod helpers;
 
+use axum_test::multipart::{MultipartForm, Part};
 use helpers::auth::register_test_user;
 use helpers::setup_test_app;
 
@@ -16,11 +17,14 @@ async fn test_upload_image() {
     let user = register_test_user(client, None, None, None).await;
 
     let png_data = helpers::fixtures::create_minimal_png();
+    let part = Part::bytes(bytes::Bytes::from(png_data))
+        .file_name("image.png")
+        .mime_type("image/png");
+    let multipart = MultipartForm::new().add_part("file", part);
     let response = client
         .post("/api/v0/images")
         .add_header("Authorization", format!("Bearer {}", user.token))
-        .add_header("Content-Type", "multipart/form-data")
-        .body(png_data)
+        .multipart(multipart)
         .await;
 
     assert!(response.status_code() == 200 || response.status_code() == 201);

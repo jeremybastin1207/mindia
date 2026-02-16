@@ -461,25 +461,6 @@ pub async fn batch_upload_workflow(
     join_all(upload_futures).await
 }
 
-/// Verify database consistency after operations
-pub async fn verify_database_consistency(
-    pool: &sqlx::PgPool,
-    tenant_id: Uuid,
-    expected_image_count: Option<usize>,
-) -> bool {
-    // Consistency check: media is now in unified media table; count would use MediaRepository.
-    let _ = (pool, tenant_id, expected_image_count);
-    
-    // This is a simplified check - in a real scenario, you'd check multiple tables
-    if let Some(expected) = expected_image_count {
-        // Note: This would require exposing a count method or querying directly
-        // For now, we'll just verify the repository can be queried
-        // In practice, you might want to add helper methods to repositories
-    }
-
-    true
-}
-
 /// Wait for async operation with timeout
 pub async fn wait_for_condition<F, Fut>(condition: F, timeout_seconds: u64) -> bool
 where

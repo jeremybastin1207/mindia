@@ -3,19 +3,20 @@
 //! Run from workspace root: `cargo test -p mindia-api --test images_test` or
 //! `cargo test -p mindia-api`. Migrations path: from mindia-api crate root, `../../migrations`.
 
+#![allow(dead_code)]
+
 pub mod auth;
 pub mod fixtures;
 pub mod storage;
 pub mod workflows;
 
-use axum::Router;
 use axum_test::TestServer;
 use mindia_api::constants;
 use mindia_api::setup::routes;
 use mindia_api::state::{
     AppState, DatabaseConfig, DbState, MediaConfig, SecurityConfig, TaskState, WebhookState,
 };
-use mindia_core::{BaseConfig, Config, MediaProcessorConfig, StorageBackend};
+use mindia_core::{BaseConfig, Config, StorageBackend};
 use mindia_db::{
     create_analytics_repository, ApiKeyRepository, EmbeddingRepository, FileGroupRepository,
     FolderRepository, MediaRepository, MetadataSearchRepository, NamedTransformationRepository,
@@ -32,8 +33,8 @@ use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
-use testcontainers::clients::Cli;
-use testcontainers::{Container, RunnableImage};
+use testcontainers::runners::AsyncRunner;
+use testcontainers::ContainerAsync;
 use testcontainers_modules::postgres::Postgres;
 
 /// API path prefix for tests (e.g. `/api/v0`).
@@ -45,7 +46,7 @@ pub fn api_path(path: &str) -> String {
 pub struct TestApp {
     pub server: TestServer,
     pub pool: sqlx::PgPool,
-    pub _container: Container<'static, Postgres>,
+    pub _container: ContainerAsync<Postgres>,
     pub _temp_dir: TempDir,
 }
 
@@ -68,14 +69,16 @@ pub async fn setup_test_app() -> TestApp {
         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     );
 
-    let docker = Cli::default();
-    let postgres_image = Postgres::default();
-    let container = docker.run(postgres_image);
+    let container = Postgres::default()
+        .start()
+        .await
+        .expect("Failed to start Postgres container");
 
-    let connection_string = format!(
-        "postgresql://postgres:postgres@localhost:{}/postgres",
-        container.get_host_port_ipv4(5432).unwrap()
-    );
+    let port = container
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("Failed to get Postgres port");
+    let connection_string = format!("postgresql://postgres:postgres@localhost:{port}/postgres");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -208,10 +211,9 @@ pub async fn setup_test_app() -> TestApp {
     #[cfg(all(feature = "content-moderation", feature = "video"))]
     let tasks = {
         #[cfg(feature = "plugin")]
-        let content_moderation_handler =
-            mindia_api::task_handlers::ContentModerationTaskHandler::new(Arc::new(
-                mindia_api::plugins::PluginRegistry::new(),
-            ));
+        let content_moderation_handler = mindia_api::ContentModerationTaskHandler::new(Arc::new(
+            mindia_api::plugins::PluginRegistry::new(),
+        ));
         #[cfg(not(feature = "plugin"))]
         let content_moderation_handler = panic!("content-moderation requires plugin for tests");
         TaskState {
@@ -224,10 +226,9 @@ pub async fn setup_test_app() -> TestApp {
     #[cfg(all(feature = "content-moderation", not(feature = "video")))]
     let tasks = {
         #[cfg(feature = "plugin")]
-        let content_moderation_handler =
-            mindia_api::task_handlers::ContentModerationTaskHandler::new(Arc::new(
-                mindia_api::plugins::PluginRegistry::new(),
-            ));
+        let content_moderation_handler = mindia_api::ContentModerationTaskHandler::new(Arc::new(
+            mindia_api::plugins::PluginRegistry::new(),
+        ));
         #[cfg(not(feature = "plugin"))]
         let content_moderation_handler = panic!("content-moderation requires plugin for tests");
         TaskState {
@@ -287,12 +288,13 @@ pub async fn setup_test_app() -> TestApp {
             plugin_config_repo.clone(),
             plugin_execution_repo.clone(),
             task_queue.clone(),
-            encryption,
+            encryption.clone(),
         );
-        let plugin_task_handler = mindia_api::PluginTaskHandler::new(
+        let plugin_task_handler = mindia_api::PluginTaskHandler::new_with_encryption(
             plugin_registry.clone(),
             plugin_config_repo.clone(),
             plugin_execution_repo.clone(),
+            encryption,
         );
         mindia_api::state::PluginState {
             plugin_registry,
@@ -340,7 +342,9 @@ pub async fn setup_test_app() -> TestApp {
     let app = routes::setup_routes(&config, state)
         .await
         .expect("Failed to setup routes");
-    let server = TestServer::new(app.into_make_service()).expect("Failed to create test server");
+    let server = TestServer::builder()
+        .build(app)
+        .expect("Failed to create test server");
 
     TestApp {
         server,

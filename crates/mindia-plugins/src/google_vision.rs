@@ -744,7 +744,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Ignore until plugin supports configurable base URL for HTTP mocking
     async fn test_execute_success() {
-        // TODO: Implement when plugin supports configurable base URL
+        // TRACKED: Implement when plugin supports configurable base URL for testing.
         // For full test, would need:
         // - Plugin with configurable base_url pointing to mockito server
         // - Test database with image record inserted
@@ -767,7 +767,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_execute_api_error() {
-        // TODO: Test API error handling with configurable base URL
+        // TRACKED: Test API error handling with configurable base URL (requires plugin refactoring)
         unimplemented!("Requires plugin refactoring");
     }
 
