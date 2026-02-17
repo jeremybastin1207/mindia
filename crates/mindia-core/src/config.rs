@@ -7,6 +7,33 @@ use std::env;
 
 use crate::storage_types::StorageBackend;
 
+/// Parse an optional env var: if set, parse and return (error if unparseable); if unset, return default.
+/// Makes misconfiguration visible instead of silently falling back.
+fn parse_optional_env<T, E>(key: &str, default: T) -> Result<T, anyhow::Error>
+where
+    T: std::str::FromStr<Err = E>,
+    E: std::fmt::Display,
+{
+    match env::var(key) {
+        Ok(s) => s
+            .parse::<T>()
+            .map_err(|e| anyhow::anyhow!("{} is set but invalid: {} (parse error: {})", key, s, e)),
+        Err(_) => Ok(default),
+    }
+}
+
+/// Parse an optional bool env var (accepts "true"/"false" case-insensitively).
+fn parse_optional_env_bool(key: &str, default: bool) -> Result<bool, anyhow::Error> {
+    match env::var(key) {
+        Ok(s) => {
+            let s = s.to_lowercase();
+            s.parse::<bool>()
+                .map_err(|_| anyhow::anyhow!("{} is set but invalid: must be true or false", key))
+        }
+        Err(_) => Ok(default),
+    }
+}
+
 /// Load .env file from current directory, executable directory, or search upward.
 /// Uses override so that .env values take precedence over existing env vars (e.g. empty JWT_SECRET).
 /// Best-effort: does not fail if .env is missing or unreadable.
@@ -46,6 +73,15 @@ const JWT_EXPIRY_HOURS: i64 = 24;
 const HTTP_RATE_LIMIT_PER_MINUTE: u32 = 100;
 const HTTP_TENANT_RATE_LIMIT_PER_MINUTE: u32 = 200;
 
+/// Webhook defaults: intentional fixed values not read from env.
+/// Overridable in the future via env vars if needed.
+const WEBHOOK_TIMEOUT_SECONDS: u64 = 30;
+const WEBHOOK_MAX_RETRIES: u32 = 3;
+const WEBHOOK_MAX_CONCURRENT_DELIVERIES: usize = 10;
+const WEBHOOK_MAX_CONCURRENT_RETRIES: usize = 5;
+const WEBHOOK_RETRY_POLL_INTERVAL_SECONDS: u64 = 60;
+const WEBHOOK_RETRY_BATCH_SIZE: usize = 100;
+
 /// Base configuration shared by both services
 #[derive(Clone, Debug)]
 pub struct BaseConfig {
@@ -69,7 +105,8 @@ pub struct BaseConfig {
     pub otel_metrics_interval_secs: u64,
 }
 
-/// Media processor configuration
+/// Media processor configuration.
+/// Future refactors could group related settings into nested structs (e.g. `OtelConfig`, `TaskQueueConfig`, `CapacityConfig`) to reduce noise.
 #[derive(Clone, Debug)]
 pub struct MediaProcessorConfig {
     pub base: BaseConfig,
@@ -435,44 +472,48 @@ impl Config {
         self.as_media().base.db_timeout_seconds
     }
 
+    /// Reserved for future Auth0 support.
     pub fn auth0_domain(&self) -> Option<&str> {
         None
     }
 
+    /// Reserved for future Auth0 support.
     pub fn auth0_client_id(&self) -> Option<&str> {
         None
     }
 
+    /// Reserved for future Auth0 support.
     pub fn auth0_client_secret(&self) -> Option<&str> {
         None
     }
 
+    /// Reserved for future Auth0 support.
     pub fn auth0_audience(&self) -> Option<&str> {
         None
     }
 
     pub fn webhook_timeout_seconds(&self) -> u64 {
-        30
+        WEBHOOK_TIMEOUT_SECONDS
     }
 
     pub fn webhook_max_retries(&self) -> u32 {
-        3
+        WEBHOOK_MAX_RETRIES
     }
 
     pub fn webhook_max_concurrent_deliveries(&self) -> usize {
-        10
+        WEBHOOK_MAX_CONCURRENT_DELIVERIES
     }
 
     pub fn webhook_max_concurrent_retries(&self) -> usize {
-        5
+        WEBHOOK_MAX_CONCURRENT_RETRIES
     }
 
     pub fn webhook_retry_poll_interval_seconds(&self) -> u64 {
-        60
+        WEBHOOK_RETRY_POLL_INTERVAL_SECONDS
     }
 
     pub fn webhook_retry_batch_size(&self) -> usize {
-        100
+        WEBHOOK_RETRY_BATCH_SIZE
     }
 
     pub fn otel_enabled(&self) -> bool {
@@ -608,10 +649,8 @@ impl MediaProcessorConfig {
             .map(|s| s.trim().to_string())
             .collect();
 
-        let max_file_size_mb = env::var("MAX_FILE_SIZE_MB")
-            .unwrap_or_else(|_| MAX_FILE_SIZE_MB.to_string())
-            .parse::<usize>()
-            .unwrap_or(MAX_FILE_SIZE_MB);
+        let max_file_size_mb =
+            parse_optional_env::<usize, _>("MAX_FILE_SIZE_MB", MAX_FILE_SIZE_MB)?;
 
         let allowed_extensions = env::var("ALLOWED_EXTENSIONS")
             .unwrap_or_else(|_| "jpg,jpeg,png,gif,webp,avif".to_string())
@@ -708,16 +747,11 @@ impl MediaProcessorConfig {
             max_file_size_bytes: max_file_size_mb * 1024 * 1024,
             allowed_extensions,
             allowed_content_types,
-            remove_exif: env::var("REMOVE_EXIF")
-                .unwrap_or_else(|_| "true".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(true),
-            max_video_size_bytes: env::var("MAX_VIDEO_SIZE_MB")
-                .unwrap_or_else(|_| MAX_VIDEO_SIZE_MB.to_string())
-                .parse::<usize>()
-                .unwrap_or(MAX_VIDEO_SIZE_MB)
-                * 1024
+            remove_exif: parse_optional_env_bool("REMOVE_EXIF", true)?,
+            max_video_size_bytes: parse_optional_env::<usize, _>(
+                "MAX_VIDEO_SIZE_MB",
+                MAX_VIDEO_SIZE_MB,
+            )? * 1024
                 * 1024,
             video_allowed_extensions: env::var("VIDEO_ALLOWED_EXTENSIONS")
                 .unwrap_or_else(|_| "mp4,mov,avi,webm,mkv".to_string())
@@ -733,24 +767,20 @@ impl MediaProcessorConfig {
                 .map(|s| s.trim().to_lowercase())
                 .collect(),
             ffmpeg_path: env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_string()),
-            max_concurrent_transcodes: env::var("MAX_CONCURRENT_TRANSCODES")
-                .unwrap_or_else(|_| MAX_CONCURRENT_TRANSCODES.to_string())
-                .parse()
-                .unwrap_or(MAX_CONCURRENT_TRANSCODES),
-            hls_segment_duration: env::var("HLS_SEGMENT_DURATION")
-                .unwrap_or_else(|_| HLS_SEGMENT_DURATION.to_string())
-                .parse()
-                .unwrap_or(HLS_SEGMENT_DURATION),
+            max_concurrent_transcodes: parse_optional_env(
+                "MAX_CONCURRENT_TRANSCODES",
+                MAX_CONCURRENT_TRANSCODES,
+            )?,
+            hls_segment_duration: parse_optional_env("HLS_SEGMENT_DURATION", HLS_SEGMENT_DURATION)?,
             hls_variants: env::var("HLS_VARIANTS")
                 .unwrap_or_else(|_| "360p,480p,720p,1080p".to_string())
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .collect(),
-            max_document_size_bytes: env::var("MAX_DOCUMENT_SIZE_MB")
-                .unwrap_or_else(|_| MAX_DOCUMENT_SIZE_MB.to_string())
-                .parse::<usize>()
-                .unwrap_or(MAX_DOCUMENT_SIZE_MB)
-                * 1024
+            max_document_size_bytes: parse_optional_env::<usize, _>(
+                "MAX_DOCUMENT_SIZE_MB",
+                MAX_DOCUMENT_SIZE_MB,
+            )? * 1024
                 * 1024,
             document_allowed_extensions: env::var("DOCUMENT_ALLOWED_EXTENSIONS")
                 .unwrap_or_else(|_| "pdf".to_string())
@@ -762,11 +792,10 @@ impl MediaProcessorConfig {
                 .split(',')
                 .map(|s| s.trim().to_lowercase())
                 .collect(),
-            max_audio_size_bytes: env::var("MAX_AUDIO_SIZE_MB")
-                .unwrap_or_else(|_| MAX_AUDIO_SIZE_MB.to_string())
-                .parse::<usize>()
-                .unwrap_or(MAX_AUDIO_SIZE_MB)
-                * 1024
+            max_audio_size_bytes: parse_optional_env::<usize, _>(
+                "MAX_AUDIO_SIZE_MB",
+                MAX_AUDIO_SIZE_MB,
+            )? * 1024
                 * 1024,
             audio_allowed_extensions: env::var("AUDIO_ALLOWED_EXTENSIONS")
                 .unwrap_or_else(|_| "mp3,m4a,wav,flac,ogg".to_string())
@@ -782,31 +811,15 @@ impl MediaProcessorConfig {
                 .collect(),
             analytics_db_type: env::var("ANALYTICS_DB_TYPE").ok().map(|s| s.to_lowercase()),
             analytics_db_url: env::var("ANALYTICS_DB_URL").ok(),
-            clamav_enabled: env::var("CLAMAV_ENABLED")
-                .unwrap_or_else(|_| "false".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(false),
+            clamav_enabled: parse_optional_env_bool("CLAMAV_ENABLED", false)?,
             clamav_host: env::var("CLAMAV_HOST").unwrap_or_else(|_| "localhost".to_string()),
-            clamav_port: env::var("CLAMAV_PORT")
-                .unwrap_or_else(|_| "3310".to_string())
-                .parse()
-                .unwrap_or(3310),
-            clamav_fail_closed: env::var("CLAMAV_FAIL_CLOSED")
-                .unwrap_or_else(|_| is_production.to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(is_production),
-            content_moderation_enabled: env::var("CONTENT_MODERATION_ENABLED")
-                .unwrap_or_else(|_| "false".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(false),
-            semantic_search_enabled: env::var("SEMANTIC_SEARCH_ENABLED")
-                .unwrap_or_else(|_| "false".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(false),
+            clamav_port: parse_optional_env::<u16, _>("CLAMAV_PORT", 3310)?,
+            clamav_fail_closed: parse_optional_env_bool("CLAMAV_FAIL_CLOSED", is_production)?,
+            content_moderation_enabled: parse_optional_env_bool(
+                "CONTENT_MODERATION_ENABLED",
+                false,
+            )?,
+            semantic_search_enabled: parse_optional_env_bool("SEMANTIC_SEARCH_ENABLED", false)?,
             semantic_search_provider: env::var("SEMANTIC_SEARCH_PROVIDER")
                 .unwrap_or_else(|_| "anthropic".to_string())
                 .to_lowercase(),
@@ -816,65 +829,55 @@ impl MediaProcessorConfig {
                 .unwrap_or_else(|_| "claude-sonnet-4-20250514".to_string()),
             voyage_embedding_model: env::var("VOYAGE_EMBEDDING_MODEL")
                 .unwrap_or_else(|_| "voyage-3-large".to_string()),
-            auto_store_enabled: env::var("AUTO_STORE_ENABLED")
-                .unwrap_or_else(|_| "true".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(true),
+            auto_store_enabled: parse_optional_env_bool("AUTO_STORE_ENABLED", true)?,
             url_upload_allowlist: env::var("URL_UPLOAD_ALLOWLIST").ok().map(|s| {
                 s.split(',')
                     .map(|domain| domain.trim().to_lowercase())
                     .filter(|domain| !domain.is_empty())
                     .collect()
             }),
-            task_queue_max_workers: env::var("TASK_QUEUE_MAX_WORKERS")
-                .unwrap_or_else(|_| TASK_QUEUE_MAX_WORKERS.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_MAX_WORKERS),
-            task_queue_poll_interval_ms: env::var("TASK_QUEUE_POLL_INTERVAL_MS")
-                .unwrap_or_else(|_| TASK_QUEUE_POLL_INTERVAL_MS.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_POLL_INTERVAL_MS),
-            task_queue_video_rate_limit: env::var("TASK_QUEUE_VIDEO_RATE_LIMIT")
-                .unwrap_or_else(|_| TASK_QUEUE_VIDEO_RATE_LIMIT.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_VIDEO_RATE_LIMIT),
-            task_queue_embedding_rate_limit: env::var("TASK_QUEUE_EMBEDDING_RATE_LIMIT")
-                .unwrap_or_else(|_| TASK_QUEUE_EMBEDDING_RATE_LIMIT.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_EMBEDDING_RATE_LIMIT),
-            task_queue_default_timeout_seconds: env::var("TASK_QUEUE_DEFAULT_TIMEOUT_SECONDS")
-                .unwrap_or_else(|_| TASK_QUEUE_DEFAULT_TIMEOUT_SECS.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_DEFAULT_TIMEOUT_SECS),
-            task_queue_max_retries: env::var("TASK_QUEUE_MAX_RETRIES")
-                .unwrap_or_else(|_| TASK_QUEUE_MAX_RETRIES.to_string())
-                .parse()
-                .unwrap_or(TASK_QUEUE_MAX_RETRIES),
-            task_queue_stale_task_reap_interval_secs: env::var("STALE_TASK_REAP_INTERVAL_SECS")
-                .unwrap_or_else(|_| STALE_TASK_REAP_INTERVAL_SECS.to_string())
-                .parse()
-                .unwrap_or(STALE_TASK_REAP_INTERVAL_SECS),
-            task_queue_stale_task_grace_period_secs: env::var("STALE_TASK_GRACE_PERIOD_SECS")
-                .unwrap_or_else(|_| STALE_TASK_GRACE_PERIOD_SECS.to_string())
-                .parse()
-                .unwrap_or(STALE_TASK_GRACE_PERIOD_SECS),
-            task_retention_days: env::var("TASK_RETENTION_DAYS")
-                .unwrap_or_else(|_| TASK_RETENTION_DAYS.to_string())
-                .parse()
-                .unwrap_or(TASK_RETENTION_DAYS),
-            min_disk_free_gb: env::var("MIN_DISK_FREE_GB")
-                .unwrap_or_else(|_| MIN_DISK_FREE_GB.to_string())
-                .parse()
-                .unwrap_or(MIN_DISK_FREE_GB),
-            max_memory_usage_percent: env::var("MAX_MEMORY_USAGE_PERCENT")
-                .unwrap_or_else(|_| MAX_MEMORY_USAGE_PERCENT.to_string())
-                .parse()
-                .unwrap_or(MAX_MEMORY_USAGE_PERCENT),
-            max_cpu_usage_percent: env::var("MAX_CPU_USAGE_PERCENT")
-                .unwrap_or_else(|_| MAX_CPU_USAGE_PERCENT.to_string())
-                .parse()
-                .unwrap_or(MAX_CPU_USAGE_PERCENT),
+            task_queue_max_workers: parse_optional_env(
+                "TASK_QUEUE_MAX_WORKERS",
+                TASK_QUEUE_MAX_WORKERS,
+            )?,
+            task_queue_poll_interval_ms: parse_optional_env(
+                "TASK_QUEUE_POLL_INTERVAL_MS",
+                TASK_QUEUE_POLL_INTERVAL_MS,
+            )?,
+            task_queue_video_rate_limit: parse_optional_env(
+                "TASK_QUEUE_VIDEO_RATE_LIMIT",
+                TASK_QUEUE_VIDEO_RATE_LIMIT,
+            )?,
+            task_queue_embedding_rate_limit: parse_optional_env(
+                "TASK_QUEUE_EMBEDDING_RATE_LIMIT",
+                TASK_QUEUE_EMBEDDING_RATE_LIMIT,
+            )?,
+            task_queue_default_timeout_seconds: parse_optional_env(
+                "TASK_QUEUE_DEFAULT_TIMEOUT_SECONDS",
+                TASK_QUEUE_DEFAULT_TIMEOUT_SECS,
+            )?,
+            task_queue_max_retries: parse_optional_env(
+                "TASK_QUEUE_MAX_RETRIES",
+                TASK_QUEUE_MAX_RETRIES,
+            )?,
+            task_queue_stale_task_reap_interval_secs: parse_optional_env(
+                "STALE_TASK_REAP_INTERVAL_SECS",
+                STALE_TASK_REAP_INTERVAL_SECS,
+            )?,
+            task_queue_stale_task_grace_period_secs: parse_optional_env(
+                "STALE_TASK_GRACE_PERIOD_SECS",
+                STALE_TASK_GRACE_PERIOD_SECS,
+            )?,
+            task_retention_days: parse_optional_env("TASK_RETENTION_DAYS", TASK_RETENTION_DAYS)?,
+            min_disk_free_gb: parse_optional_env("MIN_DISK_FREE_GB", MIN_DISK_FREE_GB)?,
+            max_memory_usage_percent: parse_optional_env(
+                "MAX_MEMORY_USAGE_PERCENT",
+                MAX_MEMORY_USAGE_PERCENT,
+            )?,
+            max_cpu_usage_percent: parse_optional_env(
+                "MAX_CPU_USAGE_PERCENT",
+                MAX_CPU_USAGE_PERCENT,
+            )?,
             disk_check_behavior: env::var("DISK_CHECK_BEHAVIOR")
                 .unwrap_or_else(|_| "fail".to_string())
                 .to_lowercase(),
@@ -884,24 +887,16 @@ impl MediaProcessorConfig {
             cpu_check_behavior: env::var("CPU_CHECK_BEHAVIOR")
                 .unwrap_or_else(|_| "warn".to_string())
                 .to_lowercase(),
-            video_transcode_space_multiplier: env::var("VIDEO_TRANSCODE_SPACE_MULTIPLIER")
-                .unwrap_or_else(|_| VIDEO_TRANSCODE_SPACE_MULTIPLIER.to_string())
-                .parse()
-                .unwrap_or(VIDEO_TRANSCODE_SPACE_MULTIPLIER),
-            capacity_monitor_interval_secs: env::var("CAPACITY_MONITOR_INTERVAL_SECS")
-                .unwrap_or_else(|_| CAPACITY_MONITOR_INTERVAL_SECS.to_string())
-                .parse()
-                .unwrap_or(CAPACITY_MONITOR_INTERVAL_SECS),
-            capacity_monitor_enabled: env::var("CAPACITY_MONITOR_ENABLED")
-                .unwrap_or_else(|_| "true".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(true),
-            email_alerts_enabled: env::var("EMAIL_ALERTS_ENABLED")
-                .unwrap_or_else(|_| "false".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(false),
+            video_transcode_space_multiplier: parse_optional_env(
+                "VIDEO_TRANSCODE_SPACE_MULTIPLIER",
+                VIDEO_TRANSCODE_SPACE_MULTIPLIER,
+            )?,
+            capacity_monitor_interval_secs: parse_optional_env(
+                "CAPACITY_MONITOR_INTERVAL_SECS",
+                CAPACITY_MONITOR_INTERVAL_SECS,
+            )?,
+            capacity_monitor_enabled: parse_optional_env_bool("CAPACITY_MONITOR_ENABLED", true)?,
+            email_alerts_enabled: parse_optional_env_bool("EMAIL_ALERTS_ENABLED", false)?,
             smtp_host: env::var("SMTP_HOST").ok().filter(|s| !s.is_empty()),
             smtp_port: env::var("SMTP_PORT")
                 .ok()
@@ -910,11 +905,7 @@ impl MediaProcessorConfig {
             smtp_user: env::var("SMTP_USER").ok().filter(|s| !s.is_empty()),
             smtp_password: env::var("SMTP_PASSWORD").ok().filter(|s| !s.is_empty()),
             smtp_from: env::var("SMTP_FROM").ok().filter(|s| !s.is_empty()),
-            smtp_tls: env::var("SMTP_TLS")
-                .unwrap_or_else(|_| "true".to_string())
-                .to_lowercase()
-                .parse()
-                .unwrap_or(true),
+            smtp_tls: parse_optional_env_bool("SMTP_TLS", true)?,
             frontend_url: env::var("FRONTEND_URL").ok().filter(|s| !s.is_empty()),
         };
 
@@ -966,7 +957,6 @@ impl MediaProcessorConfig {
             ));
         }
 
-        // Validate storage backend configuration
         let backend = self.storage_backend.unwrap_or(StorageBackend::S3);
         match backend {
             StorageBackend::S3 => {
@@ -994,7 +984,7 @@ impl MediaProcessorConfig {
                 }
             }
             StorageBackend::Nfs => {
-                // NFS storage backend validation can be added here if needed
+                // NFS is not yet validated (no required env vars or path checks). Add validation here when NFS is supported.
             }
         }
 

@@ -37,6 +37,8 @@ http = { workspace = true, optional = true }
 clamav-client = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 lru = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [features]
 default = [
@@ -59,7 +61,7 @@ default = [
 
 # Media type features (passed through to mindia-processing)
 image = ["mindia-processing/image"]
-video = []
+video = ["mindia-processing/video", "dep:mindia-infra", "mindia-infra/capacity", "dep:tempfile", "dep:uuid"]
 audio = []
 document = []
 

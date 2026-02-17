@@ -2,11 +2,17 @@
 //!
 //! These traits define the minimal interface that plugins need from repositories,
 //! allowing for easy mocking and testing without database dependencies.
+//!
+//! **Error layering:** These traits use `anyhow::Result` so plugin code can use `?`
+//! with mixed error types. Concrete implementations (e.g. `MediaRepository`) use
+//! `AppError` internally; they convert to `anyhow::Error` when implementing these
+//! traits. API-facing repositories elsewhere in this crate use `AppError` directly
+//! for HTTP response mapping.
 
 use anyhow::Result;
 use async_trait::async_trait;
-use mindia_core::error::AppError;
 use mindia_core::models::{Audio, FileGroup, Image, Media, MediaType, ProcessingStatus};
+use mindia_core::AppError;
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 

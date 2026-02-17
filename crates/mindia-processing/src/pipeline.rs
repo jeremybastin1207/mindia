@@ -1,4 +1,8 @@
 //! Processing pipeline for chaining media operations
+//!
+//! The pipeline is designed for a single metadata-extraction step: typically add at most one
+//! processor. If multiple processors are added, only the **last** processor's metadata is
+//! returned from [`execute`](ProcessingPipeline::execute).
 
 use crate::traits::{MediaProcessor, MediaTransformer};
 use anyhow::Result;
@@ -46,14 +50,18 @@ where
             .push(PipelineStep::Transformer(transformer, options));
     }
 
-    /// Execute the pipeline on input data
+    /// Execute the pipeline on input data.
+    ///
+    /// Returns the transformed data and the metadata from the **last** processor step (if any).
+    /// If multiple processors are present, earlier processors' metadata is overwritten; prefer
+    /// at most one processor per pipeline.
     pub async fn execute(&self, mut data: Bytes) -> Result<(Bytes, Option<P::Metadata>)> {
         let mut metadata: Option<P::Metadata> = None;
 
         for step in &self.steps {
             match step {
                 PipelineStep::Processor(processor) => {
-                    // Extract metadata without modifying data
+                    // Extract metadata without modifying data; last processor wins
                     let meta = processor.extract_metadata(&data).await?;
                     metadata = Some(meta);
                 }

@@ -1,4 +1,10 @@
 //! Upload pipeline: validate → scan → process → store.
+//!
+//! This module provides the canonical validate→scan→process→store flow for media uploads.
+//! Validation is delegated to [`MediaValidator`](crate::MediaValidator) so all validation
+//! rules (including extension/content-type matching) live in one place. When the API performs
+//! its own validation before calling into this crate, it may duplicate these checks; callers
+//! that use this pipeline directly get validation via `MediaValidator` built from `UploadConfig`.
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -9,34 +15,7 @@ use mindia_storage::Storage;
 
 use super::traits::{UploadConfig, UploadProcessor, VirusScanner};
 use super::types::{UploadData, ValidatedFile};
-
-fn validate_file_size(file_size: usize, max_size: usize) -> Result<()> {
-    if file_size > max_size {
-        anyhow::bail!(
-            "File size exceeds maximum allowed size of {} MB",
-            max_size / 1024 / 1024
-        );
-    }
-    Ok(())
-}
-
-fn validate_content_type(content_type: &str, allowed: &[String]) -> Result<()> {
-    if !allowed
-        .iter()
-        .any(|ct| content_type.to_lowercase().contains(&ct.to_lowercase()))
-    {
-        anyhow::bail!("Invalid content type. Allowed: {}", allowed.join(", "));
-    }
-    Ok(())
-}
-
-fn validate_extension(filename: &str, allowed: &[String]) -> Result<String> {
-    let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-    if !allowed.contains(&ext) {
-        anyhow::bail!("Invalid extension. Allowed: {}", allowed.join(", "));
-    }
-    Ok(ext)
-}
+use crate::validator::MediaValidator;
 
 fn sanitize_filename(filename: &str) -> String {
     const MAX: usize = 255;
@@ -85,9 +64,21 @@ pub async fn upload_pipeline<M>(
 where
     M: Send + 'static,
 {
-    validate_file_size(data.len(), config.max_file_size())?;
-    validate_content_type(&content_type, config.allowed_content_types())?;
-    let extension = validate_extension(&original_filename, config.allowed_extensions())?;
+    let validator = MediaValidator::new(
+        config.max_file_size(),
+        config.allowed_extensions().to_vec(),
+        config.allowed_content_types().to_vec(),
+    );
+    validator
+        .validate_all(&original_filename, &content_type, data.len())
+        .map_err(|e| anyhow::anyhow!("{}", e))
+        .context("Validation failed")?;
+
+    let extension = original_filename
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
 
     let mut validated = ValidatedFile {
         data,
@@ -123,7 +114,7 @@ where
             validated.data,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("{}", e))
+        .map_err(anyhow::Error::from)
         .context("Storage upload failed")?;
 
     Ok((

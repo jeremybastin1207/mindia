@@ -35,7 +35,9 @@ pub use services::workflow::WorkflowService;
 pub use task_handlers::TaskHandler;
 
 #[cfg(feature = "video")]
-pub use mindia_processing::{VideoOrchestrator, VideoOrchestratorConfig, VideoStorage};
+pub use mindia_processing::VideoStorage;
+#[cfg(feature = "video")]
+pub use mindia_services::{VideoOrchestrator, VideoOrchestratorConfig};
 #[cfg(feature = "content-moderation")]
 pub use task_handlers::ContentModerationTaskHandler;
 #[cfg(feature = "semantic-search")]

@@ -5,12 +5,11 @@
 #![allow(dead_code)]
 
 #[cfg(feature = "observability-opentelemetry")]
-use opentelemetry::{
-    metrics::{Gauge, Meter},
-    KeyValue,
-};
+use opentelemetry::metrics::{Gauge, Meter};
 use sqlx::PgPool;
 use std::sync::Arc;
+#[cfg(feature = "observability-opentelemetry")]
+use tokio::time::{interval, Duration};
 
 /// Connection pool metrics
 #[cfg(feature = "observability-opentelemetry")]
@@ -26,17 +25,17 @@ impl PoolMetrics {
         let pool_size = meter
             .i64_gauge("db.pool.size")
             .with_description("Maximum number of connections in the pool")
-            .init();
+            .build();
 
         let idle_connections = meter
             .i64_gauge("db.pool.idle")
             .with_description("Number of idle connections in the pool")
-            .init();
+            .build();
 
         let active_connections = meter
             .i64_gauge("db.pool.active")
             .with_description("Number of active connections in the pool")
-            .init();
+            .build();
 
         Self {
             pool_size,
@@ -53,9 +52,7 @@ impl PoolMetrics {
     }
 }
 
-/// Start a background task to periodically update pool metrics
-///
-/// This function spawns a task that updates pool metrics every 30 seconds.
+/// Starts a background task that updates pool metrics every 30 seconds.
 #[cfg(feature = "observability-opentelemetry")]
 pub fn start_pool_metrics_collector(pool: Arc<PgPool>, metrics: PoolMetrics) {
     tokio::spawn(async move {
@@ -64,12 +61,11 @@ pub fn start_pool_metrics_collector(pool: Arc<PgPool>, metrics: PoolMetrics) {
         loop {
             interval.tick().await;
 
-            // Get pool statistics
-            // Note: sqlx doesn't expose pool stats directly, so we approximate
+            // sqlx doesn't expose pool stats directly; we approximate
             // by checking pool size configuration and current connections
             let pool_size = pool.size() as usize;
             let num_idle = pool.num_idle();
-            let num_connections = num_idle; // sqlx doesn't track active separately
+            let _num_connections = num_idle; // sqlx doesn't track active separately
 
             // Active connections = total - idle (approximate)
             // Since sqlx doesn't expose this directly, we use 0 as a conservative estimate

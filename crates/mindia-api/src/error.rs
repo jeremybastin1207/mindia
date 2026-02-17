@@ -80,11 +80,13 @@ impl From<AppError> for HttpAppError {
 
 impl From<anyhow::Error> for HttpAppError {
     fn from(err: anyhow::Error) -> Self {
-        HttpAppError(AppError::Internal(err.to_string()))
+        HttpAppError(AppError::InternalWithSource {
+            message: err.to_string(),
+            source: err,
+        })
     }
 }
 
-/// Helper function to log errors based on their log level
 fn log_error(error: &AppError) {
     let error_type = error.error_type();
     match error.log_level() {
@@ -100,7 +102,6 @@ fn log_error(error: &AppError) {
     }
 }
 
-/// Helper function to check if we're in production environment
 fn is_production_env() -> bool {
     std::env::var("ENVIRONMENT")
         .or_else(|_| std::env::var("APP_ENV"))
@@ -113,19 +114,13 @@ impl IntoResponse for HttpAppError {
         let app_error = &self.0;
         let is_production = is_production_env();
 
-        // Get HTTP status code from error metadata
         let status = StatusCode::from_u16(app_error.http_status_code())
             .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
-        // Log based on error severity
         log_error(app_error);
 
-        // Build response based on environment
-        // Always hide details in production for security
-        // In non-production, only show details for non-sensitive errors
-        // Error codes and suggested actions are always included (safe for AI agents)
+        // Always hide details in production for security; in non-production, only show details for non-sensitive errors.
         let body = if is_production || app_error.is_sensitive() {
-            // Production mode or sensitive error: always return simple error (never expose details)
             Json(ErrorResponse {
                 error: app_error.client_message(),
                 details: None,
@@ -135,7 +130,6 @@ impl IntoResponse for HttpAppError {
                 suggested_action: app_error.suggested_action().map(String::from),
             })
         } else {
-            // Non-production and non-sensitive error: include detailed information
             Json(ErrorResponse {
                 error: app_error.client_message(),
                 details: Some(app_error.detailed_message()),
@@ -150,22 +144,19 @@ impl IntoResponse for HttpAppError {
     }
 }
 
-/// Helper function to convert HttpAppError to Response with enriched wide event
-/// This allows handlers to attach error context to the wide event before returning
+/// Converts HttpAppError to Response and attaches error context to the wide event.
 pub fn error_response_with_event(
     error: HttpAppError,
     mut event: crate::telemetry::wide_event::WideEvent,
 ) -> Response {
     let app_error = &error.0;
 
-    // Get error details from metadata trait
     let status = StatusCode::from_u16(app_error.http_status_code())
         .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let error_message = app_error.client_message();
     let error_code = app_error.error_code();
     let retriable = app_error.is_recoverable();
 
-    // Enrich wide event with error context
     event.with_error(crate::telemetry::wide_event::ErrorContext {
         error_type: app_error.error_type().to_string(),
         code: Some(error_code.to_string()),
@@ -174,10 +165,8 @@ pub fn error_response_with_event(
         stack_trace: None,
     });
 
-    // Determine if we should hide details
     let is_production = is_production_env();
 
-    // Build error response
     let error_response = if is_production || app_error.is_sensitive() {
         ErrorResponse {
             error: error_message,
@@ -198,7 +187,6 @@ pub fn error_response_with_event(
         }
     };
 
-    // Create response with enriched event
     let mut response = (status, Json(error_response)).into_response();
     response
         .extensions_mut()
@@ -241,6 +229,9 @@ impl From<ValidationError> for HttpAppError {
                 content_type, allowed
             )),
             ValidationError::InvalidFilename(msg) => AppError::InvalidInput(msg),
+            ValidationError::MissingExtension(filename) => {
+                AppError::InvalidInput(format!("Missing file extension (filename: {})", filename))
+            }
             ValidationError::EmptyFile => AppError::InvalidInput("File is empty".to_string()),
         };
         HttpAppError(app)
@@ -334,5 +325,25 @@ mod tests {
             AppError::InvalidInput(msg) => assert_eq!(msg, "File is empty"),
             _ => panic!("Expected InvalidInput variant"),
         }
+    }
+
+    /// Verifies the public error response contract: serialized ErrorResponse has "error",
+    /// "code", "recoverable", and optionally "details" / "error_type" / "suggested_action".
+    #[test]
+    fn test_error_response_shape() {
+        let response = ErrorResponse {
+            error: "Not found".to_string(),
+            details: Some("Resource not found".to_string()),
+            error_type: Some("NotFound".to_string()),
+            code: "not_found".to_string(),
+            recoverable: false,
+            suggested_action: None,
+        };
+        let json = serde_json::to_value(&response).expect("serialize");
+        assert!(json.get("error").and_then(|v| v.as_str()).is_some());
+        assert!(json.get("code").and_then(|v| v.as_str()).is_some());
+        assert!(json.get("recoverable").and_then(|v| v.as_bool()).is_some());
+        assert_eq!(json.get("code").and_then(|v| v.as_str()), Some("not_found"));
+        assert!(json.is_object());
     }
 }

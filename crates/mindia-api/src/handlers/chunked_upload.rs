@@ -15,7 +15,7 @@ use axum::{
 use chrono::{Duration, Utc};
 use mindia_core::models::presigned_upload::{CompleteUploadRequest, CompleteUploadResponse};
 use mindia_core::models::MediaType;
-use mindia_core::AppError;
+use mindia_core::{AppError, StorageBackend};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -114,13 +114,12 @@ pub async fn start_chunked_upload(
     Json(request): Json<StartChunkedUploadRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     // Chunked uploads with presigned URLs are only available for S3 storage backend
-    let s3_config = state.s3.as_ref().ok_or_else(|| {
-        AppError::BadRequest(
-            "Chunked uploads with presigned URLs are only available when using S3 storage backend. Please use regular upload endpoints for local filesystem storage.".to_string()
-        )
-    })?;
+    if state.media.storage.backend_type() != StorageBackend::S3 {
+        return Err(HttpAppError::from(AppError::BadRequest(
+            "Chunked uploads with presigned URLs are only available when using S3 storage backend. Please use regular upload endpoints for local filesystem storage.".to_string(),
+        )));
+    }
 
-    // Validate media type
     let media_type = request.media_type.to_lowercase();
     if !["image", "video", "audio", "document"].contains(&media_type.as_str()) {
         return Err(HttpAppError::from(AppError::InvalidInput(format!(
@@ -129,7 +128,6 @@ pub async fn start_chunked_upload(
         ))));
     }
 
-    // Validate store parameter
     let store_behavior = request.store.to_lowercase();
     if !["0", "1", "auto"].contains(&store_behavior.as_str()) {
         return Err(HttpAppError::from(AppError::InvalidInput(
@@ -144,7 +142,11 @@ pub async fn start_chunked_upload(
         "video" => MediaType::Video,
         "audio" => MediaType::Audio,
         "document" => MediaType::Document,
-        _ => unreachable!(),
+        _ => {
+            return Err(HttpAppError::from(AppError::InvalidInput(
+                "Invalid media type: must be image, video, audio, or document".to_string(),
+            )));
+        }
     };
     let limits = state.media.limits_for(media_type_enum);
     if request.file_size > limits.max_file_size as u64 {
@@ -185,16 +187,13 @@ pub async fn start_chunked_upload(
     let expires_at = Utc::now() + Duration::seconds(expires_in_seconds as i64);
 
     let mut chunk_urls = Vec::new();
+    let expires_in = std::time::Duration::from_secs(expires_in_seconds);
     for i in 0..chunk_count {
         let chunk_s3_key = format!("{}.chunk.{}", base_s3_key, i);
-        let presigned_url = s3_config
-            .service
-            .generate_presigned_put_url(
-                &s3_config.bucket,
-                &chunk_s3_key,
-                &request.content_type,
-                expires_in_seconds,
-            )
+        let presigned_url = state
+            .media
+            .storage
+            .presigned_put_url(&chunk_s3_key, &request.content_type, expires_in)
             .await
             .map_err(|e| AppError::S3(format!("Failed to generate presigned URL: {}", e)))?;
 
@@ -205,8 +204,7 @@ pub async fn start_chunked_upload(
         });
     }
 
-    // Create upload session in database
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
+    let upload_repo = &state.db.presigned_upload_repository;
     upload_repo
         .create_upload_session(
             tenant_ctx.tenant_id,
@@ -263,14 +261,12 @@ pub async fn record_chunk_upload(
     Path((session_id, chunk_index)): Path<(Uuid, i32)>,
     Json(request): Json<UploadChunkRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
+    let upload_repo = &state.db.presigned_upload_repository;
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Upload session not found: {}", session_id)))?;
 
-    // Verify chunk index matches
     if request.chunk_index != chunk_index {
         return Err(HttpAppError::from(AppError::InvalidInput(format!(
             "Chunk index mismatch: path has {}, body has {}",
@@ -296,10 +292,8 @@ pub async fn record_chunk_upload(
         ))));
     }
 
-    // Get chunk size (we'll use chunk_size from session for now)
     let chunk_size = session.chunk_size.unwrap_or(0) as i64;
 
-    // Record chunk upload
     upload_repo
         .record_chunk(session_id, chunk_index, chunk_s3_key, chunk_size)
         .await?;
@@ -337,14 +331,12 @@ pub async fn get_chunked_upload_progress(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
+    let upload_repo = &state.db.presigned_upload_repository;
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Upload session not found: {}", session_id)))?;
 
-    // Get uploaded chunks
     let chunks = upload_repo.get_chunks(session_id).await?;
 
     let chunks_uploaded = chunks.len() as i32;
@@ -407,14 +399,12 @@ pub async fn complete_chunked_upload(
         ))));
     }
 
-    // Get upload session
-    let upload_repo = mindia_db::PresignedUploadRepository::new(state.db.pool.clone());
+    let upload_repo = &state.db.presigned_upload_repository;
     let session = upload_repo
         .get_upload_session(tenant_ctx.tenant_id, session_id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Upload session not found: {}", session_id)))?;
 
-    // Check if all chunks are uploaded
     let chunks = upload_repo.get_chunks(session_id).await?;
 
     let expected_chunks = session.chunk_count.unwrap_or(0) as usize;
@@ -441,9 +431,6 @@ pub async fn complete_chunked_upload(
             ))));
         }
     }
-
-    // Assemble chunks into final file using S3 multipart upload with copy_part
-    // This performs server-side copying without downloading chunks to memory
 
     // Generate final S3 key
     let extension = session
@@ -564,7 +551,6 @@ pub async fn complete_chunked_upload(
         None
     };
 
-    // Create media record
     let media_id = match session.media_type.as_str() {
         "image" => {
             let image = state

@@ -1,6 +1,10 @@
 //! Route configuration and setup.
 //!
 //! Domain route groups live in [domains](domains); health checks in [health](health).
+//!
+//! **Environment variables** used here (not in `mindia_core::Config`): `HTTP_CONCURRENCY_LIMIT`,
+//! `REQUEST_TIMEOUT_SECS`, `RATE_LIMITER_SHARD_COUNT`, `CDN_DOMAINS`; auth setup uses
+//! `MASTER_API_KEY` and `TRUSTED_PROXY_COUNT`.
 
 mod domains;
 mod health;
@@ -14,16 +18,19 @@ use crate::middleware::{
     wide_event_middleware,
 };
 use crate::state::AppState;
+use axum::BoxError;
 use axum::{
     extract::DefaultBodyLimit,
-    http::{HeaderValue, Method},
-    response::IntoResponse,
+    http::{HeaderValue, Method, StatusCode},
+    response::{IntoResponse, Response},
     routing::get,
     Json, Router,
 };
 use mindia_core::Config;
 use std::sync::Arc;
+use std::time::Duration;
 use tower::limit::ConcurrencyLimitLayer;
+use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
@@ -57,17 +64,13 @@ pub async fn setup_routes(
     let trace_layer = {
         #[cfg(feature = "observability-opentelemetry")]
         {
-            if config.otel_enabled() {
-                let meter = opentelemetry::global::meter("mindia");
-                let http_metrics = HttpMetrics::new(meter);
-                TraceLayer::new_for_http()
-                    .make_span_with(CustomMakeSpan::new(http_metrics.clone()))
-                    .on_request(CustomOnRequest)
-                    .on_response(CustomOnResponse::new(http_metrics.clone()))
-                    .on_failure(CustomOnFailure::new(http_metrics))
-            } else {
-                TraceLayer::new_for_http()
-            }
+            let meter = opentelemetry::global::meter("mindia");
+            let http_metrics = HttpMetrics::new(meter);
+            TraceLayer::new_for_http()
+                .make_span_with(CustomMakeSpan::new(http_metrics.clone()))
+                .on_request(CustomOnRequest)
+                .on_response(CustomOnResponse::new(http_metrics.clone()))
+                .on_failure(CustomOnFailure::new(http_metrics))
         }
         #[cfg(not(feature = "observability-opentelemetry"))]
         {
@@ -103,6 +106,16 @@ pub async fn setup_routes(
         .max(1);
     tracing::info!(request_timeout_secs, "Request timeout layer enabled");
 
+    // Middleware order (outer = runs first on request, last on response): concurrency →
+    // timeout → body limit → CORS → trace → request_id → security_headers → rate_limit →
+    // idempotency → wide_event → analytics. Do not reorder without checking security
+    // and behaviour (e.g. rate limiting and idempotency must see the same request identity).
+    let request_timeout = Duration::from_secs(request_timeout_secs);
+    let timeout_stack = ServiceBuilder::new()
+        .layer(axum::error_handling::HandleErrorLayer::new(
+            handle_timeout_error,
+        ))
+        .timeout(request_timeout);
     let app = app_state_routes
         .nest(
             "/docs",
@@ -111,6 +124,7 @@ pub async fn setup_routes(
                 .into(),
         )
         .layer(ConcurrencyLimitLayer::new(http_concurrency_limit))
+        .layer(timeout_stack)
         .layer(RequestBodyLimitLayer::new(
             config
                 .max_video_size_bytes()
@@ -145,6 +159,18 @@ pub async fn setup_routes(
         .with_state(state);
 
     Ok(app)
+}
+
+async fn handle_timeout_error(err: BoxError) -> (StatusCode, &'static str) {
+    if err.is::<tower::timeout::error::Elapsed>() {
+        (StatusCode::REQUEST_TIMEOUT, "Request took too long")
+    } else {
+        tracing::error!(error = %err, "Unhandled error in request timeout layer");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unhandled internal error",
+        )
+    }
 }
 
 fn setup_cors(config: &Config) -> Result<CorsLayer, anyhow::Error> {
@@ -226,6 +252,21 @@ fn setup_rate_limiter(config: &Config) -> Arc<HttpRateLimiter> {
     rate_limiter
 }
 
+/// Path to the static llms.txt file (fixed path; not user-controllable).
+const LLMS_TXT_PATH: &str = "static/llms.txt";
+
+async fn llms_txt_response() -> Response {
+    match tokio::fs::read_to_string(LLMS_TXT_PATH).await {
+        Ok(content) => (
+            StatusCode::OK,
+            [("Content-Type", "text/plain; charset=utf-8")],
+            content,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "llms.txt not found").into_response(),
+    }
+}
+
 fn public_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         .route(
@@ -267,38 +308,8 @@ fn public_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
             "/api/openapi.json",
             get(|| async { Json(crate::api_doc::get_openapi_spec()) }),
         )
-        .route(
-            "/llms.txt",
-            get(|| async {
-                match tokio::fs::read_to_string("static/llms.txt").await {
-                    Ok(content) => (
-                        axum::http::StatusCode::OK,
-                        [("Content-Type", "text/plain; charset=utf-8")],
-                        content,
-                    )
-                        .into_response(),
-                    Err(_) => {
-                        (axum::http::StatusCode::NOT_FOUND, "llms.txt not found").into_response()
-                    }
-                }
-            }),
-        )
-        .route(
-            "/.well-known/llms.txt",
-            get(|| async {
-                match tokio::fs::read_to_string("static/llms.txt").await {
-                    Ok(content) => (
-                        axum::http::StatusCode::OK,
-                        [("Content-Type", "text/plain; charset=utf-8")],
-                        content,
-                    )
-                        .into_response(),
-                    Err(_) => {
-                        (axum::http::StatusCode::NOT_FOUND, "llms.txt not found").into_response()
-                    }
-                }
-            }),
-        )
+        .route("/llms.txt", get(llms_txt_response))
+        .route("/.well-known/llms.txt", get(llms_txt_response))
 }
 
 fn protected_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {

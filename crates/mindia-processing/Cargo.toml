@@ -13,8 +13,6 @@ path = "src/lib.rs"
 [dependencies]
 mindia-core = { path = "../mindia-core" }
 mindia-storage = { path = "../mindia-storage" }
-mindia-db = { path = "../mindia-db", features = ["video"] }
-mindia-infra = { path = "../mindia-infra", optional = true, features = ["capacity"] }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -56,7 +54,7 @@ image = [
     "dep:img-parts",
     "dep:kamadak-exif",
 ]
-video = ["dep:mindia-infra"]  # FFmpeg + orchestration
+video = []  # FFmpeg, HLS; orchestration lives in mindia-services
 audio = []  # Audio metadata extraction
 document = []  # Document processing
 

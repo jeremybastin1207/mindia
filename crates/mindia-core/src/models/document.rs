@@ -38,7 +38,7 @@ impl Document {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DocumentResponse {
     pub id: Uuid,
     pub filename: String,

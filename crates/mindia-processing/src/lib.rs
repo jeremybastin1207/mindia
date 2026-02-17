@@ -33,10 +33,7 @@ pub use traits::{MediaProcessor, MediaTransformer, TransformType};
 pub use validator::MediaValidator;
 
 #[cfg(feature = "video")]
-pub use video::{
-    FFmpegService, HLSVariant, VideoOrchestrator, VideoOrchestratorConfig, VideoProcessor,
-    VideoStorage, VideoTransformer,
-};
+pub use video::{FFmpegService, HLSVariant, VideoProcessor, VideoStorage, VideoTransformer};
 
 #[cfg(feature = "audio")]
 pub use audio::{AudioProcessor, AudioService, AudioTransformer};

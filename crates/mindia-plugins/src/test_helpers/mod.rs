@@ -23,7 +23,7 @@ pub fn create_mock_plugin_context(
     media_id: Uuid,
     config: serde_json::Value,
 ) -> crate::plugin::PluginContext {
-    let storage = Arc::new(MockStorage::new()) as Arc<dyn mindia_services::Storage>;
+    let storage = Arc::new(MockStorage::new()) as Arc<dyn mindia_storage::Storage>;
     let media_repo = Arc::new(mock_repositories::MockMediaRepository::new());
     let file_group_repo = Arc::new(mock_repositories::MockFileGroupRepository::new());
 

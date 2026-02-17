@@ -2,8 +2,19 @@
 //!
 //! This crate provides storage abstraction and implementations for Mindia.
 //! It includes the Storage trait and implementations for S3 and local filesystem.
+//!
+//! # Storage key format
+//!
+//! Storage keys are tenant-scoped. All backends use the same key layout for consistency:
+//!
+//! - **Default tenant**: `media/{filename}`
+//! - **Other tenants**: `media/{tenant_id}/{filename}`
+//!
+//! Keys must not contain `..` or a leading `/`. Key generation is centralized in the
+//! `keys` module so all backends stay consistent.
 
 pub mod factory;
+pub(crate) mod keys;
 #[cfg(feature = "storage-local")]
 pub mod local;
 #[cfg(feature = "storage-s3")]

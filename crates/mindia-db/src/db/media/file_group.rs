@@ -21,7 +21,6 @@ impl FileGroupRepository {
     /// Enforces maximum of 1000 files per group
     #[tracing::instrument(skip(self, media_ids), fields(db.table = "file_groups", db.operation = "insert"))]
     pub async fn create_group(&self, tenant_id: Uuid, media_ids: Vec<Uuid>) -> Result<FileGroup> {
-        // Validate file count
         if media_ids.is_empty() {
             return Err(anyhow::anyhow!("Cannot create group with no files"));
         }
@@ -31,7 +30,6 @@ impl FileGroupRepository {
             ));
         }
 
-        // Validate all files exist and belong to tenant
         let placeholders: Vec<String> = (1..=media_ids.len()).map(|i| format!("${}", i)).collect();
         let query = format!(
             "SELECT id FROM media WHERE tenant_id = ${} AND id IN ({})",
@@ -53,7 +51,6 @@ impl FileGroupRepository {
             ));
         }
 
-        // Check for duplicates
         let mut seen = std::collections::HashSet::new();
         for id in &media_ids {
             if !seen.insert(id) {
@@ -67,7 +64,6 @@ impl FileGroupRepository {
             .await
             .context("Failed to begin transaction")?;
 
-        // Create group
         let group_id = Uuid::new_v4();
         let created_at = Utc::now();
 
@@ -79,7 +75,6 @@ impl FileGroupRepository {
             .await
             .context("Failed to create file group")?;
 
-        // Insert group items with indices
         for (index, media_id) in media_ids.iter().enumerate() {
             sqlx::query(
                 "INSERT INTO file_group_items (group_id, media_id, index, created_at) VALUES ($1, $2, $3, $4)"
@@ -146,7 +141,6 @@ impl FileGroupRepository {
         tenant_id: Uuid,
         group_id: Uuid,
     ) -> Result<Vec<FileGroupFileItem>> {
-        // Verify group exists and belongs to tenant
         let group_exists: Option<Uuid> =
             sqlx::query_scalar("SELECT id FROM file_groups WHERE id = $1 AND tenant_id = $2")
                 .bind(group_id)
@@ -158,7 +152,6 @@ impl FileGroupRepository {
             return Err(anyhow::anyhow!("File group not found"));
         }
 
-        // Get all files with metadata
         let rows = sqlx::query_as::<Postgres, (Uuid, String, String, String, i64, String)>(
             r#"
             SELECT 
@@ -203,7 +196,6 @@ impl FileGroupRepository {
         group_id: Uuid,
         index: i32,
     ) -> Result<Option<(Uuid, String)>> {
-        // Verify group exists and belongs to tenant
         let group_exists: Option<Uuid> =
             sqlx::query_scalar("SELECT id FROM file_groups WHERE id = $1 AND tenant_id = $2")
                 .bind(group_id)
@@ -215,7 +207,6 @@ impl FileGroupRepository {
             return Err(anyhow::anyhow!("File group not found"));
         }
 
-        // Get file by index
         let row = sqlx::query_as::<Postgres, (Uuid, String)>(
             r#"
             SELECT 
@@ -254,7 +245,6 @@ impl FileGroupRepository {
         tenant_id: Uuid,
         group_id: Uuid,
     ) -> Result<Vec<(Uuid, String, String)>> {
-        // Verify group exists and belongs to tenant
         let group_exists: Option<Uuid> =
             sqlx::query_scalar("SELECT id FROM file_groups WHERE id = $1 AND tenant_id = $2")
                 .bind(group_id)
@@ -266,7 +256,6 @@ impl FileGroupRepository {
             return Err(anyhow::anyhow!("File group not found"));
         }
 
-        // Get all files with storage keys and original filenames
         let rows = sqlx::query_as::<Postgres, (Uuid, String, String)>(
             r#"
             SELECT 

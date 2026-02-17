@@ -17,12 +17,14 @@ Search your media library using natural language queries powered by Anthropic (C
 Mindia's semantic search allows you to find images, videos, audio, and documents using natural language descriptions rather than exact filename matches.
 
 **Example Queries**:
+
 - "cat sitting on windowsill"
 - "sunset over ocean"
 - "presentation about marketing strategy"
 - "jazz music with saxophone"
 
 **Features**:
+
 - ✅ Natural language search
 - ✅ Works across all media types
 - ✅ Automatic indexing on upload
@@ -77,71 +79,20 @@ GET /api/v0/search
 ```
 Authorization: Bearer {token}
 ```
-</think>
-Checking the current state of the paragraph:
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-Read’s embeddings API for vectors. When enabled, at least one of [Anthropic API key](https://console.anthropic.com/) or Voyage API key must be set. Claude is used for vision and document summarization; embeddings can use Anthropic or Voyage.
-
-1. **Enable in Mindia**
-
-```env
-SEMANTIC_SEARCH_ENABLED=true
-ANTHROPIC_API_KEY=your-api-key
-ANTHROPIC_VISION_MODEL=claude-sonnet-4-20250514
-ANTHROPIC_EMBEDDING_MODEL=embed-v3
-```
-
-Alternatively, use Voyage for embeddings: set `VOYAGE_API_KEY` and `VOYAGE_EMBEDDING_MODEL` (e.g. `voyage-3`). Vision/summarization still use Anthropic when configured.
-
-2. **Optional**: Override vision or embedding model. Default embedding model is `embed-v3` (modern); use `ANTHROPIC_EMBEDDING_MODEL=embed-1` if your account only has the older model.
-
-### Restart Mindia
-
-```bash
-# If running locally
-cargo run --bin mindia-api
-
-# If using Docker
-docker-compose restart mindia
-```
-
-### Index Existing Files
-
-If you uploaded files before enabling semantic search, generate embeddings:
-
-```bash
-cargo run --bin generate_embeddings
-```
-
-This processes all existing files and creates search indexes.
-
-## Search API
-
-### Endpoint
-
-```
-GET /api/v0/search
-```
-
-### Headers
-
-```
-Authorization: Bearer {token}
-```
 
 ### Query Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `q` | string | No* | Natural language search query (max 16 KB). *Required for semantic/combined mode unless metadata filters are used. |
-| `type` | string | No | Filter by type: `image`, `video`, `audio`, `document` |
-| `limit` | integer | No | Number of results to request (1-100, default: 20) |
-| `offset` | integer | No | Number of results to skip for pagination (default: 0) |
-| `search_mode` | string | No | `metadata`, `semantic`, or `both` (default: `both`) |
-| `min_similarity` | float | No | Minimum similarity score 0.0–1.0 (default: 0.3). Results below this are excluded. |
-| `folder_id` | UUID | No | Restrict results to a folder and its subfolders |
+| Parameter        | Type    | Required | Description                                                                                                        |
+| ---------------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `q`              | string  | No\*     | Natural language search query (max 16 KB). \*Required for semantic/combined mode unless metadata filters are used. |
+| `type`           | string  | No       | Filter by type: `image`, `video`, `audio`, `document`                                                              |
+| `limit`          | integer | No       | Number of results to request (1-100, default: 20)                                                                  |
+| `offset`         | integer | No       | Number of results to skip for pagination (default: 0)                                                              |
+| `search_mode`    | string  | No       | `metadata`, `semantic`, or `both` (default: `both`)                                                                |
+| `min_similarity` | float   | No       | Minimum similarity score 0.0–1.0 (default: 0.3). Results below this are excluded.                                  |
+| `folder_id`      | UUID    | No       | Restrict results to a folder and its subfolders                                                                    |
 
-**Pagination and similarity**: Limit and offset are applied in the database; then results are filtered by `min_similarity`. So `count` in the response is the number of items *after* similarity filtering (you may get fewer than `limit`). Pagination skips rows before filtering, so "page 2" is the next `limit` rows from the full ordered set, then filtered—not the next `limit` items that pass `min_similarity`.
+**Pagination and similarity**: Limit and offset are applied in the database; then results are filtered by `min_similarity`. So `count` in the response is the number of items _after_ similarity filtering (you may get fewer than `limit`). Pagination skips rows before filtering, so "page 2" is the next `limit` rows from the full ordered set, then filtered—not the next `limit` items that pass `min_similarity`.
 
 ### Response
 
@@ -200,30 +151,29 @@ curl "https://api.example.com/api/search?q=quarterly+report&type=document" \
 
 ```javascript
 async function searchMedia(query, type = null, limit = 20) {
-  const token = localStorage.getItem('token');
-  
+  const token = localStorage.getItem("token");
+
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
   if (type) {
-    params.append('type', type);
+    params.append("type", type);
   }
 
-  const response = await fetch(
-    `https://api.example.com/api/search?${params}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    }
-  );
+  const response = await fetch(`https://api.example.com/api/search?${params}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   return await response.json();
 }
 
 // Usage
-const results = await searchMedia('cat sitting on windowsill', 'image');
-console.log('Found:', results.count, 'images');
-results.results.forEach(result => {
-  console.log(`${result.filename}: ${result.similarity_score.toFixed(2)} match`);
+const results = await searchMedia("cat sitting on windowsill", "image");
+console.log("Found:", results.count, "images");
+results.results.forEach((result) => {
+  console.log(
+    `${result.filename}: ${result.similarity_score.toFixed(2)} match`,
+  );
 });
 ```
 
@@ -239,13 +189,13 @@ sequenceDiagram
     participant Database
     participant Queue
     participant Anthropic
-    
+
     User->>API: Upload Image
     API->>S3: Store Image
     API->>Database: Save Metadata
     API->>Queue: Queue Embedding Job
     API-->>User: Upload Complete
-    
+
     Queue->>S3: Download Image
     Queue->>Anthropic: Generate Description (Vision)
     Anthropic-->>Queue: "Cat on windowsill"
@@ -262,7 +212,7 @@ sequenceDiagram
     participant API
     participant Anthropic
     participant Database
-    
+
     User->>API: Search "cat on windowsill"
     API->>Anthropic: Generate Query Embedding
     Anthropic-->>API: Vector[768]
@@ -274,18 +224,21 @@ sequenceDiagram
 ### Content Processing
 
 **Images**:
+
 1. Image sent to Claude vision model
 2. Model generates natural language description
 3. Description converted to embedding vector
 4. Vector stored in pgvector database
 
 **Videos**:
+
 1. First frame extracted from video
 2. Frame sent to vision model
 3. Description generated and embedded
 4. Vector stored for searching
 
 **Audio & Documents**:
+
 1. Metadata or text content extracted
 2. Text summarized if needed
 3. Embedding generated from text
@@ -305,13 +258,13 @@ Mindia uses **cosine similarity** to find matching content:
 ### React Search Component
 
 ```tsx
-import { useState } from 'react';
+import { useState } from "react";
 
 function MediaSearch() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -319,11 +272,11 @@ function MediaSearch() {
 
     setLoading(true);
     try {
-      const type = filter === 'all' ? null : filter;
+      const type = filter === "all" ? null : filter;
       const data = await searchMedia(query, type);
       setResults(data.results);
     } catch (error) {
-      console.error('Search failed:', error);
+      console.error("Search failed:", error);
     } finally {
       setLoading(false);
     }
@@ -338,7 +291,7 @@ function MediaSearch() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search for images, videos, documents..."
         />
-        
+
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">All Media</option>
           <option value="image">Images</option>
@@ -348,12 +301,12 @@ function MediaSearch() {
         </select>
 
         <button type="submit" disabled={loading}>
-          {loading ? 'Searching...' : 'Search'}
+          {loading ? "Searching..." : "Search"}
         </button>
       </form>
 
       <div className="search-results">
-        {results.map(result => (
+        {results.map((result) => (
           <div key={result.id} className="result-item">
             <img src={getThumbUrl(result)} alt={result.description} />
             <div className="result-info">
@@ -369,8 +322,11 @@ function MediaSearch() {
 }
 
 function getThumbUrl(result) {
-  if (result.entity_type === 'image') {
-    return result.url.replace('/uploads/', `/api/images/${result.id}/-/resize/200x/`);
+  if (result.entity_type === "image") {
+    return result.url.replace(
+      "/uploads/",
+      `/api/images/${result.id}/-/resize/200x/`,
+    );
   }
   return `/icons/${result.entity_type}.png`;
 }
@@ -381,7 +337,7 @@ function getThumbUrl(result) {
 ```javascript
 async function advancedSearch({
   query,
-  mediaTypes = ['image', 'video', 'audio', 'document'],
+  mediaTypes = ["image", "video", "audio", "document"],
   minScore = 0.3,
   limit = 50,
 }) {
@@ -389,7 +345,7 @@ async function advancedSearch({
 
   for (const type of mediaTypes) {
     const data = await searchMedia(query, type, limit);
-    const filtered = data.results.filter(r => r.similarity_score >= minScore);
+    const filtered = data.results.filter((r) => r.similarity_score >= minScore);
     results.push(...filtered);
   }
 
@@ -401,8 +357,8 @@ async function advancedSearch({
 
 // Usage
 const results = await advancedSearch({
-  query: 'nature photography',
-  mediaTypes: ['image', 'video'],
+  query: "nature photography",
+  mediaTypes: ["image", "video"],
   minScore: 0.5,
   limit: 20,
 });
@@ -414,31 +370,31 @@ const results = await advancedSearch({
 
 ```javascript
 // ✅ Good: Descriptive, natural language
-"red sports car parked in front of building"
-"person giving presentation to audience"
-"jazz music with piano solo"
+"red sports car parked in front of building";
+"person giving presentation to audience";
+"jazz music with piano solo";
 
 // ❌ Bad: Too vague or single words
-"car"
-"presentation"
-"music"
+"car";
+"presentation";
+"music";
 
 // ✅ Good: Specific details
-"black and white photo of vintage camera"
-"tutorial video about web development"
+"black and white photo of vintage camera";
+"tutorial video about web development";
 
 // ❌ Bad: Technical jargon
-"IMG_1234.jpg"
-"video_720p_h264.mp4"
+"IMG_1234.jpg";
+"video_720p_h264.mp4";
 ```
 
 ### 2. Filter by Media Type
 
 ```javascript
 // Search specific types for better performance
-const images = await searchMedia('sunset', 'image');
-const videos = await searchMedia('tutorial', 'video');
-const docs = await searchMedia('report', 'document');
+const images = await searchMedia("sunset", "image");
+const videos = await searchMedia("tutorial", "video");
+const docs = await searchMedia("report", "document");
 ```
 
 ### 3. Handle Low Scores
@@ -446,18 +402,22 @@ const docs = await searchMedia('report', 'document');
 ```javascript
 async function intelligentSearch(query) {
   const results = await searchMedia(query);
-  
-  const highQuality = results.results.filter(r => r.similarity_score > 0.7);
-  const mediumQuality = results.results.filter(r => 
-    r.similarity_score > 0.4 && r.similarity_score <= 0.7
+
+  const highQuality = results.results.filter((r) => r.similarity_score > 0.7);
+  const mediumQuality = results.results.filter(
+    (r) => r.similarity_score > 0.4 && r.similarity_score <= 0.7,
   );
 
   if (highQuality.length > 0) {
-    return { results: highQuality, quality: 'high' };
+    return { results: highQuality, quality: "high" };
   } else if (mediumQuality.length > 0) {
-    return { results: mediumQuality, quality: 'medium' };
+    return { results: mediumQuality, quality: "medium" };
   } else {
-    return { results: [], quality: 'none', message: 'No relevant results found' };
+    return {
+      results: [],
+      quality: "none",
+      message: "No relevant results found",
+    };
   }
 }
 ```
@@ -465,7 +425,7 @@ async function intelligentSearch(query) {
 ### 4. Debounce Search Input
 
 ```javascript
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -482,13 +442,13 @@ function useDebounce(value, delay) {
 }
 
 function SearchBox() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 500);
   const [results, setResults] = useState([]);
 
   useEffect(() => {
     if (debouncedQuery) {
-      searchMedia(debouncedQuery).then(data => setResults(data.results));
+      searchMedia(debouncedQuery).then((data) => setResults(data.results));
     }
   }, [debouncedQuery]);
 
@@ -507,15 +467,16 @@ function SearchBox() {
 
 ```javascript
 class SearchCache {
-  constructor(ttl = 300000) { // 5 minutes
+  constructor(ttl = 300000) {
+    // 5 minutes
     this.cache = new Map();
     this.ttl = ttl;
   }
 
   get(query, type) {
-    const key = `${query}:${type || 'all'}`;
+    const key = `${query}:${type || "all"}`;
     const cached = this.cache.get(key);
-    
+
     if (cached && Date.now() - cached.timestamp < this.ttl) {
       return cached.data;
     }
@@ -524,7 +485,7 @@ class SearchCache {
   }
 
   set(query, type, data) {
-    const key = `${query}:${type || 'all'}`;
+    const key = `${query}:${type || "all"}`;
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -551,7 +512,9 @@ async function cachedSearch(query, type) {
 **Problem**: Search returns no results even though files exist.
 
 **Solutions**:
+
 1. Check if semantic search is enabled:
+
    ```bash
    curl http://localhost:3000/api/config | grep semantic
    ```
@@ -559,6 +522,7 @@ async function cachedSearch(query, type) {
 2. Verify `ANTHROPIC_API_KEY` is set and valid.
 
 3. Check if embeddings exist:
+
    ```sql
    SELECT COUNT(*) FROM embeddings;
    ```
@@ -573,13 +537,16 @@ async function cachedSearch(query, type) {
 **Problem**: Searches take too long.
 
 **Solutions**:
+
 1. Add vector index (if not present):
+
    ```sql
-   CREATE INDEX idx_embeddings_vector 
+   CREATE INDEX idx_embeddings_vector
    ON embeddings USING ivfflat (embedding vector_cosine_ops);
    ```
 
 2. Reduce search limit:
+
    ```javascript
    await searchMedia(query, type, 10); // Instead of 50
    ```
@@ -591,6 +558,7 @@ async function cachedSearch(query, type) {
 **Problem**: "Failed to connect to Anthropic" or API key errors.
 
 **Solutions**:
+
 1. Verify `ANTHROPIC_API_KEY` is set and valid in your environment.
 2. Check [Anthropic console](https://console.anthropic.com/) for usage limits and API status.
 3. Check firewall/network settings for outbound HTTPS.
@@ -600,6 +568,7 @@ async function cachedSearch(query, type) {
 **Problem**: Search results don't match query well.
 
 **Solutions**:
+
 1. Use more descriptive queries
 2. Try different phrasing
 3. Filter by specific media type
@@ -612,4 +581,3 @@ async function cachedSearch(query, type) {
 - [Audio](audio.md) - Audio files
 - [Documents](documents.md) - PDF documents
 - [API Reference](api-reference.md) - Complete API docs
-

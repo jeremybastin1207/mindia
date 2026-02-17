@@ -6,16 +6,16 @@ use crate::plugins::impls::OpenAiImageDescriptionPlugin;
 use crate::plugins::{PluginRegistry, PluginService};
 use anyhow::Context;
 use mindia_core::Config;
+#[cfg(feature = "workflow")]
+use mindia_db::media::{WorkflowExecutionRepository, WorkflowRepository};
 use mindia_db::{
     create_analytics_repository, ApiKeyRepository, EmbeddingRepository, FileGroupRepository,
     FolderRepository, MediaRepository, MetadataSearchRepository, NamedTransformationRepository,
-    StorageMetricsRepository, TaskRepository, TenantRepository, WebhookEventRepository,
-    WebhookRepository, WebhookRetryRepository,
+    PresignedUploadRepository, StorageMetricsRepository, TaskRepository, TenantRepository,
+    WebhookEventRepository, WebhookRepository, WebhookRetryRepository,
 };
 #[cfg(feature = "plugin")]
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
-#[cfg(feature = "workflow")]
-use mindia_db::{WorkflowExecutionRepository, WorkflowRepository};
 use mindia_infra::{
     start_storage_metrics_refresh, AnalyticsService, CapacityChecker, CleanupService, RateLimiter,
     WebhookRetryService, WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
@@ -105,6 +105,7 @@ pub async fn initialize_services(
     let webhook_db = WebhookRepository::new(pool.clone());
     let webhook_event_db = WebhookEventRepository::new(pool.clone());
     let webhook_retry_db = WebhookRetryRepository::new(pool.clone());
+    let presigned_upload_db = PresignedUploadRepository::new(pool.clone());
 
     let tenant_db = TenantRepository::new(pool.clone());
     let api_key_db = ApiKeyRepository::new(pool.clone());
@@ -144,7 +145,7 @@ pub async fn initialize_services(
             voyage_key,
             config.anthropic_vision_model().to_string(),
             config.voyage_embedding_model().to_string(),
-        );
+        )?;
         match svc.health_check().await {
             Ok(true) => tracing::info!("✅ Semantic search ready: Claude Vision + Voyage AI embeddings"),
             Ok(false) | Err(_) => tracing::warn!(
@@ -212,66 +213,21 @@ pub async fn initialize_services(
     tracing::info!("MediaConfig initialized with unified repository");
 
     tracing::info!("Initializing cleanup service...");
-    #[cfg(all(feature = "video", feature = "document", feature = "audio"))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(feature = "video", feature = "document", not(feature = "audio")))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(feature = "video", not(feature = "document"), feature = "audio"))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(feature = "video", not(feature = "document"), not(feature = "audio")))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(not(feature = "video"), feature = "document", feature = "audio"))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(not(feature = "video"), feature = "document", not(feature = "audio")))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(not(feature = "video"), not(feature = "document"), feature = "audio"))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
-    #[cfg(all(
-        not(feature = "video"),
-        not(feature = "document"),
-        not(feature = "audio")
-    ))]
-    let cleanup_service = CleanupService::new(
-        Arc::new(media_db.clone()),
-        storage.clone(),
-        Some(Arc::new(task_db.clone())),
-        config.task_retention_days(),
-    );
+    let cleanup_service = {
+        #[cfg(any(feature = "video", feature = "document", feature = "audio"))]
+        {
+            Some(CleanupService::new(
+                Arc::new(media_db.clone()),
+                storage.clone(),
+                Some(Arc::new(task_db.clone())),
+                config.task_retention_days(),
+            ))
+        }
+        #[cfg(not(any(feature = "video", feature = "document", feature = "audio")))]
+        {
+            None::<CleanupService>
+        }
+    };
     tracing::info!("Cleanup service initialized successfully");
 
     tracing::info!("Initializing webhook services...");
@@ -306,7 +262,7 @@ pub async fn initialize_services(
         pool: pool.clone(),
         analytics: analytics_service.clone(),
         database: database_config.clone(),
-        cleanup_service: Some(cleanup_service.clone()),
+        cleanup_service: cleanup_service.clone(),
         folder_repository: folder_db.clone(),
         named_transformation_repository: named_transformation_db.clone(),
         embedding_repository: embedding_db.clone(),
@@ -317,6 +273,7 @@ pub async fn initialize_services(
         webhook_repository: webhook_db.clone(),
         webhook_event_repository: webhook_event_db.clone(),
         webhook_retry_repository: webhook_retry_db.clone(),
+        presigned_upload_repository: presigned_upload_db.clone(),
     };
 
     let webhook_state = WebhookState {
@@ -737,7 +694,7 @@ pub async fn initialize_services(
         pool,
         analytics: analytics_service,
         database: database_config,
-        cleanup_service: Some(cleanup_service),
+        cleanup_service,
         folder_repository: folder_db,
         named_transformation_repository: named_transformation_db,
         embedding_repository: embedding_db,
@@ -748,6 +705,7 @@ pub async fn initialize_services(
         webhook_repository: webhook_db,
         webhook_event_repository: webhook_event_db,
         webhook_retry_repository: webhook_retry_db,
+        presigned_upload_repository: presigned_upload_db,
     };
 
     let state = Arc::new(AppState {
@@ -842,10 +800,13 @@ pub async fn initialize_services(
     // Start pool metrics collection if OpenTelemetry is enabled
     #[cfg(feature = "observability-opentelemetry")]
     {
-        use crate::telemetry::PoolMetrics;
+        use crate::telemetry::pool_metrics::PoolMetrics;
         let meter = opentelemetry::global::meter("mindia");
         let pool_metrics = PoolMetrics::new(meter);
-        crate::telemetry::start_pool_metrics_collector(state.db.pool.clone(), pool_metrics);
+        crate::telemetry::pool_metrics::start_pool_metrics_collector(
+            Arc::new(state.db.pool.clone()),
+            pool_metrics,
+        );
         tracing::info!("Started database pool metrics collection (every 30 seconds)");
     }
 

@@ -117,7 +117,7 @@ impl MetadataSearchRepository {
                         m.file_size
                     FROM media m
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
-                    LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text::text AND m.tenant_id = e.tenant_id
+                    LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text AND m.tenant_id = e.tenant_id
                     WHERE m.tenant_id = $1 
                       AND m.media_type::text = $2
                       AND m.metadata->'user' @> $3::jsonb
@@ -209,7 +209,6 @@ impl MetadataSearchRepository {
             return Ok(Vec::new());
         }
 
-        // Validate metadata filters if present
         if let Some(ref f) = filters {
             f.validate()?;
         }
@@ -218,7 +217,6 @@ impl MetadataSearchRepository {
             .map(Vector::from)
             .context("Query embedding is required for semantic search")?;
 
-        // Handle exact match filters with semantic search (most efficient case)
         if let Some(ref filters) = filters {
             if !filters.exact.is_empty()
                 && filters.ranges.is_empty()
@@ -397,12 +395,10 @@ impl MetadataSearchRepository {
         limit: i64,
         offset: i64,
     ) -> Result<Vec<SearchResult>> {
-        // Validate metadata keys using the same validation as when setting metadata
         // This ensures consistency and prevents SQL injection via edge cases
         // Keys are validated, then escaped for SQL safety when interpolated into JSONB paths
         let validate_key = |key: &str| -> Result<String> {
             // Use the same validation function as metadata setting
-            // This ensures keys match the same pattern: ^[a-zA-Z0-9_\-\.:]+$
             // and are checked for reserved prefixes
             validate_metadata_key(key)
                 .with_context(|| format!("Invalid metadata key: '{}'", key))?;
@@ -450,7 +446,7 @@ impl MetadataSearchRepository {
                         m.file_size
                     FROM media m
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
-                    LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text::text AND m.tenant_id = e.tenant_id
+                    LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text AND m.tenant_id = e.tenant_id
                     WHERE {}
                     ORDER BY m.uploaded_at DESC
                     LIMIT ${} OFFSET ${}
@@ -493,7 +489,7 @@ impl MetadataSearchRepository {
             "m.file_size".to_string(),
             "FROM media m".to_string(),
             "LEFT JOIN storage_locations sl ON m.storage_id = sl.id".to_string(),
-            "LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text::text AND m.tenant_id = e.tenant_id".to_string(),
+            "LEFT JOIN embeddings e ON m.id = e.entity_id AND m.media_type::text = e.entity_type::text AND m.tenant_id = e.tenant_id".to_string(),
             format!("WHERE m.tenant_id = ${}", param_index),
         ];
         param_index += 1;

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use mindia_db::{PluginFileGroupRepository, PluginMediaRepository};
-use mindia_services::Storage;
+use mindia_storage::Storage;
 
 /// Context provided to plugins during execution
 ///

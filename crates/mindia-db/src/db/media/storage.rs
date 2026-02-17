@@ -4,6 +4,7 @@ use mindia_core::models::StorageLocation;
 use mindia_core::AppError;
 use mindia_core::StorageBackend;
 use sqlx::{PgPool, Postgres, Transaction};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Row type for storage_locations table (for FromRow).
@@ -100,5 +101,26 @@ impl StorageLocationRepository {
         .fetch_optional(&self.pool)
         .await?;
         Ok(row.map(|r| r.to_storage_location()))
+    }
+
+    /// Fetch multiple storage locations by ids in one query (avoids N+1 when mapping rows to domain types).
+    #[tracing::instrument(skip(self, ids), fields(db.table = "storage_locations", count = ids.len()))]
+    pub async fn get_by_ids(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, StorageLocation>, AppError> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows: Vec<StorageLocationRow> = sqlx::query_as::<Postgres, StorageLocationRow>(
+            "SELECT id, backend, bucket, key, url FROM storage_locations WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| (r.id, r.to_storage_location()))
+            .collect())
     }
 }

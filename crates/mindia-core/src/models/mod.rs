@@ -2,6 +2,11 @@
 //!
 //! This module contains all data structures used throughout the application,
 //! organized by domain. Each sub-module represents a specific feature area.
+//!
+//! **SQLx feature:** Many types derive `sqlx::Type` and/or implement `sqlx::FromRow` when the
+//! `sqlx` feature is enabled (default). Types that are only used with the DB layer use
+//! `#[cfg_attr(feature = "sqlx", ...)]` so the crate can build with `default-features = false`;
+//! then those types exist but without DB support.
 
 mod analytics;
 mod audio;

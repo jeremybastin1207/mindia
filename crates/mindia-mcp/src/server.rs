@@ -2,8 +2,8 @@
 //!
 //! Exposes Mindia API as MCP tools over stdio.
 
-use crate::api_client::ApiClient;
 use crate::tools::*;
+use mindia_api_client::ApiClient;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::tool::Parameters;
 use rmcp::model::*;

@@ -4,7 +4,7 @@ use tokio::sync::{mpsc, Semaphore};
 use uuid::Uuid;
 
 use mindia_core::models::ProcessingStatus;
-use mindia_processing::{VideoOrchestrator, VideoOrchestratorConfig};
+use mindia_services::{VideoOrchestrator, VideoOrchestratorConfig};
 
 use crate::state::AppState;
 use crate::video_storage_impl::GenericVideoStorage;

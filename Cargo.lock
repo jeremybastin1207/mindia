@@ -262,6 +262,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.116",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2462,6 +2484,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-timeout"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b90d566bffbce6a75bd8b09a05aa8c2cb1fabb6cb348f8840c9e4c90a0d83b0"
+dependencies = [
+ "hyper 1.8.1",
+ "hyper-util",
+ "pin-project-lite",
+ "tokio",
+ "tower-service",
+]
+
+[[package]]
 name = "hyper-tls"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3211,19 +3246,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "mindia-cli"
+name = "mindia-api-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "clap",
  "mindia-core",
  "reqwest",
  "serde",
  "serde_json",
+ "urlencoding",
+ "uuid",
+]
+
+[[package]]
+name = "mindia-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "dotenvy",
+ "mindia-api-client",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -3310,17 +3357,14 @@ name = "mindia-mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "dotenvy",
- "reqwest",
+ "mindia-api-client",
  "rmcp",
  "schemars 1.2.1",
  "serde",
  "serde_json",
  "tokio",
  "tracing-subscriber",
- "urlencoding",
- "uuid",
 ]
 
 [[package]]
@@ -3338,7 +3382,7 @@ dependencies = [
  "futures",
  "mindia-core",
  "mindia-db",
- "mindia-services",
+ "mindia-storage",
  "mockito",
  "reqwest",
  "serde",
@@ -3362,8 +3406,6 @@ dependencies = [
  "img-parts",
  "kamadak-exif",
  "mindia-core",
- "mindia-db",
- "mindia-infra",
  "mindia-storage",
  "mozjpeg",
  "ravif 0.11.20",
@@ -3401,8 +3443,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3420,7 +3464,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "urlencoding",
  "uuid",
 ]
 
@@ -3932,6 +3975,8 @@ dependencies = [
  "opentelemetry_sdk 0.27.1",
  "prost",
  "thiserror 1.0.69",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]
@@ -3962,7 +4007,6 @@ dependencies = [
  "futures-channel",
  "futures-executor",
  "futures-util",
- "glob",
  "once_cell",
  "opentelemetry 0.26.0",
  "percent-encoding",
@@ -6286,16 +6330,25 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
 dependencies = [
+ "async-stream",
  "async-trait",
+ "axum 0.7.9",
  "base64 0.22.1",
  "bytes",
+ "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
+ "hyper 1.8.1",
+ "hyper-timeout",
+ "hyper-util",
  "percent-encoding",
  "pin-project",
  "prost",
+ "socket2 0.5.10",
+ "tokio",
  "tokio-stream",
+ "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -6308,7 +6361,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8fa9be0de6cf49e536ce1851f987bd21a43b771b09473c3549a6c853db37c1c"
 dependencies = [
  "futures-core",
+ "futures-util",
+ "indexmap 1.9.3",
+ "pin-project",
  "pin-project-lite",
+ "rand 0.8.5",
+ "slab",
  "tokio",
  "tokio-util",
  "tower-layer",
@@ -6425,14 +6483,14 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.27.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc58af5d3f6c5811462cabb3289aec0093f7338e367e5a33d28c0433b3c7360b"
+checksum = "97a971f6058498b5c0f1affa23e7ea202057a7301dbff68e968b2d578bcbd053"
 dependencies = [
  "js-sys",
  "once_cell",
- "opentelemetry 0.26.0",
- "opentelemetry_sdk 0.26.0",
+ "opentelemetry 0.27.1",
+ "opentelemetry_sdk 0.27.1",
  "smallvec",
  "tracing",
  "tracing-core",

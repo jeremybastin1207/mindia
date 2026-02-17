@@ -1,6 +1,15 @@
 //! Mindia Infrastructure Library
 //!
-//! This crate provides shared infrastructure components used across all Mindia services:
+//! This crate provides shared infrastructure components used across all Mindia services.
+//!
+//! **Architectural boundary (intended split):**
+//! - **Pure infrastructure** (middleware, telemetry, rate limiting, capacity): cross-cutting
+//!   concerns with no domain logic; belong in this crate.
+//! - **Business services** (webhook, analytics, cleanup, archive): domain-oriented services
+//!   that coordinate storage/DB; could be moved to `mindia-services` in a future refactor
+//!   so that this crate stays focused on HTTP/observability/resource gates only.
+//!
+//! Current modules:
 //! - Middleware (request ID, security headers)
 //! - Telemetry initialization (OpenTelemetry)
 //! - Error handling

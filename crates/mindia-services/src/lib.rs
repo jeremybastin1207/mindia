@@ -1,8 +1,15 @@
 //! Mindia Services Layer
 //!
-//! This crate provides business logic services and processing functionality.
+//! This crate is the **business service layer**: it hosts orchestration and
+//! domain services (e.g. video transcoding orchestration, ClamAV, semantic search)
+//! and re-exports a unified API from infrastructure, processing, and storage
+//! so that the API crate depends on a single service facade. Keep business
+//! logic and coordination here; keep thin HTTP handling in mindia-api.
 
 pub mod services;
+
+#[cfg(feature = "video")]
+pub mod video_orchestration;
 
 #[cfg(feature = "capacity")]
 pub use mindia_infra::CapacityChecker;
@@ -32,9 +39,12 @@ pub use mindia_storage::{
 };
 #[cfg(feature = "clamav")]
 pub use services::clamav::{ClamAVService, ScanResult};
+#[cfg(feature = "storage-s3")]
 pub use services::s3::S3Service;
 #[cfg(feature = "semantic-search")]
 pub use services::{
     anthropic::AnthropicService,
     semantic_search::{normalize_embedding_dim, SemanticSearchProvider},
 };
+#[cfg(feature = "video")]
+pub use video_orchestration::{VideoOrchestrator, VideoOrchestratorConfig};

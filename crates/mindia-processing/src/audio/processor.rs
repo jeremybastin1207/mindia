@@ -37,71 +37,81 @@ impl AudioProcessor {
         Self { ffprobe_path }
     }
 
-    /// Extract audio metadata from a file using ffprobe (path-based)
+    /// Extract audio metadata from a file using ffprobe (path-based).
+    /// Call this from async code; for in-process use from async, prefer `extract_metadata`
+    /// which offloads ffprobe to a blocking thread.
     #[tracing::instrument(skip(self, file_path), fields(service = "audio"))]
     pub async fn extract_audio_metadata_from_path(
         &self,
         file_path: &str,
     ) -> Result<UnifiedAudioMetadata, anyhow::Error> {
         info!("Extracting audio metadata from: {}", file_path);
-
-        let output = Command::new(&self.ffprobe_path)
-            .args([
-                "-v",
-                "error",
-                "-show_format",
-                "-show_streams",
-                "-of",
-                "json",
-                file_path,
-            ])
-            .output()
-            .map_err(|e| anyhow::anyhow!("Failed to run ffprobe: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("ffprobe failed: {}", stderr);
-            return Err(anyhow::anyhow!("ffprobe failed: {}", stderr));
-        }
-
-        let json_output: FFprobeOutput = serde_json::from_slice(&output.stdout)
-            .map_err(|e| anyhow::anyhow!("Failed to parse ffprobe output: {}", e))?;
-
-        let duration = json_output
-            .format
-            .as_ref()
-            .and_then(|f| f.duration.as_ref())
-            .and_then(|d| d.parse::<f64>().ok());
-
-        let bitrate = json_output
-            .format
-            .as_ref()
-            .and_then(|f| f.bit_rate.as_ref())
-            .and_then(|b| b.parse::<i32>().ok());
-
-        let audio_stream = json_output.streams.and_then(|streams| {
-            streams
-                .into_iter()
-                .find(|s| s.codec_type.as_deref() == Some("audio"))
-        });
-
-        let sample_rate = audio_stream
-            .as_ref()
-            .and_then(|s| s.sample_rate.as_ref())
-            .and_then(|sr| sr.parse::<i32>().ok());
-
-        let channels = audio_stream.as_ref().and_then(|s| s.channels);
-
-        let codec = audio_stream.as_ref().and_then(|s| s.codec_name.clone());
-
-        Ok(UnifiedAudioMetadata {
-            duration,
-            bitrate,
-            sample_rate,
-            channels,
-            codec,
-        })
+        let ffprobe_path = self.ffprobe_path.clone();
+        let file_path = file_path.to_string();
+        tokio::task::spawn_blocking(move || run_ffprobe(&ffprobe_path, &file_path))
+            .await
+            .map_err(|e| anyhow::anyhow!("spawn_blocking join error: {}", e))?
     }
+}
+
+/// Run ffprobe and parse JSON output (blocking). Used inside spawn_blocking to avoid blocking the async runtime.
+fn run_ffprobe(ffprobe_path: &str, file_path: &str) -> Result<UnifiedAudioMetadata, anyhow::Error> {
+    let output = Command::new(ffprobe_path)
+        .args([
+            "-v",
+            "error",
+            "-show_format",
+            "-show_streams",
+            "-of",
+            "json",
+            file_path,
+        ])
+        .output()
+        .map_err(|e| anyhow::anyhow!("Failed to run ffprobe: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        error!("ffprobe failed: {}", stderr);
+        return Err(anyhow::anyhow!("ffprobe failed: {}", stderr));
+    }
+
+    let json_output: FFprobeOutput = serde_json::from_slice(&output.stdout)
+        .map_err(|e| anyhow::anyhow!("Failed to parse ffprobe output: {}", e))?;
+
+    let duration = json_output
+        .format
+        .as_ref()
+        .and_then(|f| f.duration.as_ref())
+        .and_then(|d| d.parse::<f64>().ok());
+
+    let bitrate = json_output
+        .format
+        .as_ref()
+        .and_then(|f| f.bit_rate.as_ref())
+        .and_then(|b| b.parse::<i32>().ok());
+
+    let audio_stream = json_output.streams.and_then(|streams| {
+        streams
+            .into_iter()
+            .find(|s| s.codec_type.as_deref() == Some("audio"))
+    });
+
+    let sample_rate = audio_stream
+        .as_ref()
+        .and_then(|s| s.sample_rate.as_ref())
+        .and_then(|sr| sr.parse::<i32>().ok());
+
+    let channels = audio_stream.as_ref().and_then(|s| s.channels);
+
+    let codec = audio_stream.as_ref().and_then(|s| s.codec_name.clone());
+
+    Ok(UnifiedAudioMetadata {
+        duration,
+        bitrate,
+        sample_rate,
+        channels,
+        codec,
+    })
 }
 
 #[async_trait]

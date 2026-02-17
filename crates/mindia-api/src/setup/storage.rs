@@ -31,7 +31,8 @@ pub async fn setup_storage(config: &Config) -> Result<(Option<S3Service>, Arc<dy
             .ok_or_else(|| {
                 anyhow::anyhow!("S3_REGION or AWS_REGION not configured (required for S3 backend)")
             })?;
-        let s3_service = S3Service::new(Some(s3_bucket), s3_region).await?;
+        let s3_endpoint = config.s3_endpoint().map(String::from);
+        let s3_service = S3Service::new(Some(s3_bucket), s3_region, s3_endpoint).await?;
         tracing::info!("S3 service initialized successfully");
         Some(s3_service)
     } else {

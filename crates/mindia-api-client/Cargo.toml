@@ -1,0 +1,19 @@
+[package]
+name = "mindia-api-client"
+version.workspace = true
+edition.workspace = true
+description = "Shared HTTP client for Mindia API with configurable auth"
+
+[lib]
+name = "mindia_api_client"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+mindia-core = { path = "../mindia-core", default-features = false }
+reqwest = { workspace = true, features = ["json", "multipart"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+urlencoding = "2.1"
+uuid = { workspace = true }

@@ -124,7 +124,11 @@ impl WebhookRetryService {
 
         for retry_item in due_retries {
             let webhook_service = webhook_service.clone();
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .expect("semaphore closed");
 
             let handle = tokio::spawn(async move {
                 let event_id = retry_item.webhook_event_id;

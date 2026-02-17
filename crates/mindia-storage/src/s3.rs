@@ -27,8 +27,6 @@ pub struct S3Storage {
 }
 
 impl S3Storage {
-    /// Create a new S3Storage instance
-    ///
     /// # Arguments
     /// * `bucket` - S3 bucket name
     /// * `region` - AWS region (or region identifier for S3-compatible providers)
@@ -62,16 +60,6 @@ impl S3Storage {
         })
     }
 
-    /// Generate S3 key path for a tenant and filename
-    /// For default tenant, uses shorter path: media/{filename}
-    fn generate_key(tenant_id: Uuid, filename: &str) -> String {
-        if tenant_id == mindia_core::constants::DEFAULT_TENANT_ID {
-            format!("media/{}", filename)
-        } else {
-            format!("media/{}/{}", tenant_id, filename)
-        }
-    }
-
     /// Generate public URL for S3 object
     ///
     /// For AWS S3, uses the standard format: https://{bucket}.s3.{region}.amazonaws.com/{key}
@@ -98,24 +86,22 @@ impl Storage for S3Storage {
         _content_type: &str,
         data: Vec<u8>,
     ) -> StorageResult<(String, String)> {
-        let key = Self::generate_key(tenant_id, filename);
+        let key = crate::keys::generate_storage_key(tenant_id, filename);
         let size = data.len() as u64;
         let bytes = Bytes::from(data);
         let location = Path::from(key.clone());
 
         let start = std::time::Instant::now();
 
-        let result: ObjectResult<_> = self
-            .store
-            .put(&location, PutPayload::from(bytes.clone()))
-            .await;
+        let result: ObjectResult<_> = self.store.put(&location, PutPayload::from(bytes)).await;
 
         result.map_err(|e| {
             tracing::error!(
                 error = %e,
                 bucket = %self.bucket,
                 key = %key,
-                size_bytes = size,
+                size_bytes = size
+                ,
                 duration_ms = start.elapsed().as_secs_f64() * 1000.0,
                 "S3 upload failed"
             );
@@ -216,16 +202,18 @@ impl Storage for S3Storage {
 
         let result: ObjectResult<_> = self.store.delete(&location).await;
 
-        result.map_err(|e| {
-            tracing::error!(
-                error = %e,
-                bucket = %self.bucket,
-                key = %storage_key,
-                duration_ms = start.elapsed().as_secs_f64() * 1000.0,
-                "S3 delete failed"
-            );
-            StorageError::DeleteFailed(e.to_string())
-        })?;
+        if let Err(e) = &result {
+            if !matches!(e, ObjectStoreError::NotFound { .. }) {
+                tracing::error!(
+                    error = %e,
+                    bucket = %self.bucket,
+                    key = %storage_key,
+                    duration_ms = start.elapsed().as_secs_f64() * 1000.0,
+                    "S3 delete failed"
+                );
+                return Err(StorageError::DeleteFailed(e.to_string()));
+            }
+        }
 
         tracing::info!(
             bucket = %self.bucket,
@@ -246,6 +234,25 @@ impl Storage for S3Storage {
         let url_result: ObjectResult<_> = self
             .store
             .signed_url(Method::GET, &location, expires_in)
+            .await;
+
+        let url = url_result
+            .map_err(|e| StorageError::BackendError(e.to_string()))?
+            .to_string();
+
+        Ok(url)
+    }
+
+    async fn presigned_put_url(
+        &self,
+        storage_key: &str,
+        _content_type: &str,
+        expires_in: Duration,
+    ) -> StorageResult<String> {
+        let location = Path::from(storage_key.to_string());
+        let url_result: ObjectResult<_> = self
+            .store
+            .signed_url(Method::PUT, &location, expires_in)
             .await;
 
         let url = url_result
@@ -306,7 +313,7 @@ impl Storage for S3Storage {
         _content_length: Option<u64>,
         mut reader: Pin<Box<dyn AsyncRead + Send + Unpin>>,
     ) -> StorageResult<(String, String)> {
-        let key = Self::generate_key(tenant_id, filename);
+        let key = crate::keys::generate_storage_key(tenant_id, filename);
         let start = std::time::Instant::now();
         let location = Path::from(key.clone());
 

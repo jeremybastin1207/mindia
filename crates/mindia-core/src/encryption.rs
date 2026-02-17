@@ -16,6 +16,19 @@ pub struct EncryptionService {
 }
 
 impl EncryptionService {
+    /// Create a new encryption service from raw 32-byte key (e.g. for tests; avoids env mutation).
+    pub fn from_key_bytes(key_bytes: &[u8]) -> Result<Self, AppError> {
+        if key_bytes.len() != 32 {
+            return Err(AppError::Internal(
+                "Encryption key must be 32 bytes (256 bits)".to_string(),
+            ));
+        }
+        let key = Key::<Aes256Gcm>::from_slice(key_bytes);
+        Ok(Self {
+            cipher: Aes256Gcm::new(key),
+        })
+    }
+
     /// Create a new encryption service from environment variable
     /// Expects ENCRYPTION_KEY to be a base64-encoded 32-byte key
     pub fn new() -> Result<Self, AppError> {
@@ -27,16 +40,7 @@ impl EncryptionService {
             .decode(&key_str)
             .map_err(|e| AppError::Internal(format!("Failed to decode encryption key: {}", e)))?;
 
-        if key_bytes.len() != 32 {
-            return Err(AppError::Internal(
-                "Encryption key must be 32 bytes (256 bits)".to_string(),
-            ));
-        }
-
-        let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
-        let cipher = Aes256Gcm::new(key);
-
-        Ok(Self { cipher })
+        Self::from_key_bytes(&key_bytes)
     }
 
     /// Encrypt a plaintext string
@@ -78,8 +82,10 @@ impl EncryptionService {
             .map_err(|e| AppError::Internal(format!("Invalid UTF-8 in decrypted data: {}", e)))
     }
 
-    /// Encrypt sensitive fields in a JSON object
-    /// Looks for keys containing: api_key, secret, token, password, credential, private_key
+    /// Encrypt sensitive fields in a JSON object.
+    /// Sensitive keys are detected by name (best-effort): any key whose lowercase form contains
+    /// `api_key`, `secret`, `token`, `password`, `credential`, or `private_key`. Add new
+    /// substrings here if you introduce additional sensitive key names.
     pub fn encrypt_sensitive_json(
         &self,
         json: &serde_json::Value,
@@ -155,16 +161,14 @@ impl EncryptionService {
 mod tests {
     use super::*;
 
+    fn test_service() -> EncryptionService {
+        let test_key = b"01234567890123456789012345678901";
+        EncryptionService::from_key_bytes(test_key).unwrap()
+    }
+
     #[test]
     fn test_encryption_decryption() {
-        // Generate a test key (32 bytes)
-        let test_key = b"01234567890123456789012345678901"; // 32 bytes
-        let key_str = general_purpose::STANDARD.encode(test_key);
-
-        // Set environment variable for test
-        env::set_var("ENCRYPTION_KEY", &key_str);
-
-        let service = EncryptionService::new().unwrap();
+        let service = test_service();
         let plaintext = "test_token_12345";
 
         let encrypted = service.encrypt(plaintext).unwrap();
@@ -172,17 +176,11 @@ mod tests {
 
         let decrypted = service.decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, plaintext);
-
-        env::remove_var("ENCRYPTION_KEY");
     }
 
     #[test]
     fn test_encrypt_sensitive_json() {
-        let test_key = b"01234567890123456789012345678901";
-        let key_str = general_purpose::STANDARD.encode(test_key);
-        env::set_var("ENCRYPTION_KEY", &key_str);
-
-        let service = EncryptionService::new().unwrap();
+        let service = test_service();
 
         let config = serde_json::json!({
             "api_key": "secret_key_123",
@@ -193,27 +191,18 @@ mod tests {
 
         let (public, encrypted) = service.encrypt_sensitive_json(&config).unwrap();
 
-        // Check that sensitive fields are removed from public config
         assert!(public.get("api_key").is_none());
         assert!(public.get("client_secret").is_none());
 
-        // Check that non-sensitive fields remain
         assert_eq!(public.get("region").unwrap(), "us-east-1");
         assert_eq!(public.get("timeout").unwrap(), 30);
 
-        // Check that we have encrypted data
         assert!(encrypted.is_some());
-
-        env::remove_var("ENCRYPTION_KEY");
     }
 
     #[test]
     fn test_decrypt_and_merge_json() {
-        let test_key = b"01234567890123456789012345678901";
-        let key_str = general_purpose::STANDARD.encode(test_key);
-        env::set_var("ENCRYPTION_KEY", &key_str);
-
-        let service = EncryptionService::new().unwrap();
+        let service = test_service();
 
         let config = serde_json::json!({
             "api_key": "secret_key_123",
@@ -228,21 +217,14 @@ mod tests {
             .decrypt_and_merge_json(&public, encrypted.as_deref())
             .unwrap();
 
-        // Check that all fields are present
         assert_eq!(merged.get("api_key").unwrap(), "secret_key_123");
         assert_eq!(merged.get("region").unwrap(), "us-east-1");
         assert_eq!(merged.get("timeout").unwrap(), 30);
-
-        env::remove_var("ENCRYPTION_KEY");
     }
 
     #[test]
     fn test_encrypt_json_no_sensitive_fields() {
-        let test_key = b"01234567890123456789012345678901";
-        let key_str = general_purpose::STANDARD.encode(test_key);
-        env::set_var("ENCRYPTION_KEY", &key_str);
-
-        let service = EncryptionService::new().unwrap();
+        let service = test_service();
 
         let config = serde_json::json!({
             "region": "us-east-1",
@@ -254,7 +236,5 @@ mod tests {
         // No sensitive fields, so no encryption
         assert!(encrypted.is_none());
         assert_eq!(public, config);
-
-        env::remove_var("ENCRYPTION_KEY");
     }
 }

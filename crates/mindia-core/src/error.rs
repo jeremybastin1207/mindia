@@ -3,9 +3,13 @@
 //! This module provides the core error types used throughout the Mindia application.
 //! All errors are unified under the `AppError` enum which can represent database,
 //! storage, validation, and other domain-specific errors.
+//!
+//! The `Database` variant and `From<sqlx::Error>` are gated behind the `sqlx` feature.
+//! With `default-features = false`, build without the `sqlx` feature; then `AppError` has no database variant and you must use other error types for DB errors.
 
 use std::io;
 
+#[cfg(feature = "sqlx")]
 use sqlx::Error as SqlxError;
 
 /// Log level for error reporting
@@ -46,8 +50,13 @@ pub trait ErrorMetadata {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[cfg(feature = "sqlx")]
     #[error("Database error: {0}")]
     Database(#[source] SqlxError),
+
+    #[cfg(not(feature = "sqlx"))]
+    #[error("Database error: {0}")]
+    Database(String),
 
     #[error("S3 error: {0}")]
     S3(String),
@@ -141,6 +150,7 @@ pub enum AppError {
 }
 
 // Error conversion implementations following Rust best practices
+#[cfg(feature = "sqlx")]
 impl From<SqlxError> for AppError {
     fn from(err: SqlxError) -> Self {
         AppError::Database(err)
@@ -180,9 +190,237 @@ impl From<validator::ValidationErrors> for AppError {
     }
 }
 
-// Ensure Send + Sync bounds for async contexts
-// thiserror automatically implements Send + Sync for AppError when all variants are Send + Sync
-// All our variants use Send + Sync types, so this is satisfied
+/// Static metadata for each variant: (http_status, error_code, recoverable, suggested_action, sensitive, log_level).
+/// Reduces duplication in ErrorMetadata impl; client_message stays per-variant for dynamic content.
+fn app_error_static_metadata(
+    err: &AppError,
+) -> (
+    u16,
+    &'static str,
+    bool,
+    Option<&'static str>,
+    bool,
+    LogLevel,
+) {
+    match err {
+        AppError::Database(_) => (
+            500,
+            "DATABASE_ERROR",
+            true,
+            Some("Retry after a short delay"),
+            true,
+            LogLevel::Error,
+        ),
+        AppError::S3(_) => (
+            500,
+            "STORAGE_ERROR",
+            true,
+            Some("Retry after a short delay"),
+            true,
+            LogLevel::Error,
+        ),
+        AppError::ImageProcessing(_) => (
+            400,
+            "IMAGE_PROCESSING_ERROR",
+            false,
+            Some("Check image format and try a different file"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::MediaConversionError(_) => (
+            500,
+            "MEDIA_CONVERSION_ERROR",
+            false,
+            Some("Contact support if this error persists"),
+            true,
+            LogLevel::Error,
+        ),
+        AppError::InvalidInput(_) => (
+            400,
+            "INVALID_INPUT",
+            false,
+            Some("Check request parameters and try again"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::BadRequest(_) => (
+            400,
+            "BAD_REQUEST",
+            false,
+            Some("Check request format and parameters"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::NotFound(_) => (
+            404,
+            "NOT_FOUND",
+            false,
+            Some("Verify the resource ID exists"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::MetadataKeyNotFound(_) => (
+            404,
+            "METADATA_KEY_NOT_FOUND",
+            false,
+            Some("Verify the metadata key exists"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::OrganizationNotFound(_) => (
+            404,
+            "ORGANIZATION_NOT_FOUND",
+            false,
+            Some("Verify the organization ID exists"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::PayloadTooLarge(_) => (
+            413,
+            "PAYLOAD_TOO_LARGE",
+            false,
+            Some("Reduce file size or use chunked upload"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::Internal(_) => (
+            500,
+            "INTERNAL_ERROR",
+            true,
+            Some("Retry after a short delay"),
+            true,
+            LogLevel::Error,
+        ),
+        AppError::InternalWithSource { .. } => (
+            500,
+            "INTERNAL_ERROR",
+            true,
+            Some("Retry after a short delay"),
+            true,
+            LogLevel::Error,
+        ),
+        AppError::Unauthorized(_) => (
+            401,
+            "UNAUTHORIZED",
+            false,
+            Some("Check API key or authentication token"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::InvalidOAuthToken(_) => (
+            401,
+            "INVALID_OAUTH_TOKEN",
+            false,
+            Some("Refresh OAuth token or re-authenticate"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::InsufficientDiskSpace { .. } => (
+            507,
+            "INSUFFICIENT_DISK_SPACE",
+            true,
+            Some("Retry after cleanup or wait for capacity"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::InsufficientMemory { .. } => (
+            507,
+            "INSUFFICIENT_MEMORY",
+            true,
+            Some("Retry after a short delay"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::HighCpuUsage { .. } => (
+            503,
+            "HIGH_CPU_USAGE",
+            true,
+            Some("Wait 30-60 seconds and retry"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::HighMemoryUsage { .. } => (
+            503,
+            "HIGH_MEMORY_USAGE",
+            true,
+            Some("Wait 30-60 seconds and retry"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::ResourceExceededDuringOperation { .. } => (
+            503,
+            "RESOURCE_EXCEEDED",
+            true,
+            Some("Wait 30-60 seconds and retry"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::InvalidMetadataKey(_) => (
+            400,
+            "INVALID_METADATA_KEY",
+            false,
+            Some("Check metadata key format and constraints"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::InvalidMetadataValue(_) => (
+            400,
+            "INVALID_METADATA_VALUE",
+            false,
+            Some("Check metadata value format and constraints"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::MetadataKeyLimitExceeded(_) => (
+            400,
+            "METADATA_KEY_LIMIT_EXCEEDED",
+            false,
+            Some("Remove some metadata keys or upgrade plan"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::InvalidMetadataFilter(_) => (
+            400,
+            "INVALID_METADATA_FILTER",
+            false,
+            Some("Check metadata filter syntax"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::MetadataFilterLimitExceeded(_) => (
+            400,
+            "METADATA_FILTER_LIMIT_EXCEEDED",
+            false,
+            Some("Reduce number of filter conditions"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::UsageLimitExceeded { .. } => (
+            402,
+            "USAGE_LIMIT_EXCEEDED",
+            false,
+            Some("Upgrade plan or wait for limit reset"),
+            false,
+            LogLevel::Warn,
+        ),
+        AppError::SubscriptionRequired(_) => (
+            402,
+            "SUBSCRIPTION_REQUIRED",
+            false,
+            Some("Subscribe to a plan to access this feature"),
+            false,
+            LogLevel::Debug,
+        ),
+        AppError::StripeError(_) => (
+            500,
+            "STRIPE_ERROR",
+            true,
+            Some("Retry payment after a short delay"),
+            true,
+            LogLevel::Error,
+        ),
+    }
+}
 
 impl AppError {
     /// Get the error type name for detailed error responses
@@ -243,139 +481,27 @@ impl AppError {
 
 impl ErrorMetadata for AppError {
     fn http_status_code(&self) -> u16 {
-        match self {
-            AppError::Database(_) => 500,
-            AppError::S3(_) => 500,
-            AppError::ImageProcessing(_) => 400,
-            AppError::MediaConversionError(_) => 500,
-            AppError::InvalidInput(_) => 400,
-            AppError::BadRequest(_) => 400,
-            AppError::NotFound(_) => 404,
-            AppError::MetadataKeyNotFound(_) => 404,
-            AppError::OrganizationNotFound(_) => 404,
-            AppError::PayloadTooLarge(_) => 413,
-            AppError::Internal(_) => 500,
-            AppError::InternalWithSource { .. } => 500,
-            AppError::Unauthorized(_) => 401,
-            AppError::InvalidOAuthToken(_) => 401,
-            AppError::InsufficientDiskSpace { .. } => 507,
-            AppError::InsufficientMemory { .. } => 507,
-            AppError::HighCpuUsage { .. } => 503,
-            AppError::HighMemoryUsage { .. } => 503,
-            AppError::ResourceExceededDuringOperation { .. } => 503,
-            AppError::InvalidMetadataKey(_) => 400,
-            AppError::InvalidMetadataValue(_) => 400,
-            AppError::MetadataKeyLimitExceeded(_) => 400,
-            AppError::InvalidMetadataFilter(_) => 400,
-            AppError::MetadataFilterLimitExceeded(_) => 400,
-            AppError::UsageLimitExceeded { .. } => 402,
-            AppError::SubscriptionRequired(_) => 402,
-            AppError::StripeError(_) => 500,
-        }
+        app_error_static_metadata(self).0
     }
 
     fn error_code(&self) -> &'static str {
-        match self {
-            AppError::Database(_) => "DATABASE_ERROR",
-            AppError::S3(_) => "STORAGE_ERROR",
-            AppError::ImageProcessing(_) => "IMAGE_PROCESSING_ERROR",
-            AppError::MediaConversionError(_) => "MEDIA_CONVERSION_ERROR",
-            AppError::InvalidInput(_) => "INVALID_INPUT",
-            AppError::BadRequest(_) => "BAD_REQUEST",
-            AppError::NotFound(_) => "NOT_FOUND",
-            AppError::MetadataKeyNotFound(_) => "METADATA_KEY_NOT_FOUND",
-            AppError::OrganizationNotFound(_) => "ORGANIZATION_NOT_FOUND",
-            AppError::PayloadTooLarge(_) => "PAYLOAD_TOO_LARGE",
-            AppError::Internal(_) => "INTERNAL_ERROR",
-            AppError::InternalWithSource { .. } => "INTERNAL_ERROR",
-            AppError::Unauthorized(_) => "UNAUTHORIZED",
-            AppError::InvalidOAuthToken(_) => "INVALID_OAUTH_TOKEN",
-            AppError::InsufficientDiskSpace { .. } => "INSUFFICIENT_DISK_SPACE",
-            AppError::InsufficientMemory { .. } => "INSUFFICIENT_MEMORY",
-            AppError::HighCpuUsage { .. } => "HIGH_CPU_USAGE",
-            AppError::HighMemoryUsage { .. } => "HIGH_MEMORY_USAGE",
-            AppError::ResourceExceededDuringOperation { .. } => "RESOURCE_EXCEEDED",
-            AppError::InvalidMetadataKey(_) => "INVALID_METADATA_KEY",
-            AppError::InvalidMetadataValue(_) => "INVALID_METADATA_VALUE",
-            AppError::MetadataKeyLimitExceeded(_) => "METADATA_KEY_LIMIT_EXCEEDED",
-            AppError::InvalidMetadataFilter(_) => "INVALID_METADATA_FILTER",
-            AppError::MetadataFilterLimitExceeded(_) => "METADATA_FILTER_LIMIT_EXCEEDED",
-            AppError::UsageLimitExceeded { .. } => "USAGE_LIMIT_EXCEEDED",
-            AppError::SubscriptionRequired(_) => "SUBSCRIPTION_REQUIRED",
-            AppError::StripeError(_) => "STRIPE_ERROR",
-        }
+        app_error_static_metadata(self).1
     }
 
     fn is_recoverable(&self) -> bool {
-        match self {
-            AppError::Database(_) => true,
-            AppError::S3(_) => true,
-            AppError::ImageProcessing(_) => false,
-            AppError::MediaConversionError(_) => false,
-            AppError::InvalidInput(_) => false,
-            AppError::BadRequest(_) => false,
-            AppError::NotFound(_) => false,
-            AppError::MetadataKeyNotFound(_) => false,
-            AppError::OrganizationNotFound(_) => false,
-            AppError::PayloadTooLarge(_) => false,
-            AppError::Internal(_) => true,
-            AppError::InternalWithSource { .. } => true,
-            AppError::Unauthorized(_) => false,
-            AppError::InvalidOAuthToken(_) => false,
-            AppError::InsufficientDiskSpace { .. } => true,
-            AppError::InsufficientMemory { .. } => true,
-            AppError::HighCpuUsage { .. } => true,
-            AppError::HighMemoryUsage { .. } => true,
-            AppError::ResourceExceededDuringOperation { .. } => true,
-            AppError::InvalidMetadataKey(_) => false,
-            AppError::InvalidMetadataValue(_) => false,
-            AppError::MetadataKeyLimitExceeded(_) => false,
-            AppError::InvalidMetadataFilter(_) => false,
-            AppError::MetadataFilterLimitExceeded(_) => false,
-            AppError::UsageLimitExceeded { .. } => false,
-            AppError::SubscriptionRequired(_) => false,
-            AppError::StripeError(_) => true,
-        }
+        app_error_static_metadata(self).2
     }
 
     fn suggested_action(&self) -> Option<&'static str> {
-        match self {
-            AppError::Database(_) => Some("Retry after a short delay"),
-            AppError::S3(_) => Some("Retry after a short delay"),
-            AppError::ImageProcessing(_) => Some("Check image format and try a different file"),
-            AppError::MediaConversionError(_) => Some("Contact support if this error persists"),
-            AppError::InvalidInput(_) => Some("Check request parameters and try again"),
-            AppError::BadRequest(_) => Some("Check request format and parameters"),
-            AppError::NotFound(_) => Some("Verify the resource ID exists"),
-            AppError::MetadataKeyNotFound(_) => Some("Verify the metadata key exists"),
-            AppError::OrganizationNotFound(_) => Some("Verify the organization ID exists"),
-            AppError::PayloadTooLarge(_) => Some("Reduce file size or use chunked upload"),
-            AppError::Internal(_) => Some("Retry after a short delay"),
-            AppError::InternalWithSource { .. } => Some("Retry after a short delay"),
-            AppError::Unauthorized(_) => Some("Check API key or authentication token"),
-            AppError::InvalidOAuthToken(_) => Some("Refresh OAuth token or re-authenticate"),
-            AppError::InsufficientDiskSpace { .. } => {
-                Some("Retry after cleanup or wait for capacity")
-            }
-            AppError::InsufficientMemory { .. } => Some("Retry after a short delay"),
-            AppError::HighCpuUsage { .. } => Some("Wait 30-60 seconds and retry"),
-            AppError::HighMemoryUsage { .. } => Some("Wait 30-60 seconds and retry"),
-            AppError::ResourceExceededDuringOperation { .. } => {
-                Some("Wait 30-60 seconds and retry")
-            }
-            AppError::InvalidMetadataKey(_) => Some("Check metadata key format and constraints"),
-            AppError::InvalidMetadataValue(_) => {
-                Some("Check metadata value format and constraints")
-            }
-            AppError::MetadataKeyLimitExceeded(_) => {
-                Some("Remove some metadata keys or upgrade plan")
-            }
-            AppError::InvalidMetadataFilter(_) => Some("Check metadata filter syntax"),
-            AppError::MetadataFilterLimitExceeded(_) => Some("Reduce number of filter conditions"),
-            AppError::UsageLimitExceeded { .. } => Some("Upgrade plan or wait for limit reset"),
-            AppError::SubscriptionRequired(_) => Some("Subscribe to a plan to access this feature"),
-            AppError::StripeError(_) => Some("Retry payment after a short delay"),
-        }
+        app_error_static_metadata(self).3
+    }
+
+    fn is_sensitive(&self) -> bool {
+        app_error_static_metadata(self).4
+    }
+
+    fn log_level(&self) -> LogLevel {
+        app_error_static_metadata(self).5
     }
 
     fn client_message(&self) -> String {
@@ -459,70 +585,6 @@ impl ErrorMetadata for AppError {
             AppError::StripeError(_) => "Payment processing error".to_string(),
         }
     }
-
-    fn is_sensitive(&self) -> bool {
-        match self {
-            AppError::Database(_) => true,
-            AppError::S3(_) => true,
-            AppError::ImageProcessing(_) => false,
-            AppError::MediaConversionError(_) => true,
-            AppError::InvalidInput(_) => false,
-            AppError::BadRequest(_) => false,
-            AppError::NotFound(_) => false,
-            AppError::MetadataKeyNotFound(_) => false,
-            AppError::OrganizationNotFound(_) => false,
-            AppError::PayloadTooLarge(_) => false,
-            AppError::Internal(_) => true,
-            AppError::InternalWithSource { .. } => true,
-            AppError::Unauthorized(_) => false,
-            AppError::InvalidOAuthToken(_) => false,
-            AppError::InsufficientDiskSpace { .. } => false,
-            AppError::InsufficientMemory { .. } => false,
-            AppError::HighCpuUsage { .. } => false,
-            AppError::HighMemoryUsage { .. } => false,
-            AppError::ResourceExceededDuringOperation { .. } => false,
-            AppError::InvalidMetadataKey(_) => false,
-            AppError::InvalidMetadataValue(_) => false,
-            AppError::MetadataKeyLimitExceeded(_) => false,
-            AppError::InvalidMetadataFilter(_) => false,
-            AppError::MetadataFilterLimitExceeded(_) => false,
-            AppError::UsageLimitExceeded { .. } => false,
-            AppError::SubscriptionRequired(_) => false,
-            AppError::StripeError(_) => true,
-        }
-    }
-
-    fn log_level(&self) -> LogLevel {
-        match self {
-            AppError::Database(_) => LogLevel::Error,
-            AppError::S3(_) => LogLevel::Error,
-            AppError::ImageProcessing(_) => LogLevel::Warn,
-            AppError::MediaConversionError(_) => LogLevel::Error,
-            AppError::InvalidInput(_) => LogLevel::Debug,
-            AppError::BadRequest(_) => LogLevel::Debug,
-            AppError::NotFound(_) => LogLevel::Debug,
-            AppError::MetadataKeyNotFound(_) => LogLevel::Debug,
-            AppError::OrganizationNotFound(_) => LogLevel::Debug,
-            AppError::PayloadTooLarge(_) => LogLevel::Debug,
-            AppError::Internal(_) => LogLevel::Error,
-            AppError::InternalWithSource { .. } => LogLevel::Error,
-            AppError::Unauthorized(_) => LogLevel::Debug,
-            AppError::InvalidOAuthToken(_) => LogLevel::Debug,
-            AppError::InsufficientDiskSpace { .. } => LogLevel::Warn,
-            AppError::InsufficientMemory { .. } => LogLevel::Warn,
-            AppError::HighCpuUsage { .. } => LogLevel::Warn,
-            AppError::HighMemoryUsage { .. } => LogLevel::Warn,
-            AppError::ResourceExceededDuringOperation { .. } => LogLevel::Warn,
-            AppError::InvalidMetadataKey(_) => LogLevel::Debug,
-            AppError::InvalidMetadataValue(_) => LogLevel::Debug,
-            AppError::MetadataKeyLimitExceeded(_) => LogLevel::Debug,
-            AppError::InvalidMetadataFilter(_) => LogLevel::Debug,
-            AppError::MetadataFilterLimitExceeded(_) => LogLevel::Debug,
-            AppError::UsageLimitExceeded { .. } => LogLevel::Warn,
-            AppError::SubscriptionRequired(_) => LogLevel::Debug,
-            AppError::StripeError(_) => LogLevel::Error,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -531,20 +593,16 @@ mod tests {
 
     #[test]
     fn test_error_metadata_database() {
-        // Create a database error using From trait
-        let sqlx_err = sqlx::Error::PoolClosed;
-        let err = AppError::from(sqlx_err);
-        match err {
-            AppError::Database(_) => {
-                assert_eq!(err.http_status_code(), 500);
-                assert_eq!(err.error_code(), "DATABASE_ERROR");
-                assert!(err.is_recoverable());
-                assert_eq!(err.client_message(), "Failed to access database");
-                assert!(err.is_sensitive());
-                assert_eq!(err.log_level(), LogLevel::Error);
-            }
-            _ => panic!("Expected Database variant"),
-        }
+        #[cfg(feature = "sqlx")]
+        let err = AppError::from(sqlx::Error::PoolClosed);
+        #[cfg(not(feature = "sqlx"))]
+        let err = AppError::Database("pool closed".to_string());
+        assert_eq!(err.http_status_code(), 500);
+        assert_eq!(err.error_code(), "DATABASE_ERROR");
+        assert!(err.is_recoverable());
+        assert_eq!(err.client_message(), "Failed to access database");
+        assert!(err.is_sensitive());
+        assert_eq!(err.log_level(), LogLevel::Error);
     }
 
     #[test]
@@ -592,7 +650,10 @@ mod tests {
 
     #[test]
     fn test_error_metadata_suggested_actions() {
+        #[cfg(feature = "sqlx")]
         let err1 = AppError::Database(sqlx::Error::PoolClosed);
+        #[cfg(not(feature = "sqlx"))]
+        let err1 = AppError::Database("test".to_string());
         assert_eq!(err1.suggested_action(), Some("Retry after a short delay"));
 
         let err2 = AppError::NotFound("test".to_string());

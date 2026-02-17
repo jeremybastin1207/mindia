@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
-use crate::plugin::{Plugin, PluginContext, PluginExecutionStatus, PluginResult};
+use crate::plugins::{Plugin, PluginContext, PluginExecutionStatus, PluginResult};
 
 /// AWS Rekognition content moderation plugin configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

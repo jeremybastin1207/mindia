@@ -164,13 +164,29 @@ observability-opentelemetry = [
   "dep:opentelemetry-semantic-conventions",
   "dep:opentelemetry-http",
   "dep:opentelemetry-aws",
+  "mindia-infra/observability-opentelemetry",
 ]
 observability-basic = []
 
 # JWT features
 jwt-rs256 = ["dep:reqwest"]
 
-# Convenience features
+# Convenience feature profiles for CI and deployments
+# minimal: API + image + S3 only
+minimal = ["api", "image", "storage-s3", "observability-basic"]
+# standard: All media types, both storages, workflow; no plugins
+standard = [
+  "api",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "storage-s3",
+  "storage-local",
+  "workflow",
+  "observability-basic",
+]
+# full: Everything including plugins, clamav, semantic-search
 full = [
   "api",
   "image",
@@ -189,9 +205,8 @@ full = [
   "clamav",
   "semantic-search",
   "content-moderation",
-  "observability-opentelemetry",
+  # "observability-opentelemetry",  # Disabled: API telemetry needs update for opentelemetry 0.27
 ]
-minimal = ["api", "image", "storage-s3", "observability-basic"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 landlock = { version = "0.3" }

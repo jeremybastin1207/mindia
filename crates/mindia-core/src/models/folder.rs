@@ -1,12 +1,15 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
+
 /// Folder model for organizing media files hierarchically
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct Folder {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -17,7 +20,7 @@ pub struct Folder {
 }
 
 /// Folder response with additional metadata
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct FolderResponse {
     pub id: Uuid,
     pub name: String,

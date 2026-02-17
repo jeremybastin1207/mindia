@@ -4,6 +4,7 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 /// Repository for managing presigned upload sessions
+#[derive(Clone)]
 pub struct PresignedUploadRepository {
     pool: PgPool,
 }

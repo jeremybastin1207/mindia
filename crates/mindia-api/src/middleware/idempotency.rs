@@ -2,6 +2,10 @@
 //!
 //! Ensures that requests with the same Idempotency-Key header return the same response
 //! within a time window. Critical for AI agents that may retry requests on network failures.
+//!
+//! **Storage:** The default store is in-memory and is **per-process**. When running
+//! multiple API instances (e.g. behind a load balancer), use a shared store such as
+//! Redis so idempotency keys are honoured across instances.
 
 #![allow(dead_code)]
 
@@ -17,8 +21,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
-/// In-memory idempotency store
-/// In production, use Redis for distributed systems
+/// In-memory idempotency store (per-process).
+/// For production with multiple API instances, use Redis or another shared store.
 type IdempotencyStore = Arc<RwLock<std::collections::HashMap<String, CachedResponse>>>;
 
 #[derive(Clone)]
@@ -67,7 +71,6 @@ pub async fn idempotency_middleware(
     request: Request,
     next: Next,
 ) -> Response {
-    // Check for Idempotency-Key header
     let idempotency_key = if let Some(key_header) = headers.get("Idempotency-Key") {
         match key_header.to_str() {
             Ok(key) => key.to_string(),
@@ -88,11 +91,9 @@ pub async fn idempotency_middleware(
             }
         }
     } else {
-        // No idempotency key, proceed normally
         return next.run(request).await;
     };
 
-    // Validate key format (should be reasonable length)
     if idempotency_key.len() > 256 {
         warn!("Idempotency-Key too long");
         return (
@@ -109,11 +110,8 @@ pub async fn idempotency_middleware(
             .into_response();
     }
 
-    // Use state from middleware parameter
     {
-        // Check for cached response
         if let Some(cached) = state.get(&idempotency_key).await {
-            // Check if cached response is still valid
             if cached.created_at.elapsed() < state.ttl {
                 debug!(
                     idempotency_key = %idempotency_key,

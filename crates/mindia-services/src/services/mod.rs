@@ -2,6 +2,7 @@
 pub mod anthropic;
 #[cfg(feature = "clamav")]
 pub mod clamav;
+#[cfg(feature = "storage-s3")]
 pub mod s3;
 #[cfg(feature = "semantic-search")]
 pub mod semantic_search;
@@ -22,6 +23,7 @@ pub use mindia_processing::{
     SmartCropConfig, StretchMode, WatermarkConfig, WatermarkPosition, WatermarkSize,
 };
 pub use mindia_storage::{create_storage, Storage, StorageError, StorageResult};
+#[cfg(feature = "storage-s3")]
 pub use s3::S3Service;
 #[cfg(feature = "semantic-search")]
 pub use semantic_search::{normalize_embedding_dim, SemanticSearchProvider, EMBEDDING_DIM};

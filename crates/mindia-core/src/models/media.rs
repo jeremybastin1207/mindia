@@ -1,9 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::types::JsonValue;
-use sqlx::FromRow;
+use serde_json::Value as JsonValue;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
 
 use super::storage::StorageLocation;
 // Import actual domain models (for API response building)
@@ -16,8 +18,12 @@ use super::video::Video;
 pub use super::video::ProcessingStatus;
 
 /// Media type enum
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, ToSchema)]
-#[sqlx(type_name = "media_type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "media_type", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum MediaType {
     Image,
@@ -244,7 +250,8 @@ impl Media {
 }
 
 /// Database row for media table (storage_id + type_metadata; storage is in storage_locations).
-#[derive(Debug, FromRow)]
+#[derive(Debug)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct MediaRow {
     pub id: Uuid,
     pub tenant_id: Uuid,

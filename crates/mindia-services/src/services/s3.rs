@@ -3,31 +3,42 @@ use http::Method;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::path::Path;
 use object_store::signer::Signer;
-use object_store::ObjectStoreExt;
-use std::env;
+use object_store::{Attribute, Attributes, ObjectStore, ObjectStoreExt, PutOptions, PutPayload};
 use std::time::Duration;
 
 #[derive(Clone)]
 pub struct S3Service {
     store: AmazonS3,
     default_bucket: Option<String>,
+    region: String,
+    endpoint_url: Option<String>,
 }
 
 impl S3Service {
-    /// Create a new S3Service with AWS client
-    /// default_bucket is optional - for multi-tenancy, bucket is passed per-request
+    /// Create a new S3Service with AWS client.
+    ///
+    /// Uses single-bucket semantics: when `default_bucket` is `Some`, all operations
+    /// (upload, delete, get) use that bucket. The `bucket` parameter in method calls
+    /// must match `default_bucket`; it is used for URL construction and validation.
+    ///
+    /// # Arguments
+    /// * `default_bucket` - The S3 bucket to use for all operations (required for correctness)
+    /// * `region` - AWS region (or region identifier for S3-compatible providers)
+    /// * `endpoint_url` - Optional custom endpoint for S3-compatible providers (MinIO, DigitalOcean Spaces, etc.)
     pub async fn new(
         default_bucket: Option<String>,
         region: String,
+        endpoint_url: Option<String>,
     ) -> Result<Self, anyhow::Error> {
-        // Keep AWS_REGION for compatibility with existing tooling if not already set.
-        if env::var("AWS_REGION").is_err() {
-            env::set_var("AWS_REGION", &region);
-        }
-
         let mut builder = AmazonS3Builder::from_env().with_region(region.clone());
         if let Some(ref bucket) = default_bucket {
             builder = builder.with_bucket_name(bucket.clone());
+        }
+        if let Some(ref endpoint) = endpoint_url {
+            let allow_http = endpoint.starts_with("http://");
+            builder = builder
+                .with_endpoint(endpoint.clone())
+                .with_allow_http(allow_http);
         }
 
         let store = builder
@@ -37,10 +48,32 @@ impl S3Service {
         Ok(S3Service {
             store,
             default_bucket,
+            region,
+            endpoint_url,
         })
     }
 
-    /// Upload a file to S3 with explicit bucket parameter
+    /// Validates that the passed bucket matches the configured default (single-bucket semantics).
+    fn ensure_bucket_matches(&self, bucket: &str) -> Result<(), anyhow::Error> {
+        match &self.default_bucket {
+            Some(expected) if expected != bucket => Err(anyhow::anyhow!(
+                "Bucket mismatch: S3Service is configured for bucket '{}' but got '{}'. \
+                 Use single-bucket semantics - pass the same bucket used at construction.",
+                expected,
+                bucket
+            )),
+            None if !bucket.is_empty() => Err(anyhow::anyhow!(
+                "S3Service was built without a default bucket; bucket '{}' cannot be used",
+                bucket
+            )),
+            _ => Ok(()),
+        }
+    }
+
+    /// Upload a file to S3.
+    ///
+    /// `bucket` must match the bucket configured at construction (single-bucket semantics).
+    /// `content_type` is set as the S3 object's Content-Type metadata for correct HTTP serving.
     #[tracing::instrument(skip(self, data), fields(
         aws.service.name = "s3",
         aws.s3.bucket = %bucket,
@@ -57,17 +90,24 @@ impl S3Service {
         data: Bytes,
         content_type: &str,
     ) -> Result<String, anyhow::Error> {
+        self.ensure_bucket_matches(bucket)?;
         let start = std::time::Instant::now();
         let size = data.len() as u64;
 
         let location = Path::from(key.to_string());
-        let result = self.store.put(&location, data.into()).await;
+        let mut attrs = Attributes::new();
+        attrs.insert(Attribute::ContentType, content_type.to_string().into());
+        let opts = PutOptions::from(attrs);
+        let result = self
+            .store
+            .put_opts(&location, PutPayload::from(data), opts)
+            .await;
 
         let duration = start.elapsed().as_secs_f64();
 
         match result {
             Ok(_) => {
-                let url = format!("https://{}.s3.amazonaws.com/{}", bucket, key);
+                let url = self.build_object_url(bucket, key);
                 tracing::info!(
                     size_bytes = size,
                     duration_ms = duration * 1000.0,
@@ -87,7 +127,21 @@ impl S3Service {
         }
     }
 
-    /// Delete a file from S3 with explicit bucket parameter
+    /// Build the public URL for an object (supports AWS and S3-compatible endpoints).
+    fn build_object_url(&self, bucket: &str, key: &str) -> String {
+        if let Some(ref endpoint) = self.endpoint_url {
+            let base_url = endpoint.trim_end_matches('/');
+            format!("{}/{}/{}", base_url, bucket, key)
+        } else {
+            format!(
+                "https://{}.s3.{}.amazonaws.com/{}",
+                bucket, self.region, key
+            )
+        }
+    }
+
+    /// Delete a file from S3.
+    /// `bucket` must match the bucket configured at construction.
     #[tracing::instrument(skip(self), fields(
         aws.service.name = "s3",
         aws.s3.bucket = %bucket,
@@ -97,6 +151,7 @@ impl S3Service {
         s3.key = %key
     ))]
     pub async fn delete_file(&self, bucket: &str, key: &str) -> Result<(), anyhow::Error> {
+        self.ensure_bucket_matches(bucket)?;
         let start = std::time::Instant::now();
 
         let location = Path::from(key.to_string());
@@ -120,7 +175,8 @@ impl S3Service {
         }
     }
 
-    /// Get a file from S3 with explicit bucket parameter
+    /// Get a file from S3.
+    /// `bucket` must match the bucket configured at construction.
     #[tracing::instrument(skip(self), fields(
         aws.service.name = "s3",
         aws.s3.bucket = %bucket,
@@ -130,6 +186,7 @@ impl S3Service {
         s3.key = %key
     ))]
     pub async fn get_file(&self, bucket: &str, key: &str) -> Result<Bytes, anyhow::Error> {
+        self.ensure_bucket_matches(bucket)?;
         let start = std::time::Instant::now();
 
         let location = Path::from(key.to_string());
@@ -160,7 +217,14 @@ impl S3Service {
         }
     }
 
-    /// Create a new S3 bucket (for tenant provisioning)
+    /// Create a new S3 bucket (for tenant provisioning).
+    ///
+    /// Deprecated: object_store does not expose bucket creation. Provision buckets
+    /// via infrastructure tooling (Terraform, CloudFormation, etc.).
+    #[deprecated(
+        since = "0.1.0",
+        note = "Provision S3 buckets via infrastructure tooling instead"
+    )]
     #[tracing::instrument(skip(self), fields(
         aws.service.name = "s3",
         aws.s3.bucket = %bucket,
@@ -168,14 +232,20 @@ impl S3Service {
         s3.bucket = %bucket
     ))]
     pub async fn create_bucket(&self, bucket: &str, region: &str) -> Result<(), anyhow::Error> {
-        // Bucket provisioning is no longer handled by this service when using object_store.
-        // Callers should manage bucket creation externally (e.g., via infrastructure tooling).
+        let _ = (bucket, region);
         Err(anyhow::anyhow!(
             "create_bucket is not supported; provision S3 buckets via infrastructure"
         ))
     }
 
-    /// Check if a bucket exists
+    /// Check if a bucket exists.
+    ///
+    /// Deprecated: object_store does not expose bucket-level existence checks.
+    /// Use infrastructure tooling or AWS CLI for bucket checks.
+    #[deprecated(
+        since = "0.1.0",
+        note = "Check bucket existence via infrastructure or AWS CLI instead"
+    )]
     #[tracing::instrument(skip(self), fields(
         aws.service.name = "s3",
         aws.s3.bucket = %bucket,
@@ -183,8 +253,7 @@ impl S3Service {
         s3.bucket = %bucket
     ))]
     pub async fn bucket_exists(&self, bucket: &str) -> Result<bool, anyhow::Error> {
-        // object_store does not expose bucket-level existence checks directly.
-        // Treat this as unsupported; callers should handle this via infrastructure.
+        let _ = bucket;
         Err(anyhow::anyhow!(
             "bucket_exists is not supported; check bucket existence via infrastructure"
         ))
@@ -200,10 +269,10 @@ impl S3Service {
         &self.store
     }
 
-    /// Generate a presigned PUT URL for direct S3 uploads
+    /// Generate a presigned PUT URL for direct S3 uploads.
     ///
     /// This allows clients to upload directly to S3 without going through the API server.
-    /// The URL is time-limited and tenant-scoped.
+    /// The URL is time-limited. `bucket` must match the bucket configured at construction.
     #[tracing::instrument(skip(self), fields(s3.bucket = %bucket, s3.key = %key))]
     pub async fn generate_presigned_put_url(
         &self,
@@ -212,6 +281,7 @@ impl S3Service {
         content_type: &str,
         expires_in_seconds: u64,
     ) -> Result<String, anyhow::Error> {
+        self.ensure_bucket_matches(bucket)?;
         let location = Path::from(key.to_string());
         let url = self
             .store
@@ -233,10 +303,11 @@ impl S3Service {
         Ok(url)
     }
 
-    /// Generate a presigned POST URL for direct S3 uploads using POST form
+    /// Generate presigned data for direct S3 uploads.
     ///
-    /// This is an alternative to PUT that uses POST with form data.
-    /// Useful for browser-based uploads with additional form fields.
+    /// Returns a PUT-based presigned URL with metadata. Clients should use HTTP PUT
+    /// to the returned URL (this is NOT standard S3 POST form upload with policy/signature).
+    /// `bucket` must match the bucket configured at construction.
     #[tracing::instrument(skip(self), fields(s3.bucket = %bucket, s3.key = %key))]
     pub async fn generate_presigned_post_url(
         &self,
@@ -244,31 +315,44 @@ impl S3Service {
         key: &str,
         content_type: &str,
         expires_in_seconds: u64,
-    ) -> Result<PresignedPostData, anyhow::Error> {
-        // Reuse PUT-style presigned URL; clients should use PUT.
+    ) -> Result<PresignedPutData, anyhow::Error> {
         let url = self
             .generate_presigned_put_url(bucket, key, content_type, expires_in_seconds)
             .await?;
 
         tracing::info!(
             expires_in_seconds = expires_in_seconds,
-            "Generated presigned POST URL (using PUT method)"
+            "Generated presigned PUT URL"
         );
 
-        // Return as POST data structure (for compatibility with POST form uploads)
-        Ok(PresignedPostData {
+        Ok(PresignedPutData {
             url,
-            fields: serde_json::json!({
-                "key": key,
-                "Content-Type": content_type,
-            }),
+            key: key.to_string(),
+            content_type: content_type.to_string(),
         })
     }
 }
 
-/// Presigned POST form data structure
+/// Presigned PUT upload data.
+///
+/// Use HTTP PUT to `url` with the given Content-Type. The key is included for client reference
+/// (the presigned URL already encodes the object path). This is not S3 POST form upload.
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct PresignedPostData {
+pub struct PresignedPutData {
+    /// The presigned PUT URL; clients upload with HTTP PUT to this URL
     pub url: String,
-    pub fields: serde_json::Value,
+    /// Object key (for client reference)
+    pub key: String,
+    /// Content-Type to send with the PUT request
+    pub content_type: String,
 }
+
+/// Presigned POST form data structure.
+///
+/// Alias for backwards compatibility. Prefer [`PresignedPutData`] - this struct wraps
+/// a PUT-based presigned URL, not standard S3 POST form upload.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use PresignedPutData; this was always PUT-based"
+)]
+pub type PresignedPostData = PresignedPutData;

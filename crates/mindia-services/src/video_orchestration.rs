@@ -1,4 +1,7 @@
 //! Video transcoding orchestration: download → transcode → upload HLS → update DB.
+//!
+//! Lives in the service layer so that mindia-processing remains a pure processing
+//! crate without database dependencies.
 
 use anyhow::{Context, Result};
 use std::sync::Arc;
@@ -9,9 +12,7 @@ use uuid::Uuid;
 use mindia_core::models::Video;
 use mindia_db::MediaRepository;
 use mindia_infra::CapacityChecker;
-
-use super::service::FFmpegService;
-use super::video_storage::VideoStorage;
+use mindia_processing::{FFmpegService, VideoStorage};
 
 /// Config for video orchestration (FFmpeg, HLS, capacity monitoring).
 #[derive(Clone)]
@@ -52,8 +53,9 @@ impl VideoOrchestrator {
         let video: Video = self
             .media_repo
             .get_video_by_id_unchecked(video_id)
-            .await?
-            .context("Video not found")?;
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?
+            .ok_or_else(|| anyhow::anyhow!("Video not found"))?;
 
         let estimated_input_size = 100 * 1024 * 1024u64;
         let estimated_transcode_space = self

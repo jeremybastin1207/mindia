@@ -39,7 +39,7 @@ impl Image {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ImageResponse {
     pub id: Uuid,
     pub filename: String,

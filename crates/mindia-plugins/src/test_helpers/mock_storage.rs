@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, Stream};
-use mindia_services::{Storage, StorageBackend, StorageError, StorageResult};
+use mindia_storage::{Storage, StorageBackend, StorageError, StorageResult};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -114,6 +114,15 @@ impl Storage for MockStorage {
             return Err(StorageError::NotFound(storage_key.to_string()));
         }
         Ok(format!("https://example.com/presigned/{}", storage_key))
+    }
+
+    async fn presigned_put_url(
+        &self,
+        storage_key: &str,
+        _content_type: &str,
+        _expires_in: Duration,
+    ) -> StorageResult<String> {
+        Ok(format!("https://example.com/presigned-put/{}", storage_key))
     }
 
     async fn exists(&self, storage_key: &str) -> StorageResult<bool> {

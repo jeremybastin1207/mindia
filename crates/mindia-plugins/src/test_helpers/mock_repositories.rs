@@ -6,7 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use mindia_core::models::{Audio, FileGroup, Image, Media, MediaType};
 use mindia_db::{PluginFileGroupRepository, PluginMediaRepository};
-use mindia_services::Storage;
+use mindia_storage::Storage;
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

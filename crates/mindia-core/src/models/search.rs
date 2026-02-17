@@ -5,8 +5,12 @@ use std::str::FromStr;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "entity_type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "entity_type", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum EntityType {
     Image,
@@ -56,6 +60,7 @@ pub struct Embedding {
     pub updated_at: DateTime<Utc>,
 }
 
+#[cfg(feature = "sqlx")]
 impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for Embedding {
     fn from_row(row: &sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -73,7 +78,7 @@ impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for Embedding {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SearchResult {
     pub id: Uuid,
     pub entity_type: EntityType,
@@ -120,9 +125,7 @@ pub struct SearchQuery {
 }
 
 impl SearchQuery {
-    /// Validate search query parameters
     pub fn validate(&self) -> Result<(), String> {
-        // Validate limit
         if let Some(limit) = self.limit {
             if limit < 1 {
                 return Err("Limit must be at least 1".to_string());
@@ -132,24 +135,19 @@ impl SearchQuery {
             }
         }
 
-        // Validate offset
         if let Some(offset) = self.offset {
             if offset < 0 {
                 return Err("Offset must be non-negative".to_string());
             }
         }
 
-        // search_mode and entity_type are validated by the handler via SearchStrategy::from_str and parse_entity_type
-
-        // Validate min_similarity if provided
         if let Some(min_sim) = self.min_similarity {
             if !(0.0..=1.0).contains(&min_sim) {
                 return Err("min_similarity must be between 0.0 and 1.0".to_string());
             }
         }
 
-        // Validate query length for semantic search (DoS/cost guard)
-        const MAX_QUERY_LEN: usize = 16 * 1024; // 16 KB
+        const MAX_QUERY_LEN: usize = 16 * 1024; // 16 KB, DoS/cost guard for semantic search
         if let Some(ref q) = self.q {
             if q.len() > MAX_QUERY_LEN {
                 return Err(format!(
@@ -185,7 +183,7 @@ mod tests {
     #[test]
     fn test_entity_type_clone() {
         let entity = EntityType::Image;
-        let cloned = entity.clone();
+        let cloned = entity;
         assert_eq!(entity, cloned);
     }
 }

@@ -77,46 +77,50 @@ pub struct WorkflowExecutionResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct ListWorkflowsQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema, utoipa::IntoParams)]
 pub struct ListExecutionsQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
 
-fn workflow_to_response(w: &Workflow) -> WorkflowResponse {
-    WorkflowResponse {
-        id: w.id,
-        name: w.name.clone(),
-        description: w.description.clone(),
-        enabled: w.enabled,
-        steps: w.steps.clone(),
-        trigger_on_upload: w.trigger_on_upload,
-        stop_on_failure: w.stop_on_failure,
-        media_types: w.media_types.clone(),
-        folder_ids: w.folder_ids.clone(),
-        content_types: w.content_types.clone(),
-        metadata_filter: w.metadata_filter.clone(),
-        created_at: w.created_at,
-        updated_at: w.updated_at,
+impl From<Workflow> for WorkflowResponse {
+    fn from(w: Workflow) -> Self {
+        WorkflowResponse {
+            id: w.id,
+            name: w.name,
+            description: w.description,
+            enabled: w.enabled,
+            steps: w.steps,
+            trigger_on_upload: w.trigger_on_upload,
+            stop_on_failure: w.stop_on_failure,
+            media_types: w.media_types,
+            folder_ids: w.folder_ids,
+            content_types: w.content_types,
+            metadata_filter: w.metadata_filter,
+            created_at: w.created_at,
+            updated_at: w.updated_at,
+        }
     }
 }
 
-fn execution_to_response(e: &WorkflowExecution) -> WorkflowExecutionResponse {
-    WorkflowExecutionResponse {
-        id: e.id,
-        workflow_id: e.workflow_id,
-        media_id: e.media_id,
-        status: format!("{:?}", e.status).to_lowercase(),
-        task_ids: e.task_ids.clone(),
-        current_step: e.current_step,
-        created_at: e.created_at,
-        updated_at: e.updated_at,
+impl From<WorkflowExecution> for WorkflowExecutionResponse {
+    fn from(e: WorkflowExecution) -> Self {
+        WorkflowExecutionResponse {
+            id: e.id,
+            workflow_id: e.workflow_id,
+            media_id: e.media_id,
+            status: format!("{:?}", e.status).to_lowercase(),
+            task_ids: e.task_ids,
+            current_step: e.current_step,
+            created_at: e.created_at,
+            updated_at: e.updated_at,
+        }
     }
 }
 
@@ -139,8 +143,8 @@ pub async fn create_workflow(
     let tenant_id = tenant_context.tenant_id;
     let w = state
         .workflows
-        .workflow_repository
-        .create(
+        .workflow_service
+        .create_workflow(
             tenant_id,
             &req.name,
             req.description.as_deref(),
@@ -154,8 +158,8 @@ pub async fn create_workflow(
             req.metadata_filter,
         )
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to create workflow: {}", e)))?;
-    Ok(Json(workflow_to_response(&w)))
+        .map_err(Into::into)?;
+    Ok(Json(WorkflowResponse::from(w)))
 }
 
 #[utoipa::path(
@@ -178,12 +182,14 @@ pub async fn list_workflows(
     let offset = q.offset.unwrap_or(0);
     let list = state
         .workflows
-        .workflow_repository
-        .list(tenant_id, limit, offset)
+        .workflow_service
+        .list_workflows(tenant_id, limit, offset)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to list workflows: {}", e)))?;
+        .map_err(Into::into)?;
     Ok(Json(
-        list.iter().map(workflow_to_response).collect::<Vec<_>>(),
+        list.into_iter()
+            .map(WorkflowResponse::from)
+            .collect::<Vec<_>>(),
     ))
 }
 
@@ -206,12 +212,12 @@ pub async fn get_workflow(
     let tenant_id = tenant_context.tenant_id;
     let w = state
         .workflows
-        .workflow_repository
-        .get(tenant_id, id)
+        .workflow_service
+        .get_workflow(tenant_id, id)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to get workflow: {}", e)))?
+        .map_err(Into::into)?
         .ok_or_else(|| AppError::NotFound("Workflow not found".into()))?;
-    Ok(Json(workflow_to_response(&w)))
+    Ok(Json(WorkflowResponse::from(w)))
 }
 
 #[utoipa::path(
@@ -235,8 +241,8 @@ pub async fn update_workflow(
     let tenant_id = tenant_context.tenant_id;
     let w = state
         .workflows
-        .workflow_repository
-        .update(
+        .workflow_service
+        .update_workflow(
             tenant_id,
             id,
             req.name.as_deref(),
@@ -251,9 +257,9 @@ pub async fn update_workflow(
             req.metadata_filter,
         )
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to update workflow: {}", e)))?
+        .map_err(Into::into)?
         .ok_or_else(|| AppError::NotFound("Workflow not found".into()))?;
-    Ok(Json(workflow_to_response(&w)))
+    Ok(Json(WorkflowResponse::from(w)))
 }
 
 #[utoipa::path(
@@ -275,10 +281,10 @@ pub async fn delete_workflow(
     let tenant_id = tenant_context.tenant_id;
     let deleted = state
         .workflows
-        .workflow_repository
-        .delete(tenant_id, id)
+        .workflow_service
+        .delete_workflow(tenant_id, id)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to delete workflow: {}", e)))?;
+        .map_err(Into::into)?;
     if !deleted {
         return Err(AppError::NotFound("Workflow not found".into()).into());
     }
@@ -308,8 +314,8 @@ pub async fn trigger_workflow(
         .workflow_service
         .trigger_workflow(tenant_id, id, media_id)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to trigger workflow: {}", e)))?;
-    Ok(Json(execution_to_response(&exec)))
+        .map_err(Into::into)?;
+    Ok(Json(WorkflowExecutionResponse::from(exec)))
 }
 
 #[utoipa::path(
@@ -333,12 +339,14 @@ pub async fn list_workflow_executions(
     let offset = q.offset.unwrap_or(0);
     let list = state
         .workflows
-        .workflow_execution_repository
-        .list_by_workflow(tenant_id, id, limit, offset)
+        .workflow_service
+        .list_workflow_executions(tenant_id, id, limit, offset)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to list executions: {}", e)))?;
+        .map_err(Into::into)?;
     Ok(Json(
-        list.iter().map(execution_to_response).collect::<Vec<_>>(),
+        list.into_iter()
+            .map(WorkflowExecutionResponse::from)
+            .collect::<Vec<_>>(),
     ))
 }
 
@@ -361,10 +369,10 @@ pub async fn get_workflow_execution(
     let tenant_id = tenant_context.tenant_id;
     let e = state
         .workflows
-        .workflow_execution_repository
-        .get_by_tenant_and_id(tenant_id, id)
+        .workflow_service
+        .get_workflow_execution(tenant_id, id)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to get execution: {}", e)))?
+        .map_err(Into::into)?
         .ok_or_else(|| AppError::NotFound("Workflow execution not found".into()))?;
-    Ok(Json(execution_to_response(&e)))
+    Ok(Json(WorkflowExecutionResponse::from(e)))
 }

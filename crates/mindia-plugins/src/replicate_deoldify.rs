@@ -392,9 +392,16 @@ impl Plugin for ReplicateDeoldifyPlugin {
             .context("Failed to get image")?
             .context("Image not found")?;
 
-        // Validate image size to prevent issues
-        crate::validation::validate_image_size(&vec![0u8; image.file_size as usize])
-            .context("Image file too large for processing")?;
+        // Validate image size from metadata to avoid loading the file (and OOM on huge sizes)
+        let file_size = image.file_size as usize;
+        if file_size > crate::validation::MAX_IMAGE_SIZE {
+            anyhow::bail!(
+                "Image file size ({} bytes) exceeds maximum allowed size ({} bytes). \
+                 Consider using a smaller image or increasing the size limit.",
+                file_size,
+                crate::validation::MAX_IMAGE_SIZE
+            );
+        }
 
         tracing::info!(
             image_size = image.file_size,

@@ -22,17 +22,21 @@ pub const MAX_METADATA_VALUE_LENGTH: usize = 512;
 /// Maximum number of keys allowed in user metadata namespace (50 keys)
 pub const MAX_USER_METADATA_KEYS: usize = 50;
 
-/// Reserved key prefixes that users cannot use
+/// Reserved key prefixes that users cannot use. Not re-exported; use `is_reserved_key` for the stable API.
 const RESERVED_PREFIXES: &[&str] = &["_plugin_", "_system_", "_internal_", "plugin_", "plugins"];
 
 /// Validate a metadata key name
 ///
 /// Rules:
+/// - Cannot be empty
 /// - Must match pattern: `^[a-zA-Z0-9_\\-\\.:]+$`
 /// - Maximum 64 characters
 /// - Cannot start with reserved prefixes
 pub fn validate_metadata_key(key: &str) -> Result<()> {
-    // Check length
+    if key.is_empty() {
+        return Err(anyhow::anyhow!("Metadata key cannot be empty"));
+    }
+
     if key.len() > MAX_METADATA_KEY_LENGTH {
         return Err(anyhow::anyhow!(
             "Metadata key '{}' exceeds maximum length of {} characters",
@@ -41,12 +45,6 @@ pub fn validate_metadata_key(key: &str) -> Result<()> {
         ));
     }
 
-    // Check for empty key
-    if key.is_empty() {
-        return Err(anyhow::anyhow!("Metadata key cannot be empty"));
-    }
-
-    // Validate pattern: a-z, A-Z, 0-9, underscore, hyphen, dot, colon (compiled once)
     let pattern = METADATA_KEY_PATTERN
         .get_or_init(|| Regex::new(r"^[a-zA-Z0-9_\-\.:]+$").expect("metadata key regex is valid"));
 
@@ -57,7 +55,6 @@ pub fn validate_metadata_key(key: &str) -> Result<()> {
         ));
     }
 
-    // Check reserved prefixes
     if is_reserved_key(key) {
         return Err(anyhow::anyhow!(
             "Metadata key '{}' uses a reserved prefix. Reserved prefixes: {:?}",
@@ -69,7 +66,7 @@ pub fn validate_metadata_key(key: &str) -> Result<()> {
     Ok(())
 }
 
-/// Check if a key is reserved (starts with reserved prefix)
+/// Check if a key is reserved (starts with a reserved prefix). Use this for programmatic checks; the list of prefixes is not part of the public API.
 pub fn is_reserved_key(key: &str) -> bool {
     RESERVED_PREFIXES
         .iter()
@@ -107,7 +104,6 @@ pub fn validate_user_metadata(metadata: &serde_json::Value) -> Result<()> {
         .as_object()
         .ok_or_else(|| anyhow::anyhow!("User metadata must be a JSON object"))?;
 
-    // Check key count
     if obj.len() > MAX_USER_METADATA_KEYS {
         return Err(anyhow::anyhow!(
             "User metadata contains {} keys, but maximum allowed is {}",
@@ -116,7 +112,6 @@ pub fn validate_user_metadata(metadata: &serde_json::Value) -> Result<()> {
         ));
     }
 
-    // Validate each key-value pair
     for (key, value) in obj.iter() {
         validate_metadata_key(key).with_context(|| format!("Invalid metadata key: '{}'", key))?;
 

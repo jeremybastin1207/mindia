@@ -339,20 +339,16 @@ fn get_sampling_config(_config: &mindia_core::Config) -> TailSamplingConfig {
     }
 }
 
-/// Helper function to get wide event from request extensions
 #[allow(dead_code)] // Public API for handlers to enrich events
 pub fn get_wide_event(request: &Request) -> Option<&WideEventExtension> {
     request.extensions().get::<WideEventExtension>()
 }
 
-/// Helper function to get mutable wide event from request extensions
 #[allow(dead_code)] // Public API for handlers to enrich events
 pub fn get_wide_event_mut(request: &mut Request) -> Option<&mut WideEventExtension> {
     request.extensions_mut().get_mut::<WideEventExtension>()
 }
 
-/// Helper function for handlers to enrich the wide event with tenant context
-/// This should be called by handlers after extracting TenantContext
 #[allow(dead_code)] // Public API for handlers to enrich events
 pub fn enrich_wide_event_with_tenant(
     request: &mut Request,
@@ -366,7 +362,6 @@ pub fn enrich_wide_event_with_tenant(
     }
 }
 
-/// Helper function for handlers to enrich the wide event with business context
 #[allow(dead_code)] // Public API for handlers to enrich events
 pub fn enrich_wide_event_with_business<F>(request: &mut Request, f: F) -> Option<()>
 where
@@ -380,15 +375,11 @@ where
     }
 }
 
-/// Helper function for handlers to store enriched event in response extensions
-/// This allows the middleware to pick up the enriched version after the request is processed
 #[allow(dead_code)] // Public API for handlers to enrich events
 pub fn store_enriched_event_in_response(response: &mut Response, event: WideEvent) {
     response.extensions_mut().insert(WideEventExtension(event));
 }
 
-/// Helper function to convert a Json response to a Response with enriched wide event
-/// This is useful for handlers that return `Json<T>` but need to attach the enriched event
 pub fn json_response_with_event<T: serde::Serialize>(json: Json<T>, event: WideEvent) -> Response {
     let mut response = json.into_response();
     response.extensions_mut().insert(WideEventExtension(event));

@@ -2,12 +2,15 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
+
 /// Named transformation model for storing reusable transformation presets
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct NamedTransformation {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -111,7 +114,6 @@ impl CreateNamedTransformationRequest {
 
     /// Validate that operations don't contain preset references (no recursion)
     pub fn validate_no_preset_reference(operations: &str) -> Result<(), String> {
-        // Check for preset references in operations string
         if operations.contains("preset/") || operations.contains("preset\\") {
             return Err(
                 "Operations cannot reference other presets (no recursion allowed)".to_string(),

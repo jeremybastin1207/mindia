@@ -258,6 +258,11 @@ impl FormatSelector {
 /// Main compression service
 pub struct ImageCompressor;
 
+/// Precomputed adaptive quality adjustment (avoids analyzing image complexity more than once).
+struct AdaptiveAdjustment {
+    adjustment: i32,
+}
+
 impl ImageCompressor {
     /// Compress image with specified format and quality
     pub fn compress(
@@ -266,31 +271,28 @@ impl ImageCompressor {
         quality: QualityPreset,
         use_adaptive: bool,
     ) -> Result<(Bytes, OutputFormat)> {
-        // Calculate adaptive quality if enabled
-        let effective_quality = if use_adaptive {
+        let adaptive = if use_adaptive {
             let complexity = ComplexityAnalyzer::analyze(img);
             let adjustment = ComplexityAnalyzer::adaptive_quality_adjustment(complexity);
-
             tracing::debug!(
                 complexity = complexity,
                 adjustment = adjustment,
                 base_quality = ?quality,
                 "Adaptive quality analysis"
             );
-
-            quality // We'll apply adjustment in format-specific encoding
+            Some(AdaptiveAdjustment { adjustment })
         } else {
-            quality
+            None
         };
 
         let actual_format = format;
 
         let compressed_data = match actual_format {
-            OutputFormat::Jpeg => Self::compress_jpeg(img, effective_quality, use_adaptive)?,
+            OutputFormat::Jpeg => Self::compress_jpeg(img, quality, adaptive)?,
             OutputFormat::Png => Self::compress_png(img)?,
-            OutputFormat::WebP => Self::compress_webp(img, effective_quality, use_adaptive)?,
-            OutputFormat::Avif => Self::compress_avif(img, effective_quality, use_adaptive)?,
-            OutputFormat::Auto => Self::compress_jpeg(img, effective_quality, use_adaptive)?, // fallback
+            OutputFormat::WebP => Self::compress_webp(img, quality, adaptive)?,
+            OutputFormat::Avif => Self::compress_avif(img, quality, adaptive)?,
+            OutputFormat::Auto => Self::compress_jpeg(img, quality, adaptive)?, // fallback
         };
 
         Ok((compressed_data, actual_format))
@@ -300,18 +302,14 @@ impl ImageCompressor {
     fn compress_jpeg(
         img: &DynamicImage,
         quality: QualityPreset,
-        use_adaptive: bool,
+        adaptive: Option<AdaptiveAdjustment>,
     ) -> Result<Bytes> {
         let rgb_img = img.to_rgb8();
         let (width, height) = rgb_img.dimensions();
 
         let mut base_quality = quality.jpeg_quality();
-
-        // Apply adaptive adjustment
-        if use_adaptive {
-            let complexity = ComplexityAnalyzer::analyze(img);
-            let adjustment = ComplexityAnalyzer::adaptive_quality_adjustment(complexity);
-            base_quality = (base_quality as i32 + adjustment).clamp(10, 100) as u8;
+        if let Some(ref a) = adaptive {
+            base_quality = (base_quality as i32 + a.adjustment).clamp(10, 100) as u8;
         }
 
         let mut comp = mozjpeg::Compress::new(mozjpeg::ColorSpace::JCS_RGB);
@@ -341,17 +339,13 @@ impl ImageCompressor {
     fn compress_webp(
         img: &DynamicImage,
         quality: QualityPreset,
-        use_adaptive: bool,
+        adaptive: Option<AdaptiveAdjustment>,
     ) -> Result<Bytes> {
         let (width, height) = img.dimensions();
 
         let mut base_quality = quality.webp_quality();
-
-        // Apply adaptive adjustment
-        if use_adaptive {
-            let complexity = ComplexityAnalyzer::analyze(img);
-            let adjustment = ComplexityAnalyzer::adaptive_quality_adjustment(complexity);
-            base_quality = (base_quality + adjustment as f32).clamp(10.0, 100.0);
+        if let Some(ref a) = adaptive {
+            base_quality = (base_quality + a.adjustment as f32).clamp(10.0, 100.0);
         }
 
         // Convert to RGBA for WebP encoding
@@ -367,17 +361,13 @@ impl ImageCompressor {
     fn compress_avif(
         img: &DynamicImage,
         quality: QualityPreset,
-        use_adaptive: bool,
+        adaptive: Option<AdaptiveAdjustment>,
     ) -> Result<Bytes> {
         let (width, height) = img.dimensions();
 
         let mut base_quality = quality.avif_quality();
-
-        // Apply adaptive adjustment
-        if use_adaptive {
-            let complexity = ComplexityAnalyzer::analyze(img);
-            let adjustment = ComplexityAnalyzer::adaptive_quality_adjustment(complexity);
-            base_quality = (base_quality as i32 + adjustment).clamp(10, 100) as u8;
+        if let Some(ref a) = adaptive {
+            base_quality = (base_quality as i32 + a.adjustment).clamp(10, 100) as u8;
         }
 
         // Convert to RGB for AVIF encoding

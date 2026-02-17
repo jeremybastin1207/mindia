@@ -5,7 +5,7 @@ use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
     logs as sdklogs,
     metrics::{self as sdkmetrics, PeriodicReader},
-    trace::{self as sdktrace, BatchConfig, RandomIdGenerator, Sampler},
+    trace::{self as sdktrace, BatchConfig, BatchSpanProcessor, RandomIdGenerator, Sampler},
     Resource,
 };
 use opentelemetry_semantic_conventions::resource::{SERVICE_NAME, SERVICE_VERSION};
@@ -13,7 +13,9 @@ use std::env;
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-/// Initialize OpenTelemetry telemetry (traces, metrics, logs)
+/// Initialize OpenTelemetry telemetry (traces, metrics)
+/// Note: OTLP log export is not configured; global logger provider was removed in opentelemetry 0.27.
+#[allow(clippy::too_many_arguments)]
 pub fn init_telemetry(
     enabled: bool,
     endpoint: Option<String>,
@@ -90,107 +92,96 @@ pub fn init_telemetry(
         }
     };
 
-    // Initialize tracer provider for traces
-    let tracer_provider = if protocol == "http" {
-        opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .http()
-                    .with_endpoint(&endpoint),
-            )
-            .with_trace_config(
-                sdktrace::Config::default()
-                    .with_sampler(sampler_config)
-                    .with_id_generator(RandomIdGenerator::default())
-                    .with_resource(resource.clone()),
-            )
-            .with_batch_config(BatchConfig::default())
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .map_err(|e| format!("Failed to install HTTP tracer provider: {}", e))?
+    // Build OTLP span exporter (HTTP or gRPC)
+    let span_exporter = if protocol == "http" {
+        opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(&endpoint)
+            .build()
+            .map_err(|e| format!("Failed to build HTTP span exporter: {}", e))?
     } else {
-        // Default to gRPC
-        opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-                    .with_endpoint(&endpoint),
-            )
-            .with_trace_config(
-                sdktrace::Config::default()
-                    .with_sampler(sampler_config)
-                    .with_id_generator(RandomIdGenerator::default())
-                    .with_resource(resource.clone()),
-            )
-            .with_batch_config(BatchConfig::default())
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .map_err(|e| format!("Failed to install gRPC tracer provider: {}", e))?
+        opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(&endpoint)
+            .build()
+            .map_err(|e| format!("Failed to build gRPC span exporter: {}", e))?
     };
 
-    // Initialize OTLP exporter for metrics (for external observability platforms)
-    let otlp_exporter = if protocol == "http" {
-        opentelemetry_otlp::new_exporter()
-            .http()
+    // Tracer provider with batch processor
+    let batch_processor =
+        BatchSpanProcessor::builder(span_exporter, opentelemetry_sdk::runtime::Tokio)
+            .with_batch_config(BatchConfig::default())
+            .build();
+
+    let tracer_provider = sdktrace::TracerProvider::builder()
+        .with_span_processor(batch_processor)
+        .with_sampler(sampler_config)
+        .with_id_generator(RandomIdGenerator::default())
+        .with_resource(resource.clone())
+        .build();
+
+    let tracer = tracer_provider.tracer(service_name.clone());
+    opentelemetry::global::set_tracer_provider(tracer_provider);
+
+    // Build OTLP metric exporter (HTTP or gRPC)
+    let metric_exporter = if protocol == "http" {
+        opentelemetry_otlp::MetricExporter::builder()
+            .with_http()
             .with_endpoint(&endpoint)
-            .build_metrics_exporter(Box::new(
-                opentelemetry_sdk::metrics::data::Temporality::default(),
-            ))
-            .map_err(|e| format!("Failed to build HTTP metrics exporter: {}", e))?
+            .with_temporality(sdkmetrics::Temporality::Cumulative)
+            .build()
+            .map_err(|e| format!("Failed to build HTTP metric exporter: {}", e))?
     } else {
-        opentelemetry_otlp::new_exporter()
-            .tonic()
+        opentelemetry_otlp::MetricExporter::builder()
+            .with_tonic()
             .with_endpoint(&endpoint)
-            .build_metrics_exporter(Box::new(
-                opentelemetry_sdk::metrics::data::Temporality::default(),
-            ))
-            .map_err(|e| format!("Failed to build gRPC metrics exporter: {}", e))?
+            .with_temporality(sdkmetrics::Temporality::Cumulative)
+            .build()
+            .map_err(|e| format!("Failed to build gRPC metric exporter: {}", e))?
     };
 
-    let otlp_reader = PeriodicReader::builder(otlp_exporter, opentelemetry_sdk::runtime::Tokio)
+    let otlp_reader = PeriodicReader::builder(metric_exporter, opentelemetry_sdk::runtime::Tokio)
         .with_interval(Duration::from_secs(metrics_interval_secs))
         .build();
 
-    // Build meter provider with OTLP reader
     let meter_provider = sdkmetrics::SdkMeterProvider::builder()
         .with_reader(otlp_reader)
         .with_resource(resource.clone())
         .build();
 
-    // Set global meter provider
     opentelemetry::global::set_meter_provider(meter_provider);
 
-    // Initialize logger provider for logs
-    let logger_provider = if protocol == "http" {
-        opentelemetry_otlp::new_pipeline()
-            .logging()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .http()
-                    .with_endpoint(&endpoint),
-            )
-            .with_log_config(sdklogs::Config::default().with_resource(resource.clone()))
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .map_err(|e| format!("Failed to install HTTP logger provider: {}", e))?
+    // Build OTLP log exporter and logger provider (for use by log bridges; global logger API was removed in 0.27)
+    #[allow(dead_code)]
+    let _logger_provider = if protocol == "http" {
+        let log_exporter = opentelemetry_otlp::LogExporter::builder()
+            .with_http()
+            .with_endpoint(&endpoint)
+            .build()
+            .map_err(|e| format!("Failed to build HTTP log exporter: {}", e))?;
+        Some(
+            sdklogs::LoggerProvider::builder()
+                .with_resource(resource.clone())
+                .with_batch_exporter(log_exporter, opentelemetry_sdk::runtime::Tokio)
+                .build(),
+        )
     } else {
-        opentelemetry_otlp::new_pipeline()
-            .logging()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-                    .with_endpoint(&endpoint),
-            )
-            .with_log_config(sdklogs::Config::default().with_resource(resource))
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .map_err(|e| format!("Failed to install gRPC logger provider: {}", e))?
+        let log_exporter = opentelemetry_otlp::LogExporter::builder()
+            .with_tonic()
+            .with_endpoint(&endpoint)
+            .build()
+            .map_err(|e| format!("Failed to build gRPC log exporter: {}", e))?;
+        Some(
+            sdklogs::LoggerProvider::builder()
+                .with_resource(resource)
+                .with_batch_exporter(log_exporter, opentelemetry_sdk::runtime::Tokio)
+                .build(),
+        )
     };
-
-    // Set global logger provider
-    opentelemetry::global::set_logger_provider(logger_provider);
+    // Logger provider is not set globally (removed in opentelemetry 0.27). Keep _logger_provider if a log bridge is added later.
 
     // Create a tracing layer with OpenTelemetry
-    let telemetry_layer =
-        tracing_opentelemetry::layer().with_tracer(tracer_provider.tracer(service_name));
+    let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
     // Initialize tracing subscriber with OpenTelemetry layer
     tracing_subscriber::registry()
@@ -220,18 +211,10 @@ pub fn init_telemetry(
 pub async fn shutdown_telemetry() {
     tracing::info!("Shutting down OpenTelemetry...");
 
-    // Flush and shutdown tracer provider
     opentelemetry::global::shutdown_tracer_provider();
 
-    // Flush and shutdown meter provider
-    if let Err(e) = opentelemetry::global::meter_provider().force_flush() {
-        tracing::error!("Error flushing meter provider: {:?}", e);
-    }
-
-    // Flush and shutdown logger provider
-    if let Err(e) = opentelemetry::global::logger_provider().force_flush() {
-        tracing::error!("Error flushing logger provider: {:?}", e);
-    }
+    // MeterProvider trait does not define force_flush; shutdown is best-effort on drop.
+    // Global logger provider was removed in opentelemetry 0.27.
 
     tracing::info!("OpenTelemetry shutdown complete");
 }

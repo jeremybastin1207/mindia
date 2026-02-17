@@ -7,7 +7,7 @@ use mindia_core::models::{
     ProcessingStatus, Task, VideoTranscodePayload, WebhookDataInfo, WebhookEventType,
     WebhookInitiatorInfo,
 };
-use mindia_processing::{VideoOrchestrator, VideoOrchestratorConfig};
+use mindia_services::{VideoOrchestrator, VideoOrchestratorConfig};
 
 use super::TaskHandler;
 use crate::state::AppState;

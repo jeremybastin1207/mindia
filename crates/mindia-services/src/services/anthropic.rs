@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::time::Duration;
 
 use super::semantic_search::{normalize_embedding_dim, SemanticSearchProvider};
@@ -88,7 +89,11 @@ struct VoyageEmbedResponse {
 }
 
 impl AnthropicService {
-    pub fn new(api_key: String, vision_model: String, embedding_model: String) -> Self {
+    pub fn new(
+        api_key: String,
+        vision_model: String,
+        embedding_model: String,
+    ) -> Result<Self, anyhow::Error> {
         Self::new_with_voyage(api_key, None, vision_model, embedding_model)
     }
 
@@ -97,18 +102,18 @@ impl AnthropicService {
         voyage_api_key: Option<String>,
         vision_model: String,
         embedding_model: String,
-    ) -> Self {
+    ) -> Result<Self, anyhow::Error> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(120))
             .build()
-            .expect("Failed to create HTTP client");
-        Self {
+            .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))?;
+        Ok(Self {
             anthropic_api_key,
             voyage_api_key,
             vision_model,
             embedding_model,
             client,
-        }
+        })
     }
 
     fn messages_url(&self) -> String {
@@ -193,15 +198,15 @@ impl SemanticSearchProvider for AnthropicService {
             input_type: Some("query".to_string()),
         };
 
-        match self
+        let request = self
             .client
             .post(self.embeddings_url())
             .header("Authorization", format!("Bearer {}", voyage_key))
             .header("content-type", "application/json")
             .json(&body)
-            .send()
-            .await
-        {
+            .timeout(Duration::from_secs(15));
+
+        match request.send().await {
             Ok(resp) if resp.status().is_success() => {
                 tracing::info!("Voyage AI embeddings health check passed");
                 Ok(true)
@@ -211,7 +216,18 @@ impl SemanticSearchProvider for AnthropicService {
                 Ok(false)
             }
             Err(e) => {
-                tracing::error!(error = %e, "Failed to connect to Voyage AI");
+                let mut detail = e.to_string();
+                let mut src = e.source();
+                while let Some(s) = src {
+                    detail.push_str(": ");
+                    detail.push_str(&format!("{}", s));
+                    src = s.source();
+                }
+                tracing::error!(
+                    error = %e,
+                    detail = %detail,
+                    "Failed to connect to Voyage AI (check network, proxy HTTP_PROXY/HTTPS_PROXY, and firewall)"
+                );
                 Ok(false)
             }
         }
@@ -267,9 +283,13 @@ impl SemanticSearchProvider for AnthropicService {
         Ok(normalize_embedding_dim(embedding))
     }
 
-    async fn describe_image(&self, image_data: Bytes) -> Result<String> {
+    async fn describe_image(
+        &self,
+        image_data: Bytes,
+        content_type: Option<&str>,
+    ) -> Result<String> {
         let base64_image = STANDARD.encode(&image_data);
-        let media_type = "image/jpeg"; // Assume JPEG; could detect from magic bytes
+        let media_type = content_type.unwrap_or("image/jpeg");
         let prompt = "Describe this image in detail. Focus on the main subjects, objects, colors, setting, and any text visible. Keep the description concise but informative.";
 
         let content = vec![
@@ -288,15 +308,20 @@ impl SemanticSearchProvider for AnthropicService {
         self.call_messages(content).await
     }
 
-    async fn describe_video_frame(&self, frame_data: Bytes) -> Result<String> {
+    async fn describe_video_frame(
+        &self,
+        frame_data: Bytes,
+        content_type: Option<&str>,
+    ) -> Result<String> {
         let base64_image = STANDARD.encode(&frame_data);
+        let media_type = content_type.unwrap_or("image/jpeg");
         let prompt = "Describe this video frame in detail. Focus on the scene, subjects, actions, setting, and any context. This is a still frame from a video.";
 
         let content = vec![
             ContentBlock::Image {
                 source: ImageSource {
                     source_type: "base64".to_string(),
-                    media_type: "image/jpeg".to_string(),
+                    media_type: media_type.to_string(),
                     data: base64_image,
                 },
             },

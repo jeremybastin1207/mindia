@@ -43,13 +43,15 @@ impl TaskHandler for EmbeddingTaskHandler {
         let description = match entity_type {
             EntityType::Image => {
                 tracing::debug!("Describing image with vision model");
-                semantic_search.describe_image(file_data).await?
+                semantic_search.describe_image(file_data, None).await?
             }
             EntityType::Video => {
                 tracing::debug!("Extracting video frame and describing");
                 // For videos, extract a middle frame using ffmpeg
                 let frame_data = Self::extract_video_frame(&file_data, &state).await?;
-                semantic_search.describe_video_frame(frame_data).await?
+                semantic_search
+                    .describe_video_frame(frame_data, None)
+                    .await?
             }
             EntityType::Document => {
                 tracing::debug!("Extracting text from document");
@@ -83,7 +85,7 @@ impl TaskHandler for EmbeddingTaskHandler {
             .insert_embedding(
                 task.tenant_id, // Use tenant_id from task for tenant isolation
                 payload.entity_id,
-                entity_type.clone(),
+                entity_type,
                 description.clone(),
                 embedding,
                 semantic_search.embedding_model_name().to_string(),

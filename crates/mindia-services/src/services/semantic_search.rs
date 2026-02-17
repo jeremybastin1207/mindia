@@ -23,10 +23,17 @@ pub trait SemanticSearchProvider: Send + Sync {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>>;
 
     /// Describe an image for indexing (vision).
-    async fn describe_image(&self, image_data: Bytes) -> Result<String>;
+    /// `content_type` - Optional MIME type (e.g. "image/jpeg", "image/png"); defaults to "image/jpeg" if None.
+    async fn describe_image(&self, image_data: Bytes, content_type: Option<&str>)
+        -> Result<String>;
 
     /// Describe a video frame for indexing (vision).
-    async fn describe_video_frame(&self, frame_data: Bytes) -> Result<String>;
+    /// `content_type` - Optional MIME type for the frame; defaults to "image/jpeg" if None.
+    async fn describe_video_frame(
+        &self,
+        frame_data: Bytes,
+        content_type: Option<&str>,
+    ) -> Result<String>;
 
     /// Summarize document text for indexing.
     async fn summarize_document(&self, text: &str) -> Result<String>;
@@ -44,4 +51,46 @@ pub fn normalize_embedding_dim(mut vec: Vec<f32>) -> Vec<f32> {
     }
     vec.resize(EMBEDDING_DIM, 0.0);
     vec
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_embedding_dim_exact() {
+        let input: Vec<f32> = (0..EMBEDDING_DIM).map(|i| i as f32).collect();
+        let result = normalize_embedding_dim(input.clone());
+        assert_eq!(result.len(), EMBEDDING_DIM);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn normalize_embedding_dim_truncate() {
+        let input: Vec<f32> = (0..EMBEDDING_DIM + 100).map(|i| i as f32).collect();
+        let result = normalize_embedding_dim(input);
+        assert_eq!(result.len(), EMBEDDING_DIM);
+        assert_eq!(result[EMBEDDING_DIM - 1], (EMBEDDING_DIM - 1) as f32);
+    }
+
+    #[test]
+    fn normalize_embedding_dim_pad() {
+        let input: Vec<f32> = vec![1.0, 2.0, 3.0];
+        let result = normalize_embedding_dim(input);
+        assert_eq!(result.len(), EMBEDDING_DIM);
+        assert_eq!(result[0], 1.0);
+        assert_eq!(result[1], 2.0);
+        assert_eq!(result[2], 3.0);
+        for i in 3..EMBEDDING_DIM {
+            assert_eq!(result[i], 0.0, "padded element at {} should be 0", i);
+        }
+    }
+
+    #[test]
+    fn normalize_embedding_dim_empty() {
+        let input: Vec<f32> = vec![];
+        let result = normalize_embedding_dim(input);
+        assert_eq!(result.len(), EMBEDDING_DIM);
+        assert!(result.iter().all(|&x| x == 0.0));
+    }
 }

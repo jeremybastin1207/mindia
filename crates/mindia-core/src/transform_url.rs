@@ -58,10 +58,11 @@ pub struct ParsedTransformUrl {
     pub invert: bool,
 }
 
-/// Efficient parser for image transformation URLs
+/// Efficient parser for image transformation URLs.
 ///
 /// Parses URLs in transformation format with `/-/` separators.
 /// Can parse both full URLs and path segments.
+/// Returns `Result<_, String>` (rather than a typed error) for simplicity; error strings are suitable for API responses.
 ///
 /// # Example
 ///
@@ -537,7 +538,11 @@ impl ImageTransformUrlParser {
     }
 }
 
-/// Builder for constructing image transformation URLs
+/// Builder for constructing image transformation URLs.
+///
+/// Builder methods take and return `self` by value, so you can chain and call `build()` multiple
+/// times; each `build()` consumes the builder, and chaining after `build()` uses the same builder
+/// state (no shared mutable state).
 ///
 /// # Example
 ///
@@ -1044,7 +1049,6 @@ mod tests {
             .autorotate(false)
             .build_operations();
 
-        // Check that crop comes before resize
         let crop_pos = ops.find("crop/smart");
         let resize_pos = ops.find("resize/800x600");
         assert!(crop_pos.is_some());

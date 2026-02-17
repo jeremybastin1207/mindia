@@ -7,6 +7,8 @@ pub struct ClamAVService {
     host: String,
     port: u16,
     fail_closed: bool,
+    /// Timeout in seconds for each scan operation (default: 30)
+    timeout_secs: u64,
 }
 
 #[derive(Debug)]
@@ -17,11 +19,23 @@ pub enum ScanResult {
 }
 
 impl ClamAVService {
+    /// Create a new ClamAVService.
+    ///
+    /// # Arguments
+    /// * `host` - ClamAV daemon hostname
+    /// * `port` - ClamAV daemon port (typically 3310)
+    /// * `fail_closed` - If true, treat scan failures/timeouts as errors; if false, allow (fail-open)
     pub fn new(host: String, port: u16, fail_closed: bool) -> Self {
+        Self::with_timeout(host, port, fail_closed, 30)
+    }
+
+    /// Create with a custom scan timeout (for large files or slow ClamAV instances).
+    pub fn with_timeout(host: String, port: u16, fail_closed: bool, timeout_secs: u64) -> Self {
         Self {
             host,
             port,
             fail_closed,
+            timeout_secs,
         }
     }
 
@@ -34,8 +48,9 @@ impl ClamAVService {
         let port = self.port;
         let fail_closed = self.fail_closed;
 
+        let timeout_secs = self.timeout_secs;
         let result = tokio::time::timeout(
-            Duration::from_secs(30),
+            Duration::from_secs(timeout_secs),
             tokio::task::spawn_blocking(move || {
                 let address = format!("{}:{}", host, port);
                 let connection = Tcp {
@@ -111,15 +126,26 @@ impl ClamAVService {
                 ScanResult::Error(error_msg)
             }
             Err(_) => {
-                let error_msg = "ClamAV scan timeout (exceeded 30 seconds)";
+                let error_msg = format!("ClamAV scan timeout (exceeded {} seconds)", timeout_secs);
                 tracing::error!(error = %error_msg, "ClamAV scan timeout");
                 if fail_closed {
-                    ScanResult::Error(error_msg.to_string())
+                    ScanResult::Error(error_msg)
                 } else {
                     tracing::warn!("ClamAV scan timeout, continuing (fail-open)");
                     ScanResult::Clean
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clamav_constructors() {
+        let _svc = ClamAVService::new("localhost".to_string(), 3310, true);
+        let _svc_custom = ClamAVService::with_timeout("localhost".to_string(), 3310, false, 60);
     }
 }

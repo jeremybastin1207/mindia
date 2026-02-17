@@ -9,6 +9,7 @@ use mindia_core::validation;
 use mindia_core::AppError;
 use mindia_storage::Storage;
 use sqlx::{PgPool, Postgres, Transaction};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -58,6 +59,74 @@ impl MediaRepository {
         storage_id: Uuid,
     ) -> Result<Option<mindia_core::models::StorageLocation>, AppError> {
         self.storage_locations.get_by_id(storage_id).await
+    }
+
+    /// Fetch multiple storage locations by id in one query (avoids N+1 in list/get_expired methods).
+    async fn get_storages_batch(
+        &self,
+        ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, mindia_core::models::StorageLocation>, AppError> {
+        self.storage_locations.get_by_ids(ids).await
+    }
+
+    fn rows_to_images_with_map(
+        &self,
+        rows: Vec<MediaRow>,
+        storage_map: &HashMap<Uuid, StorageLocation>,
+    ) -> Result<Vec<Image>, AppError> {
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
+                AppError::Internal(format!("Storage location {} not found", r.storage_id))
+            })?;
+            out.push(row_to_image_with_storage(r, loc));
+        }
+        Ok(out)
+    }
+
+    fn rows_to_videos_with_map(
+        &self,
+        rows: Vec<MediaRow>,
+        storage_map: &HashMap<Uuid, StorageLocation>,
+    ) -> Result<Vec<Video>, AppError> {
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
+                AppError::Internal(format!("Storage location {} not found", r.storage_id))
+            })?;
+            out.push(row_to_video_with_storage(r, loc));
+        }
+        Ok(out)
+    }
+
+    fn rows_to_audios_with_map(
+        &self,
+        rows: Vec<MediaRow>,
+        storage_map: &HashMap<Uuid, StorageLocation>,
+    ) -> Result<Vec<Audio>, AppError> {
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
+                AppError::Internal(format!("Storage location {} not found", r.storage_id))
+            })?;
+            out.push(row_to_audio_with_storage(r, loc));
+        }
+        Ok(out)
+    }
+
+    fn rows_to_documents_with_map(
+        &self,
+        rows: Vec<MediaRow>,
+        storage_map: &HashMap<Uuid, StorageLocation>,
+    ) -> Result<Vec<Document>, AppError> {
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
+                AppError::Internal(format!("Storage location {} not found", r.storage_id))
+            })?;
+            out.push(row_to_document_with_storage(r, loc));
+        }
+        Ok(out)
     }
 
     /// Convert MediaRow to Image (requires fetching storage location).
@@ -366,11 +435,9 @@ impl MediaRepository {
             }
         };
 
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_image(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_images_with_map(rows, &storage_map)
     }
 
     // =============================================================================
@@ -642,11 +709,9 @@ impl MediaRepository {
             }
         };
 
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_video(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_videos_with_map(rows, &storage_map)
     }
 
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "update", media_type = "video", db.record_id = %id))]
@@ -961,11 +1026,9 @@ impl MediaRepository {
             }
         };
 
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_audio(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_audios_with_map(rows, &storage_map)
     }
 
     // =============================================================================
@@ -1219,11 +1282,9 @@ impl MediaRepository {
             }
         };
 
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_document(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_documents_with_map(rows, &storage_map)
     }
 
     // =============================================================================
@@ -1461,11 +1522,9 @@ impl MediaRepository {
         .bind(now)
         .fetch_all(&self.pool)
         .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_image(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_images_with_map(rows, &storage_map)
     }
 
     /// List expired videos. Used by cleanup jobs.
@@ -1478,11 +1537,9 @@ impl MediaRepository {
         .bind(now)
         .fetch_all(&self.pool)
         .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_video(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_videos_with_map(rows, &storage_map)
     }
 
     /// List expired documents. Used by cleanup jobs.
@@ -1495,11 +1552,9 @@ impl MediaRepository {
         .bind(now)
         .fetch_all(&self.pool)
         .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_document(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_documents_with_map(rows, &storage_map)
     }
 
     /// List expired audios. Used by cleanup jobs.
@@ -1512,11 +1567,9 @@ impl MediaRepository {
         .bind(now)
         .fetch_all(&self.pool)
         .await?;
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            out.push(self.row_to_audio(r).await?);
-        }
-        Ok(out)
+        let storage_ids: Vec<Uuid> = rows.iter().map(|r| r.storage_id).collect();
+        let storage_map = self.get_storages_batch(&storage_ids).await?;
+        self.rows_to_audios_with_map(rows, &storage_map)
     }
 
     /// Delete image (alias for delete). Used by cleanup.
@@ -1669,7 +1722,6 @@ impl MediaRepository {
     ) -> Result<ImageResponse, AppError> {
         let url = self.get_url(tenant_id, image.id).await?;
 
-        // Get folder info if exists
         let (folder_id, folder_name): (Option<Uuid>, Option<String>) = sqlx::query_as(
             "SELECT m.folder_id, f.name FROM media m LEFT JOIN folders f ON m.folder_id = f.id WHERE m.tenant_id = $1 AND m.id = $2"
         )
@@ -1709,8 +1761,6 @@ impl MediaRepository {
 
         let image_ids: Vec<Uuid> = images.iter().map(|img| img.id).collect();
 
-        // Batch query: Get all URLs and folder info in single queries
-        // Get URLs for all images
         let url_rows: Vec<(Uuid, String)> = sqlx::query_as(
             "SELECT m.id, s.url FROM media m JOIN storage_locations s ON m.storage_id = s.id WHERE m.tenant_id = $1 AND m.id = ANY($2)"
         )
@@ -1721,7 +1771,6 @@ impl MediaRepository {
 
         let url_map: std::collections::HashMap<Uuid, String> = url_rows.into_iter().collect();
 
-        // Get folder info for all images
         let folder_rows: Vec<(Uuid, Option<Uuid>, Option<String>)> = sqlx::query_as(
             "SELECT m.id, m.folder_id, f.name FROM media m LEFT JOIN folders f ON m.folder_id = f.id WHERE m.tenant_id = $1 AND m.id = ANY($2)"
         )
@@ -1736,7 +1785,6 @@ impl MediaRepository {
                 .map(|(id, fid, fname)| (id, (fid, fname)))
                 .collect();
 
-        // Build responses
         let mut responses = Vec::with_capacity(images.len());
         for image in images {
             let url = url_map
@@ -1780,7 +1828,6 @@ impl MediaRepository {
 
         let video_ids: Vec<Uuid> = videos.iter().map(|v| v.id).collect();
 
-        // Batch query: Get all URLs and folder info
         let url_rows: Vec<(Uuid, String)> = sqlx::query_as(
             "SELECT m.id, s.url FROM media m JOIN storage_locations s ON m.storage_id = s.id WHERE m.tenant_id = $1 AND m.id = ANY($2)"
         )
@@ -1859,9 +1906,7 @@ impl MediaRepository {
     ) -> Result<VideoResponse, AppError> {
         let url = self.get_url(tenant_id, video.id).await?;
 
-        // Generate HLS URL if available
         let hls_url = if let Some(ref playlist) = video.hls_master_playlist {
-            // HLS playlist is stored relative to the main video
             Some(format!(
                 "{}/{}",
                 url.trim_end_matches(&video.filename),
@@ -1871,7 +1916,6 @@ impl MediaRepository {
             None
         };
 
-        // Get folder info if exists
         let (folder_id, folder_name): (Option<Uuid>, Option<String>) = sqlx::query_as(
             "SELECT m.folder_id, f.name FROM media m LEFT JOIN folders f ON m.folder_id = f.id WHERE m.tenant_id = $1 AND m.id = $2"
         )
@@ -1980,7 +2024,6 @@ impl MediaRepository {
     ) -> Result<AudioResponse, AppError> {
         let url = self.get_url(tenant_id, audio.id).await?;
 
-        // Get folder info if exists
         let (folder_id, folder_name): (Option<Uuid>, Option<String>) = sqlx::query_as(
             "SELECT m.folder_id, f.name FROM media m LEFT JOIN folders f ON m.folder_id = f.id WHERE m.tenant_id = $1 AND m.id = $2"
         )
@@ -2089,7 +2132,6 @@ impl MediaRepository {
     ) -> Result<DocumentResponse, AppError> {
         let url = self.get_url(tenant_id, document.id).await?;
 
-        // Get folder info if exists
         let (folder_id, folder_name): (Option<Uuid>, Option<String>) = sqlx::query_as(
             "SELECT m.folder_id, f.name FROM media m LEFT JOIN folders f ON m.folder_id = f.id WHERE m.tenant_id = $1 AND m.id = $2"
         )
@@ -2124,7 +2166,6 @@ impl MediaRepository {
         media_id: Uuid,
         folder_id: Option<Uuid>,
     ) -> Result<bool, AppError> {
-        // Validate folder exists and belongs to tenant if provided
         if let Some(fid) = folder_id {
             let folder_exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM folders WHERE id = $1 AND tenant_id = $2)",
@@ -2141,7 +2182,6 @@ impl MediaRepository {
             }
         }
 
-        // Update media folder_id
         let rows_affected = sqlx::query(
             "UPDATE media SET folder_id = $1, updated_at = NOW() WHERE tenant_id = $2 AND id = $3",
         )
@@ -2175,7 +2215,6 @@ impl MediaRepository {
         tenant_id: Uuid,
         media_id: Uuid,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // First verify media exists and belongs to tenant
         let media_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM media WHERE id = $1 AND tenant_id = $2)",
         )
@@ -2190,7 +2229,6 @@ impl MediaRepository {
             ));
         }
 
-        // Get metadata (can be NULL even if media exists)
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2203,8 +2241,6 @@ impl MediaRepository {
             .fetch_optional(&self.pool)
             .await?;
 
-        // Return metadata (assumes it's already in nested structure: {"user": {...}, "plugins": {...}})
-        // If NULL, return empty nested structure
         Ok(row
             .and_then(|(metadata,)| metadata)
             .or_else(|| Some(serde_json::json!({"user": {}, "plugins": {}}))))
@@ -2219,10 +2255,7 @@ impl MediaRepository {
     ) -> Result<Option<serde_json::Value>, AppError> {
         let metadata = self.get_metadata(tenant_id, media_id).await?;
 
-        Ok(metadata.and_then(|m| {
-            // Extract user namespace (assumes nested structure)
-            m.get("user").cloned()
-        }))
+        Ok(metadata.and_then(|m| m.get("user").cloned()))
     }
 
     /// Get single user metadata key value
@@ -2246,7 +2279,6 @@ impl MediaRepository {
         media_id: Uuid,
         new_metadata: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // Get current metadata with tenant verification
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2266,7 +2298,6 @@ impl MediaRepository {
             .0
             .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
 
-        // Extract user and plugins namespaces (assumes nested structure)
         let mut user_obj = current_metadata
             .get("user")
             .and_then(|v| v.as_object())
@@ -2278,22 +2309,17 @@ impl MediaRepository {
             .cloned()
             .unwrap_or_else(serde_json::Map::new);
 
-        // Merge new user metadata into existing user namespace
         if let Some(new_obj) = new_metadata.as_object() {
             for (key, value) in new_obj {
                 user_obj.insert(key.clone(), value.clone());
             }
         }
-        // If not an object, ignore it (log warning in debug mode)
-        // This prevents unreachable code and makes the behavior explicit
 
-        // Reconstruct nested structure
         let merged_metadata = serde_json::json!({
             "user": serde_json::Value::Object(user_obj),
             "plugins": serde_json::Value::Object(plugins_obj),
         });
 
-        // Update metadata in database with tenant isolation enforced
         let rows_affected = sqlx::query(
             r#"
             UPDATE media
@@ -2326,11 +2352,9 @@ impl MediaRepository {
         key: &str,
         value: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // Validate key
         validation::validate_metadata_key(key)?;
         validation::validate_metadata_value(&value)?;
 
-        // Get current metadata with tenant verification
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2350,7 +2374,6 @@ impl MediaRepository {
             .0
             .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
 
-        // Extract user and plugins namespaces (assumes nested structure)
         let mut user_obj = current_metadata
             .get("user")
             .and_then(|v| v.as_object())
@@ -2362,7 +2385,6 @@ impl MediaRepository {
             .cloned()
             .unwrap_or_else(serde_json::Map::new);
 
-        // Check key count limit
         if !user_obj.contains_key(key) && user_obj.len() >= validation::MAX_USER_METADATA_KEYS {
             return Err(AppError::MetadataKeyLimitExceeded(format!(
                 "Cannot add key '{}': metadata already has {} keys (maximum allowed: {})",
@@ -2372,16 +2394,13 @@ impl MediaRepository {
             )));
         }
 
-        // Set the key in user namespace
         user_obj.insert(key.to_string(), value);
 
-        // Reconstruct nested structure
         let merged_metadata = serde_json::json!({
             "user": serde_json::Value::Object(user_obj),
             "plugins": serde_json::Value::Object(plugins_obj),
         });
 
-        // Update metadata in database with tenant isolation enforced
         let rows_affected = sqlx::query(
             r#"
             UPDATE media
@@ -2413,7 +2432,6 @@ impl MediaRepository {
         media_id: Uuid,
         key: &str,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // Get current metadata with tenant verification
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2433,7 +2451,6 @@ impl MediaRepository {
             .0
             .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
 
-        // Extract user and plugins namespaces (assumes nested structure)
         let mut user_obj = current_metadata
             .get("user")
             .and_then(|v| v.as_object())
@@ -2445,19 +2462,15 @@ impl MediaRepository {
             .cloned()
             .unwrap_or_else(serde_json::Map::new);
 
-        // Remove key from user namespace (if exists)
         if user_obj.remove(key).is_none() {
-            // Key doesn't exist, return current metadata unchanged
             return Ok(Some(current_metadata));
         }
 
-        // Reconstruct nested structure
         let merged_metadata = serde_json::json!({
             "user": serde_json::Value::Object(user_obj),
             "plugins": serde_json::Value::Object(plugins_obj),
         });
 
-        // Update metadata in database with tenant isolation enforced
         let rows_affected = sqlx::query(
             r#"
             UPDATE media
@@ -2489,10 +2502,8 @@ impl MediaRepository {
         media_id: Uuid,
         new_metadata: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // Validate user metadata
         validation::validate_user_metadata(&new_metadata)?;
 
-        // Get current metadata with tenant verification
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2512,27 +2523,23 @@ impl MediaRepository {
             .0
             .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
 
-        // Extract plugins namespace (preserve it, assumes nested structure)
         let plugins_obj = current_metadata
             .get("plugins")
             .and_then(|v| v.as_object())
             .cloned()
             .unwrap_or_else(serde_json::Map::new);
 
-        // Ensure new_metadata is an object
         let user_obj = if let Some(obj) = new_metadata.as_object() {
             obj.clone()
         } else {
             serde_json::Map::new()
         };
 
-        // Reconstruct nested structure with new user metadata
         let merged_metadata = serde_json::json!({
             "user": serde_json::Value::Object(user_obj),
             "plugins": serde_json::Value::Object(plugins_obj),
         });
 
-        // Update metadata in database with tenant isolation enforced
         let rows_affected = sqlx::query(
             r#"
             UPDATE media
@@ -2565,7 +2572,6 @@ impl MediaRepository {
         plugin_name: &str,
         plugin_data: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
-        // Get current metadata with tenant verification
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
@@ -2585,7 +2591,6 @@ impl MediaRepository {
             .0
             .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
 
-        // Extract user and plugins namespaces (assumes nested structure)
         let user_obj = current_metadata
             .get("user")
             .and_then(|v| v.as_object())
@@ -2597,39 +2602,31 @@ impl MediaRepository {
             .cloned()
             .unwrap_or_else(serde_json::Map::new);
 
-        // Get or create plugin namespace
         let mut plugin_obj = plugins_obj
             .entry(plugin_name.to_string())
             .or_insert_with(|| serde_json::json!({}))
             .as_object_mut()
-            .unwrap()
+            .expect("plugin namespace value must be a JSON object")
             .clone();
 
-        // Merge plugin data into plugin namespace
         if let Some(new_obj) = plugin_data.as_object() {
             for (key, value) in new_obj {
                 plugin_obj.insert(key.clone(), value.clone());
             }
-        } else {
-            // If not an object, replace entirely
-            if let Some(obj) = plugin_data.as_object() {
-                plugin_obj = obj.clone();
-            }
+        } else if let Some(obj) = plugin_data.as_object() {
+            plugin_obj = obj.clone();
         }
 
-        // Update plugins namespace
         plugins_obj.insert(
             plugin_name.to_string(),
             serde_json::Value::Object(plugin_obj),
         );
 
-        // Reconstruct nested structure
         let merged_metadata = serde_json::json!({
             "user": serde_json::Value::Object(user_obj),
             "plugins": serde_json::Value::Object(plugins_obj),
         });
 
-        // Update metadata in database with tenant isolation enforced
         let rows_affected = sqlx::query(
             r#"
             UPDATE media

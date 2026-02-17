@@ -4,8 +4,9 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, Hash)]
-#[sqlx(type_name = "text")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(feature = "sqlx", sqlx(type_name = "text"))]
 #[serde(rename_all = "snake_case")]
 pub enum TaskType {
     VideoTranscode,
@@ -39,8 +40,12 @@ impl FromStr for TaskType {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
-#[sqlx(type_name = "task_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "task_status", rename_all = "lowercase")
+)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
     Pending,
@@ -133,6 +138,7 @@ pub struct Task {
     pub updated_at: DateTime<Utc>,
 }
 
+#[cfg(feature = "sqlx")]
 impl sqlx::FromRow<'_, sqlx::postgres::PgRow> for Task {
     fn from_row(row: &sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;

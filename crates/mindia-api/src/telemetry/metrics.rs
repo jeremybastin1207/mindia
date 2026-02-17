@@ -3,6 +3,8 @@
 //! This module provides helper functions to create common metrics
 //! using the global meter provider.
 
+#![allow(dead_code)] // Metric types used when wiring observability in other crates or future use
+
 #[cfg(feature = "observability-opentelemetry")]
 use opentelemetry::{
     metrics::{Counter, Histogram, Meter, UpDownCounter},
@@ -30,23 +32,23 @@ impl HttpMetrics {
         let request_counter = meter
             .u64_counter("http.server.request.count")
             .with_description("Total number of HTTP requests")
-            .init();
+            .build();
 
         let request_duration = meter
             .f64_histogram("http.server.request.duration")
             .with_description("HTTP request duration in seconds")
             .with_unit("s")
-            .init();
+            .build();
 
         let active_requests = meter
             .i64_up_down_counter("http.server.active_requests")
             .with_description("Number of active HTTP requests")
-            .init();
+            .build();
 
         let error_counter = meter
             .u64_counter("http.server.errors.count")
             .with_description("Total number of HTTP errors (4xx and 5xx responses)")
-            .init();
+            .build();
 
         Self {
             request_counter,
@@ -71,18 +73,18 @@ impl DatabaseMetrics {
         let query_counter = meter
             .u64_counter("db.client.queries.count")
             .with_description("Total number of database queries")
-            .init();
+            .build();
 
         let query_duration = meter
             .f64_histogram("db.client.queries.duration")
             .with_description("Database query duration in seconds")
             .with_unit("s")
-            .init();
+            .build();
 
         let active_queries = meter
             .i64_up_down_counter("db.client.active_queries")
             .with_description("Number of active database queries")
-            .init();
+            .build();
 
         Self {
             query_counter,
@@ -127,19 +129,19 @@ impl S3Metrics {
         let operation_counter = meter
             .u64_counter("aws.s3.operations.count")
             .with_description("Total number of S3 operations")
-            .init();
+            .build();
 
         let operation_duration = meter
             .f64_histogram("aws.s3.operations.duration")
             .with_description("S3 operation duration in seconds")
             .with_unit("s")
-            .init();
+            .build();
 
         let bytes_transferred = meter
             .u64_counter("aws.s3.bytes.transferred")
             .with_description("Total bytes transferred to/from S3")
             .with_unit("By")
-            .init();
+            .build();
 
         Self {
             operation_counter,
@@ -184,23 +186,23 @@ impl TaskQueueMetrics {
         let task_counter = meter
             .u64_counter("mindia.task_queue.tasks.count")
             .with_description("Total number of tasks processed")
-            .init();
+            .build();
 
         let task_duration = meter
             .f64_histogram("mindia.task_queue.tasks.duration")
             .with_description("Task processing duration in seconds")
             .with_unit("s")
-            .init();
+            .build();
 
         let active_tasks = meter
             .i64_up_down_counter("mindia.task_queue.active_tasks")
             .with_description("Number of active tasks")
-            .init();
+            .build();
 
         let task_failures = meter
             .u64_counter("mindia.task_queue.tasks.failures")
             .with_description("Total number of failed tasks")
-            .init();
+            .build();
 
         Self {
             task_counter,
@@ -228,8 +230,7 @@ impl TaskQueueMetrics {
     }
 }
 
-/// Helper function to get or create a meter from the global meter provider
 #[cfg(feature = "observability-opentelemetry")]
-pub fn get_meter(name: &str) -> Meter {
+pub fn get_meter(name: &'static str) -> Meter {
     opentelemetry::global::meter(name)
 }

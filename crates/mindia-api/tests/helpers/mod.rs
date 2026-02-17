@@ -2,6 +2,10 @@
 //!
 //! Run from workspace root: `cargo test -p mindia-api --test images_test` or
 //! `cargo test -p mindia-api`. Migrations path: from mindia-api crate root, `../../migrations`.
+//!
+//! Use `TestAppBuilder` to construct a test app; call `build().await` to get a `TestApp`.
+//! Future options (e.g. `.without_workflow()`, `.with_storage_path(...)`) can be added
+//! so tests only enable the components they need.
 
 #![allow(dead_code)]
 
@@ -9,6 +13,22 @@ pub mod auth;
 pub mod fixtures;
 pub mod storage;
 pub mod workflows;
+
+/// Builder for test applications. Use `TestAppBuilder::new().build().await` to get a full `TestApp`.
+/// Extend with optional steps (e.g. `.without_workflow()`) so tests can opt out of unneeded services.
+#[derive(Default)]
+pub struct TestAppBuilder;
+
+impl TestAppBuilder {
+    pub fn new() -> Self {
+        Self
+    }
+
+    /// Build the test app (Postgres container, migrations, local storage, full AppState and router).
+    pub async fn build(self) -> TestApp {
+        setup_test_app().await
+    }
+}
 
 use axum_test::TestServer;
 use mindia_api::constants;
@@ -20,8 +40,8 @@ use mindia_core::{BaseConfig, Config, StorageBackend};
 use mindia_db::{
     create_analytics_repository, ApiKeyRepository, EmbeddingRepository, FileGroupRepository,
     FolderRepository, MediaRepository, MetadataSearchRepository, NamedTransformationRepository,
-    StorageMetricsRepository, TaskRepository, TenantRepository, WebhookEventRepository,
-    WebhookRepository, WebhookRetryRepository,
+    PresignedUploadRepository, StorageMetricsRepository, TaskRepository, TenantRepository,
+    WebhookEventRepository, WebhookRepository, WebhookRetryRepository,
 };
 use mindia_infra::{
     AnalyticsService, CapacityChecker, CleanupService, RateLimiter, WebhookRetryService,
@@ -249,6 +269,7 @@ pub async fn setup_test_app() -> TestApp {
         task_repository: task_db.clone(),
     };
 
+    let presigned_upload_db = PresignedUploadRepository::new(pool.clone());
     let db_state = DbState {
         pool: pool.clone(),
         analytics: analytics_service,
@@ -264,6 +285,7 @@ pub async fn setup_test_app() -> TestApp {
         webhook_repository: webhook_db,
         webhook_event_repository: webhook_event_db,
         webhook_retry_repository: webhook_retry_db,
+        presigned_upload_repository: presigned_upload_db,
     };
 
     let webhook_state = WebhookState {
@@ -307,8 +329,9 @@ pub async fn setup_test_app() -> TestApp {
 
     #[cfg(feature = "workflow")]
     let workflows = {
-        let workflow_repo = mindia_db::WorkflowRepository::new(pool.clone());
-        let workflow_execution_repo = mindia_db::WorkflowExecutionRepository::new(pool.clone());
+        let workflow_repo = mindia_db::media::WorkflowRepository::new(pool.clone());
+        let workflow_execution_repo =
+            mindia_db::media::WorkflowExecutionRepository::new(pool.clone());
         let workflow_service = mindia_api::WorkflowService::new(
             workflow_repo.clone(),
             workflow_execution_repo.clone(),
@@ -422,6 +445,7 @@ fn create_test_config(database_url: &str) -> Config {
         clamav_host: "localhost".to_string(),
         clamav_port: 3310,
         clamav_fail_closed: false,
+        content_moderation_enabled: false,
         semantic_search_enabled: false,
         semantic_search_provider: "anthropic".to_string(),
         anthropic_api_key: None,

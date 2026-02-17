@@ -76,9 +76,13 @@ impl ImageProcessor {
         Ok(data.to_vec())
     }
 
-    /// Read EXIF orientation tag from image data
-    /// Returns orientation value (1-8) or 1 (normal) if not found.
-    /// EXIF parsing via kamadak-exif is optional; stub returns 1 when not available.
+    /// Read EXIF orientation tag from image data.
+    ///
+    /// Returns orientation value (1–8) or 1 (normal) if not found. **Callers must not rely on
+    /// orientation from this crate for correct display** until a real implementation is added:
+    /// this is a stub that always returns 1. EXIF parsing (e.g. via `kamadak-exif`) is optional
+    /// and not yet wired here; use `get_orientation_transforms` only when orientation is provided
+    /// by another source.
     pub fn read_exif_orientation(_data: &[u8]) -> u8 {
         1
     }

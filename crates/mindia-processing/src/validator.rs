@@ -22,6 +22,9 @@ pub enum ValidationError {
     #[error("Invalid filename: {0}")]
     InvalidFilename(String),
 
+    #[error("Missing file extension (filename: {0})")]
+    MissingExtension(String),
+
     #[error("Empty file")]
     EmptyFile,
 }
@@ -71,7 +74,7 @@ impl MediaValidator {
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
-            .ok_or_else(|| ValidationError::InvalidFilename(filename.to_string()))?;
+            .ok_or_else(|| ValidationError::MissingExtension(filename.to_string()))?;
 
         if !self.allowed_extensions.contains(&extension) {
             return Err(ValidationError::InvalidExtension {
@@ -113,7 +116,7 @@ impl MediaValidator {
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
-            .ok_or_else(|| ValidationError::InvalidFilename(filename.to_string()))?;
+            .ok_or_else(|| ValidationError::MissingExtension(filename.to_string()))?;
 
         let normalized_content_type = content_type.to_lowercase();
 

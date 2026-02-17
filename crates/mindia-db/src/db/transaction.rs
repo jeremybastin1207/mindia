@@ -7,10 +7,16 @@ use anyhow::{Context, Result};
 use sqlx::{PgPool, Postgres, Transaction};
 use std::ops::{Deref, DerefMut};
 
-/// A database transaction wrapper that automatically handles commit/rollback
+/// A database transaction wrapper for explicit commit/rollback.
 ///
-/// This wrapper ensures that transactions are properly committed or rolled back,
-/// even in the case of early returns or panics (via Drop).
+/// **Important:** You must always call either [`commit`](TransactionGuard::commit) or
+/// [`rollback`](TransactionGuard::rollback) before the guard is dropped. Drop cannot
+/// perform an async rollback, so a guard dropped without commit/rollback leaves the
+/// connection held until the guard is dropped; the transaction is not rolled back
+/// automatically. In debug builds, dropping without commit/rollback will panic to
+/// catch misuse.
+///
+/// Prefer [`with_transaction`] when possible; it handles commit/rollback for you.
 ///
 /// # Example
 ///
@@ -94,23 +100,31 @@ impl<'a> DerefMut for TransactionGuard<'a> {
 
 impl<'a> Drop for TransactionGuard<'a> {
     fn drop(&mut self) {
-        // If the transaction wasn't explicitly committed or rolled back,
-        // roll it back automatically to prevent resource leaks
         if self.transaction.is_some() {
-            tracing::warn!(
-                "Transaction was dropped without explicit commit or rollback - rolling back"
+            // We cannot perform async rollback in Drop. The connection is released
+            // when the guard is dropped; the transaction remains open until the
+            // connection is returned to the pool.
+            #[cfg(debug_assertions)]
+            panic!(
+                "TransactionGuard dropped without commit or rollback. \
+                 Always call .commit().await or .rollback().await explicitly, \
+                 or use with_transaction() instead."
             );
-            // NOTE: We can't safely rollback in Drop due to lifetime constraints.
-            // The transaction will be cleaned up when the connection pool is dropped.
-            // In production, ensure transactions are explicitly committed or rolled back.
+            #[cfg(not(debug_assertions))]
+            tracing::warn!(
+                "TransactionGuard dropped without explicit commit or rollback; \
+                 connection will be returned to pool without rollback. \
+                 Prefer with_transaction() or always call commit/rollback."
+            );
         }
     }
 }
 
 /// Execute a closure within a database transaction
 ///
-/// This helper function begins a transaction, executes the closure,
-/// and commits if successful or rolls back on error.
+/// Begins a transaction, runs the closure, then commits on success or rolls back
+/// on error. Prefer this over manual `TransactionGuard` when the whole operation
+/// fits in one async block, so you never risk dropping the guard without commit/rollback.
 ///
 /// # Example
 ///

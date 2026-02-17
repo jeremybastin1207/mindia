@@ -2,9 +2,11 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
+
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
 
 /// Single step in a workflow: run a plugin by name
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
@@ -18,8 +20,12 @@ pub struct WorkflowStep {
 }
 
 /// Workflow execution status (matches database enum)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
-#[sqlx(type_name = "workflow_execution_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "workflow_execution_status", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum WorkflowExecutionStatus {
     Pending,
@@ -30,7 +36,8 @@ pub enum WorkflowExecutionStatus {
 }
 
 /// Workflow definition (database row)
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct Workflow {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -49,7 +56,8 @@ pub struct Workflow {
 }
 
 /// Workflow execution instance (one run of a workflow on a media item)
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct WorkflowExecution {
     pub id: Uuid,
     pub workflow_id: Uuid,

@@ -48,6 +48,9 @@ pub type StorageResult<T> = Result<T, StorageError>;
 /// All storage backends (S3, local filesystem) must implement this trait.
 /// This allows the media repository to work with any storage backend without
 /// coupling to specific implementation details.
+///
+/// **Key format:** Keys are tenant-scoped: `media/{filename}` for the default tenant,
+/// or `media/{tenant_id}/{filename}` otherwise. See the crate root documentation.
 #[async_trait]
 pub trait Storage: Send + Sync {
     /// Upload a file and return (storage_key, storage_url)
@@ -77,13 +80,24 @@ pub trait Storage: Send + Sync {
     /// Delete a file by its storage key
     async fn delete(&self, storage_key: &str) -> StorageResult<()>;
 
-    /// Generate a presigned/temporary URL for direct access
+    /// Generate a presigned/temporary URL for direct access (GET)
     ///
     /// This is useful for giving clients temporary access to files
     /// without going through the application server
     async fn get_presigned_url(
         &self,
         storage_key: &str,
+        expires_in: Duration,
+    ) -> StorageResult<String>;
+
+    /// Generate a presigned PUT URL for direct uploads.
+    ///
+    /// Clients can upload with HTTP PUT to the returned URL. Only supported by S3 backends;
+    /// other backends return a `ConfigError`.
+    async fn presigned_put_url(
+        &self,
+        storage_key: &str,
+        _content_type: &str,
         expires_in: Duration,
     ) -> StorageResult<String>;
 

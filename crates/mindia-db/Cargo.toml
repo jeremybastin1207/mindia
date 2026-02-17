@@ -21,6 +21,8 @@ default = ["storage", "semantic-search"]
 storage = ["dep:mindia-storage"]
 semantic-search = ["dep:pgvector", "mindia-core/semantic-search"]
 
+# Placeholder features for downstream crates (mindia-api, mindia-infra, mindia-processing).
+# Enable when adding optional media-type-specific code.
 audio = []
 document = []
 video = []

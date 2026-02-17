@@ -2,13 +2,19 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
+
 /// Plugin execution status (matches database enum)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
-#[sqlx(type_name = "plugin_execution_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "plugin_execution_status", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum PluginExecutionStatus {
     Pending,
@@ -18,7 +24,8 @@ pub enum PluginExecutionStatus {
 }
 
 /// Plugin configuration model (database representation)
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct PluginConfig {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -35,7 +42,8 @@ pub struct PluginConfig {
 }
 
 /// Plugin execution tracking model
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct PluginExecution {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -59,7 +67,8 @@ pub struct PluginExecution {
 }
 
 /// Plugin cost summary (aggregated usage per tenant/plugin/period)
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct PluginCostSummary {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -226,7 +235,11 @@ mod tests {
         assert_eq!(response.id, config.id);
         assert_eq!(response.plugin_name, config.plugin_name);
         assert_eq!(response.enabled, config.enabled);
-        assert_eq!(response.config, config.config);
+        // Response config is redacted (sensitive fields like api_key are masked)
+        assert_eq!(
+            response.config,
+            PluginConfig::redact_sensitive_fields(&config.config)
+        );
         assert_eq!(response.created_at, config.created_at);
         assert_eq!(response.updated_at, config.updated_at);
     }

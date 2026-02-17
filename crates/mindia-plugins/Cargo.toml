@@ -6,7 +6,7 @@ edition.workspace = true
 [dependencies]
 mindia-core = { path = "../mindia-core" }
 mindia-db = { path = "../mindia-db" }
-mindia-services = { path = "../mindia-services" }
+mindia-storage = { path = "../mindia-storage" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
@@ -43,7 +43,7 @@ plugin = []
 # Individual plugin implementations
 # Each plugin requires the base "plugin" feature
 plugin-assembly-ai = ["plugin", "dep:reqwest"]
-plugin-aws-transcribe = ["plugin", "dep:aws-config", "dep:aws-sdk-transcribe"]
+plugin-aws-transcribe = ["plugin", "dep:aws-config", "dep:aws-sdk-transcribe", "dep:reqwest"]
 plugin-aws-rekognition = ["plugin", "dep:aws-config", "dep:aws-sdk-rekognition"]
 plugin-aws-rekognition-moderation = ["plugin", "dep:aws-config", "dep:aws-sdk-rekognition"]
 plugin-google-vision = ["plugin", "dep:reqwest"]

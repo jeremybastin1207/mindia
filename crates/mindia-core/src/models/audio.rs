@@ -41,7 +41,7 @@ impl Audio {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AudioResponse {
     pub id: Uuid,
     pub filename: String,

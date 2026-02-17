@@ -1,12 +1,15 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::types::JsonValue;
-use sqlx::FromRow;
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct RequestLog {
     pub id: i64,
     pub request_id: Uuid,
@@ -39,7 +42,8 @@ pub struct RequestLogInput {
     pub ip_address: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct StorageMetrics {
     pub id: i32,
     pub tenant_id: Option<Uuid>,
@@ -57,7 +61,8 @@ pub struct StorageMetrics {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct UrlStatistics {
     pub path: String,
     pub request_count: i64,

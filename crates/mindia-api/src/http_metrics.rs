@@ -10,19 +10,16 @@ use opentelemetry::{
     KeyValue,
 };
 use std::time::Duration;
-use tower_http::classify::ServerErrorsAsFailures;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::trace::{MakeSpan, OnFailure, OnRequest, OnResponse};
 use tracing::Span;
 
-// Helper to parse method and path from span name
-// Span name format: "METHOD /path"
 fn parse_span_name(span: &Span) -> (String, String) {
     let span_name = span
         .metadata()
         .map(|m| m.name())
         .unwrap_or("unknown unknown");
 
-    // Parse "METHOD /path" format
     let parts: Vec<&str> = span_name.splitn(2, ' ').collect();
     if parts.len() == 2 {
         (parts[0].to_string(), parts[1].to_string())
@@ -50,23 +47,23 @@ impl HttpMetrics {
         let request_counter = meter
             .u64_counter("http.server.request.count")
             .with_description("Total number of HTTP requests")
-            .init();
+            .build();
 
         let request_duration = meter
             .f64_histogram("http.server.request.duration")
             .with_description("HTTP request duration in seconds")
             .with_unit("s")
-            .init();
+            .build();
 
         let active_requests = meter
             .i64_up_down_counter("http.server.active_requests")
             .with_description("Number of active HTTP requests")
-            .init();
+            .build();
 
         let error_counter = meter
             .u64_counter("http.server.errors.count")
             .with_description("Total number of HTTP errors (4xx and 5xx responses)")
-            .init();
+            .build();
 
         Self {
             request_counter,
@@ -153,7 +150,6 @@ impl<B> MakeSpan<B> for CustomMakeSpan {
             self.metrics.record_request_start(method, path);
         }
 
-        // Create span with detailed attributes
         let span = tracing::info_span!(
             "http_request",
             otel.name = %format!("{} {}", method, path),
@@ -169,7 +165,6 @@ impl<B> MakeSpan<B> for CustomMakeSpan {
             http.response_content_length = tracing::field::Empty,
         );
 
-        // Add client IP if available
         if let Some(addr) = request
             .headers()
             .get("x-forwarded-for")
@@ -184,7 +179,6 @@ impl<B> MakeSpan<B> for CustomMakeSpan {
             span.record("http.client_ip", addr);
         }
 
-        // Add user agent
         if let Some(user_agent) = request
             .headers()
             .get("user-agent")
@@ -193,7 +187,6 @@ impl<B> MakeSpan<B> for CustomMakeSpan {
             span.record("http.user_agent", user_agent);
         }
 
-        // Add content length
         if let Some(content_length) = request
             .headers()
             .get("content-length")
@@ -238,7 +231,6 @@ impl<B> OnResponse<B> for CustomOnResponse {
         let status = response.status().as_u16();
         span.record("http.status_code", status);
 
-        // Add response content length if available
         if let Some(content_length) = response
             .headers()
             .get("content-length")
@@ -247,15 +239,12 @@ impl<B> OnResponse<B> for CustomOnResponse {
             span.record("http.response_content_length", content_length);
         }
 
-        // Extract method and path from span name (format: "METHOD /path")
-        // The span name is set as "{} {}", method, path in make_span
         let (_method, _path) = parse_span_name(span);
 
-        // Record metrics (errors are tracked in record_request_end)
         #[cfg(feature = "observability-opentelemetry")]
         {
             self.metrics
-                .record_request_end(&method, &path, status, latency.as_secs_f64());
+                .record_request_end(&_method, &_path, status, latency.as_secs_f64());
         }
 
         if response.status().is_server_error() {
@@ -298,8 +287,8 @@ impl CustomOnFailure {
     }
 }
 
-impl OnFailure<ServerErrorsAsFailures> for CustomOnFailure {
-    fn on_failure(&mut self, failure: ServerErrorsAsFailures, latency: Duration, span: &Span) {
+impl OnFailure<ServerErrorsFailureClass> for CustomOnFailure {
+    fn on_failure(&mut self, failure: ServerErrorsFailureClass, latency: Duration, span: &Span) {
         // Record error in span
         span.record("otel.status_code", "ERROR");
         span.record("http.status_code", 500);
@@ -317,7 +306,7 @@ impl OnFailure<ServerErrorsAsFailures> for CustomOnFailure {
         #[cfg(feature = "observability-opentelemetry")]
         {
             self.metrics
-                .record_request_end(&method, &path, 500, latency.as_secs_f64());
+                .record_request_end(&_method, &_path, 500, latency.as_secs_f64());
         }
     }
 }

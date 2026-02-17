@@ -27,7 +27,7 @@ pub fn generate_csrf_token(secret: &str) -> String {
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("system time is before UNIX_EPOCH")
         .as_secs();
 
     let nonce = Uuid::new_v4().to_string();
@@ -77,7 +77,7 @@ fn verify_csrf_token(token: &str, secret: &str) -> bool {
     // Check expiration (1 hour)
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("system time is before UNIX_EPOCH")
         .as_secs();
 
     if timestamp + CSRF_TOKEN_EXPIRATION_SECS < now {

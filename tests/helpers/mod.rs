@@ -122,12 +122,13 @@ pub async fn setup_test_app() -> TestApp {
     // Initialize S3Service only if using S3 backend (optional for local storage)
     // For tests, we use local storage, so S3Service is not required
     let s3_config = if config.storage_backend == Some(StorageBackend::S3) {
-        let s3_service = S3Service::new(None, "us-east-1".to_string())
+        let bucket = "test-bucket".to_string();
+        let s3_service = S3Service::new(Some(bucket.clone()), "us-east-1".to_string(), None)
             .await
             .expect("Failed to create S3 service");
         Some(S3Config {
             service: s3_service.clone(),
-            bucket: "test-bucket".to_string(),
+            bucket,
             region: "us-east-1".to_string(),
         })
     } else {

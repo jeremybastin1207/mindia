@@ -301,6 +301,18 @@ impl Plugin for AssemblyAiPlugin {
             "status": transcript_result.status,
         });
 
+        // Persist transcript in media metadata (same pattern as other plugins)
+        context
+            .media_repo
+            .merge_plugin_metadata(
+                context.tenant_id,
+                context.media_id,
+                "assembly_ai",
+                transcript_json.clone(),
+            )
+            .await
+            .context("Failed to update metadata: media not found or unauthorized")?;
+
         let plugin_usage = transcript_result
             .audio_duration
             .map(|duration_secs| PluginUsage {
@@ -420,10 +432,12 @@ mod tests {
             "language_code": "en"
         });
 
-        // Empty string is valid JSON structure, validation passes
-        // (actual API would reject it, but that's a runtime concern)
+        // Empty API key must be rejected by validate_config
         let result = plugin.validate_config(&config);
-        assert!(result.is_ok(), "Empty string is valid JSON structure");
+        assert!(
+            result.is_err(),
+            "Config with empty api_key should fail validation"
+        );
     }
 
     #[test]

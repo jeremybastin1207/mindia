@@ -47,6 +47,16 @@ test: ## Run all tests
 	@echo "$(BLUE)Running tests...$(NC)"
 	$(CARGO) test
 
+# Feature profiles: minimal | standard | full (see mindia-api/Cargo.toml)
+test-minimal: ## Run mindia-api tests with minimal feature set
+	$(CARGO) test -p mindia-api --no-default-features --features minimal
+
+test-standard: ## Run mindia-api tests with standard feature set (no plugins)
+	$(CARGO) test -p mindia-api --no-default-features --features standard
+
+test-full: ## Run mindia-api tests with full feature set
+	$(CARGO) test -p mindia-api --no-default-features --features full
+
 test-watch: ## Run tests in watch mode
 	@echo "$(BLUE)Running tests in watch mode...$(NC)"
 	$(CARGO) watch -x test

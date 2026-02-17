@@ -11,9 +11,9 @@ pub mod plugin;
 pub mod presigned_upload;
 pub mod storage;
 pub mod task;
-pub mod tenant;
 pub mod workflow;
 
+pub use crate::db::control::TenantRepository as MediaTenantRepository;
 pub use analytics::{
     create_analytics_repository, AnalyticsRepositoryTrait,
     PostgresAnalyticsRepository as AnalyticsRepository, StorageMetricsRepository,
@@ -29,5 +29,4 @@ pub use plugin::{PluginConfigRepository, PluginExecutionRepository};
 pub use presigned_upload::PresignedUploadRepository;
 pub use storage::StorageLocationRepository;
 pub use task::TaskRepository;
-pub use tenant::TenantRepository;
 pub use workflow::{WorkflowExecutionRepository, WorkflowRepository};

@@ -10,8 +10,9 @@ use mindia_core::models::MediaType;
 use mindia_core::Config;
 use mindia_db::{
     ApiKeyRepository, EmbeddingRepository, FileGroupRepository, FolderRepository, MediaRepository,
-    MetadataSearchRepository, NamedTransformationRepository, TaskRepository, TenantRepository,
-    WebhookEventRepository, WebhookRepository, WebhookRetryRepository,
+    MetadataSearchRepository, NamedTransformationRepository, PresignedUploadRepository,
+    TaskRepository, TenantRepository, WebhookEventRepository, WebhookRepository,
+    WebhookRetryRepository,
 };
 use mindia_infra::{
     AnalyticsService, CapacityChecker, CleanupService, WebhookRetryService, WebhookService,
@@ -25,10 +26,10 @@ use std::sync::Arc;
 use crate::plugins::{PluginRegistry, PluginService};
 #[cfg(feature = "workflow")]
 use crate::services::workflow::WorkflowService;
+#[cfg(feature = "workflow")]
+use mindia_db::media::{WorkflowExecutionRepository, WorkflowRepository};
 #[cfg(feature = "plugin")]
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
-#[cfg(feature = "workflow")]
-use mindia_db::{WorkflowExecutionRepository, WorkflowRepository};
 #[cfg(feature = "clamav")]
 use mindia_services::ClamAVService;
 use mindia_services::S3Service;
@@ -55,6 +56,7 @@ pub struct DbState {
     pub webhook_repository: WebhookRepository,
     pub webhook_event_repository: WebhookEventRepository,
     pub webhook_retry_repository: WebhookRetryRepository,
+    pub presigned_upload_repository: PresignedUploadRepository,
 }
 
 /// Unified media configuration and repository for all media types.

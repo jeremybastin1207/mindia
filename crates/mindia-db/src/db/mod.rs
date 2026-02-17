@@ -19,9 +19,9 @@ pub mod transaction;
 pub use media::EmbeddingRepository;
 pub use media::{
     AnalyticsRepository, FileGroupRepository, FolderRepository, MediaRepository,
-    MetadataSearchRepository, NamedTransformationRepository, PluginConfigRepository,
-    PluginExecutionRepository, PresignedUploadRepository, StorageLocationRepository,
-    StorageMetricsRepository, TaskRepository, TenantRepository as MediaTenantRepository,
+    MediaTenantRepository, MetadataSearchRepository, NamedTransformationRepository,
+    PluginConfigRepository, PluginExecutionRepository, PresignedUploadRepository,
+    StorageLocationRepository, StorageMetricsRepository, TaskRepository,
 };
 //
 // Analytics repository factory and trait (from media::analytics)

@@ -1,14 +1,18 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::types::JsonValue;
+use serde_json::Value as JsonValue;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::storage::StorageLocation;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "processing_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "processing_status", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum ProcessingStatus {
     Pending,
@@ -66,7 +70,7 @@ impl Video {
     }
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct VideoResponse {
     pub id: Uuid,
     pub filename: String,

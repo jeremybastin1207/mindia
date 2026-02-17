@@ -1,16 +1,22 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::types::JsonValue;
-use sqlx::FromRow;
+use serde_json::Value as JsonValue;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::str::FromStr;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+#[cfg(feature = "sqlx")]
+use sqlx::FromRow;
+
 /// Webhook event types
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "webhook_event_type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "webhook_event_type", rename_all = "lowercase")
+)]
 #[serde(rename_all = "snake_case")]
 pub enum WebhookEventType {
     FileUploaded,
@@ -54,8 +60,12 @@ impl FromStr for WebhookEventType {
 }
 
 /// Webhook delivery status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, sqlx::Type, ToSchema)]
-#[sqlx(type_name = "webhook_delivery_status", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type))]
+#[cfg_attr(
+    feature = "sqlx",
+    sqlx(type_name = "webhook_delivery_status", rename_all = "lowercase")
+)]
 #[serde(rename_all = "lowercase")]
 pub enum WebhookDeliveryStatus {
     Pending,
@@ -76,7 +86,8 @@ impl Display for WebhookDeliveryStatus {
 }
 
 /// Webhook configuration entity
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct Webhook {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -92,7 +103,8 @@ pub struct Webhook {
 }
 
 /// Webhook event log entry
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct WebhookEventLog {
     pub id: Uuid,
     pub webhook_id: Uuid,
@@ -110,7 +122,8 @@ pub struct WebhookEventLog {
 }
 
 /// Webhook retry queue entry
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "sqlx", derive(FromRow))]
 pub struct WebhookRetryQueueItem {
     pub id: Uuid,
     pub webhook_event_id: Uuid,

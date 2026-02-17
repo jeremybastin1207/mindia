@@ -155,10 +155,10 @@ impl WorkflowRepository {
         .bind(steps.as_ref())
         .bind(trigger_on_upload)
         .bind(stop_on_failure)
-        .bind(media_types.and_then(|x| x).as_deref())
-        .bind(folder_ids.and_then(|x| x).as_deref())
-        .bind(content_types.and_then(|x| x).as_deref())
-        .bind(metadata_filter.and_then(|x| x).as_ref())
+        .bind(media_types.and_then(std::convert::identity).as_deref())
+        .bind(folder_ids.and_then(std::convert::identity).as_deref())
+        .bind(content_types.and_then(std::convert::identity).as_deref())
+        .bind(metadata_filter.and_then(std::convert::identity).as_ref())
         .bind(now)
         .fetch_optional(&self.pool)
         .await
@@ -552,7 +552,6 @@ impl WorkflowExecutionRepository {
 }
 
 fn derive_workflow_status(task_statuses: &[String]) -> (WorkflowExecutionStatus, i32) {
-    #[allow(unused_assignments)]
     let mut current_step = 0i32;
     for (i, s) in task_statuses.iter().enumerate() {
         current_step = i as i32;
@@ -570,8 +569,5 @@ fn derive_workflow_status(task_statuses: &[String]) -> (WorkflowExecutionStatus,
             _ => continue,
         }
     }
-    (
-        WorkflowExecutionStatus::Completed,
-        task_statuses.len().saturating_sub(1).max(0) as i32,
-    )
+    (WorkflowExecutionStatus::Completed, current_step)
 }
