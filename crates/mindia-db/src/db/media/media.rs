@@ -69,19 +69,30 @@ impl MediaRepository {
         self.storage_locations.get_by_ids(ids).await
     }
 
-    fn rows_to_images_with_map(
-        &self,
+    fn rows_to_with_map<T, F>(
         rows: Vec<MediaRow>,
         storage_map: &HashMap<Uuid, StorageLocation>,
-    ) -> Result<Vec<Image>, AppError> {
+        f: F,
+    ) -> Result<Vec<T>, AppError>
+    where
+        F: Fn(MediaRow, &StorageLocation) -> T,
+    {
         let mut out = Vec::with_capacity(rows.len());
         for r in rows {
             let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
                 AppError::Internal(format!("Storage location {} not found", r.storage_id))
             })?;
-            out.push(row_to_image_with_storage(r, loc));
+            out.push(f(r, loc));
         }
         Ok(out)
+    }
+
+    fn rows_to_images_with_map(
+        &self,
+        rows: Vec<MediaRow>,
+        storage_map: &HashMap<Uuid, StorageLocation>,
+    ) -> Result<Vec<Image>, AppError> {
+        Self::rows_to_with_map(rows, storage_map, row_to_image_with_storage)
     }
 
     fn rows_to_videos_with_map(
@@ -89,14 +100,7 @@ impl MediaRepository {
         rows: Vec<MediaRow>,
         storage_map: &HashMap<Uuid, StorageLocation>,
     ) -> Result<Vec<Video>, AppError> {
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
-                AppError::Internal(format!("Storage location {} not found", r.storage_id))
-            })?;
-            out.push(row_to_video_with_storage(r, loc));
-        }
-        Ok(out)
+        Self::rows_to_with_map(rows, storage_map, row_to_video_with_storage)
     }
 
     fn rows_to_audios_with_map(
@@ -104,14 +108,7 @@ impl MediaRepository {
         rows: Vec<MediaRow>,
         storage_map: &HashMap<Uuid, StorageLocation>,
     ) -> Result<Vec<Audio>, AppError> {
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
-                AppError::Internal(format!("Storage location {} not found", r.storage_id))
-            })?;
-            out.push(row_to_audio_with_storage(r, loc));
-        }
-        Ok(out)
+        Self::rows_to_with_map(rows, storage_map, row_to_audio_with_storage)
     }
 
     fn rows_to_documents_with_map(
@@ -119,14 +116,7 @@ impl MediaRepository {
         rows: Vec<MediaRow>,
         storage_map: &HashMap<Uuid, StorageLocation>,
     ) -> Result<Vec<Document>, AppError> {
-        let mut out = Vec::with_capacity(rows.len());
-        for r in rows {
-            let loc = storage_map.get(&r.storage_id).ok_or_else(|| {
-                AppError::Internal(format!("Storage location {} not found", r.storage_id))
-            })?;
-            out.push(row_to_document_with_storage(r, loc));
-        }
-        Ok(out)
+        Self::rows_to_with_map(rows, storage_map, row_to_document_with_storage)
     }
 
     /// Convert MediaRow to Image (requires fetching storage location).
@@ -1572,26 +1562,6 @@ impl MediaRepository {
         self.rows_to_audios_with_map(rows, &storage_map)
     }
 
-    /// Delete image (alias for delete). Used by cleanup.
-    pub async fn delete_image(&self, tenant_id: Uuid, id: Uuid) -> Result<bool, AppError> {
-        self.delete(tenant_id, id).await
-    }
-
-    /// Delete video (alias for delete). Used by cleanup.
-    pub async fn delete_video(&self, tenant_id: Uuid, id: Uuid) -> Result<bool, AppError> {
-        self.delete(tenant_id, id).await
-    }
-
-    /// Delete document (alias for delete). Used by cleanup.
-    pub async fn delete_document(&self, tenant_id: Uuid, id: Uuid) -> Result<bool, AppError> {
-        self.delete(tenant_id, id).await
-    }
-
-    /// Delete audio (alias for delete). Used by cleanup.
-    pub async fn delete_audio(&self, tenant_id: Uuid, id: Uuid) -> Result<bool, AppError> {
-        self.delete(tenant_id, id).await
-    }
-
     /// Get video by id only (no tenant filter). Used by job queue / orchestration.
     #[tracing::instrument(skip(self), fields(db.table = "media", media_type = "video", db.record_id = %id))]
     pub async fn get_video_by_id_unchecked(&self, id: Uuid) -> Result<Option<Video>, AppError> {
@@ -2271,7 +2241,8 @@ impl MediaRepository {
         Ok(user_metadata.and_then(|m| m.as_object()?.get(key).cloned()))
     }
 
-    /// Merge user metadata (only updates user namespace, preserves plugins)
+    /// Merge user metadata (only updates user namespace, preserves plugins).
+    /// Uses atomic PostgreSQL jsonb || to avoid read-modify-write races.
     #[tracing::instrument(skip(self, new_metadata), fields(db.table = "media", db.operation = "update", db.record_id = %media_id))]
     pub async fn merge_user_metadata(
         &self,
@@ -2279,71 +2250,35 @@ impl MediaRepository {
         media_id: Uuid,
         new_metadata: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
+        let new_user_json = serde_json::to_value(new_metadata).map_err(AppError::from)?;
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
-            SELECT metadata FROM media
-            WHERE id = $1 AND tenant_id = $2
+            UPDATE media
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                '{user}',
+                (COALESCE(metadata->'user', '{}'::jsonb) || $1::jsonb)
+            ),
+            updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3
+            RETURNING metadata
             "#,
             )
+            .bind(new_user_json)
             .bind(media_id)
             .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await?;
 
-        let current_metadata = row
-            .ok_or_else(|| {
-                AppError::NotFound("Media not found or does not belong to tenant".to_string())
-            })?
-            .0
-            .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
-
-        let mut user_obj = current_metadata
-            .get("user")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-        let plugins_obj = current_metadata
-            .get("plugins")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-
-        if let Some(new_obj) = new_metadata.as_object() {
-            for (key, value) in new_obj {
-                user_obj.insert(key.clone(), value.clone());
-            }
-        }
-
-        let merged_metadata = serde_json::json!({
-            "user": serde_json::Value::Object(user_obj),
-            "plugins": serde_json::Value::Object(plugins_obj),
-        });
-
-        let rows_affected = sqlx::query(
-            r#"
-            UPDATE media
-            SET metadata = $1, updated_at = NOW()
-            WHERE id = $2 AND tenant_id = $3
-            "#,
-        )
-        .bind(serde_json::to_value(&merged_metadata)?)
-        .bind(media_id)
-        .bind(tenant_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Media not found or does not belong to tenant".to_string(),
-            ));
-        }
-
-        Ok(Some(merged_metadata))
+        let merged = row.and_then(|r| r.0).ok_or_else(|| {
+            AppError::NotFound("Media not found or does not belong to tenant".to_string())
+        })?;
+        Ok(Some(merged))
     }
 
-    /// Set/update single user metadata key
+    /// Set/update single user metadata key.
+    /// Uses atomic PostgreSQL jsonb_set to avoid read-modify-write races.
     #[tracing::instrument(skip(self, value), fields(db.table = "media", db.operation = "update", db.record_id = %media_id, metadata.key = %key))]
     pub async fn merge_user_metadata_key(
         &self,
@@ -2355,76 +2290,64 @@ impl MediaRepository {
         validation::validate_metadata_key(key)?;
         validation::validate_metadata_value(&value)?;
 
+        // Key count check (best-effort under concurrency; full enforcement would need CHECK constraint)
+        let count_row: Option<(i64,)> = sqlx::query_as(
+            r#"SELECT (SELECT count(*) FROM jsonb_object_keys(COALESCE(metadata->'user', '{}'::jsonb)))::bigint FROM media WHERE id = $1 AND tenant_id = $2"#,
+        )
+        .bind(media_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let key_count = count_row.map(|r| r.0).unwrap_or(-1);
+        let has_key_row: Option<(bool,)> = sqlx::query_as(
+            r#"SELECT (metadata->'user' ? $1) FROM media WHERE id = $2 AND tenant_id = $3"#,
+        )
+        .bind(key)
+        .bind(media_id)
+        .bind(tenant_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let has_key = has_key_row.map(|r| r.0).unwrap_or(false);
+        if !has_key && key_count >= validation::MAX_USER_METADATA_KEYS as i64 {
+            return Err(AppError::MetadataKeyLimitExceeded(format!(
+                "Cannot add key '{}': metadata already has {} keys (maximum allowed: {})",
+                key,
+                key_count,
+                validation::MAX_USER_METADATA_KEYS
+            )));
+        }
+
+        let value_json = serde_json::to_value(value).map_err(AppError::from)?;
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
-            SELECT metadata FROM media
-            WHERE id = $1 AND tenant_id = $2
+            UPDATE media
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                array['user', $1]::text[],
+                $2::jsonb,
+                true
+            ),
+            updated_at = NOW()
+            WHERE id = $3 AND tenant_id = $4
+            RETURNING metadata
             "#,
             )
+            .bind(key)
+            .bind(value_json)
             .bind(media_id)
             .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await?;
 
-        let current_metadata = row
-            .ok_or_else(|| {
-                AppError::NotFound("Media not found or does not belong to tenant".to_string())
-            })?
-            .0
-            .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
-
-        let mut user_obj = current_metadata
-            .get("user")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-        let plugins_obj = current_metadata
-            .get("plugins")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-
-        if !user_obj.contains_key(key) && user_obj.len() >= validation::MAX_USER_METADATA_KEYS {
-            return Err(AppError::MetadataKeyLimitExceeded(format!(
-                "Cannot add key '{}': metadata already has {} keys (maximum allowed: {})",
-                key,
-                user_obj.len(),
-                validation::MAX_USER_METADATA_KEYS
-            )));
-        }
-
-        user_obj.insert(key.to_string(), value);
-
-        let merged_metadata = serde_json::json!({
-            "user": serde_json::Value::Object(user_obj),
-            "plugins": serde_json::Value::Object(plugins_obj),
-        });
-
-        let rows_affected = sqlx::query(
-            r#"
-            UPDATE media
-            SET metadata = $1, updated_at = NOW()
-            WHERE id = $2 AND tenant_id = $3
-            "#,
-        )
-        .bind(serde_json::to_value(&merged_metadata)?)
-        .bind(media_id)
-        .bind(tenant_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Media not found or does not belong to tenant".to_string(),
-            ));
-        }
-
-        Ok(Some(merged_metadata))
+        let merged = row.and_then(|r| r.0).ok_or_else(|| {
+            AppError::NotFound("Media not found or does not belong to tenant".to_string())
+        })?;
+        Ok(Some(merged))
     }
 
-    /// Delete single user metadata key
+    /// Delete single user metadata key.
+    /// Uses atomic PostgreSQL jsonb #- to avoid read-modify-write races.
     #[tracing::instrument(skip(self), fields(db.table = "media", db.operation = "update", db.record_id = %media_id, metadata.key = %key))]
     pub async fn delete_user_metadata_key(
         &self,
@@ -2435,66 +2358,27 @@ impl MediaRepository {
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
-            SELECT metadata FROM media
-            WHERE id = $1 AND tenant_id = $2
+            UPDATE media
+            SET metadata = (COALESCE(metadata, '{}'::jsonb) #- array['user', $1]::text[]),
+                updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3
+            RETURNING metadata
             "#,
             )
+            .bind(key)
             .bind(media_id)
             .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await?;
 
-        let current_metadata = row
-            .ok_or_else(|| {
-                AppError::NotFound("Media not found or does not belong to tenant".to_string())
-            })?
-            .0
-            .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
-
-        let mut user_obj = current_metadata
-            .get("user")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-        let plugins_obj = current_metadata
-            .get("plugins")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-
-        if user_obj.remove(key).is_none() {
-            return Ok(Some(current_metadata));
-        }
-
-        let merged_metadata = serde_json::json!({
-            "user": serde_json::Value::Object(user_obj),
-            "plugins": serde_json::Value::Object(plugins_obj),
-        });
-
-        let rows_affected = sqlx::query(
-            r#"
-            UPDATE media
-            SET metadata = $1, updated_at = NOW()
-            WHERE id = $2 AND tenant_id = $3
-            "#,
-        )
-        .bind(serde_json::to_value(&merged_metadata)?)
-        .bind(media_id)
-        .bind(tenant_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Media not found or does not belong to tenant".to_string(),
-            ));
-        }
-
-        Ok(Some(merged_metadata))
+        let merged = row.and_then(|r| r.0).ok_or_else(|| {
+            AppError::NotFound("Media not found or does not belong to tenant".to_string())
+        })?;
+        Ok(Some(merged))
     }
 
-    /// Replace entire user metadata namespace (preserves plugins)
+    /// Replace entire user metadata namespace (preserves plugins).
+    /// Uses atomic PostgreSQL jsonb_set to avoid read-modify-write races.
     #[tracing::instrument(skip(self, new_metadata), fields(db.table = "media", db.operation = "update", db.record_id = %media_id))]
     pub async fn replace_user_metadata(
         &self,
@@ -2503,67 +2387,32 @@ impl MediaRepository {
         new_metadata: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
         validation::validate_user_metadata(&new_metadata)?;
+        let user_json = serde_json::to_value(new_metadata).map_err(AppError::from)?;
 
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
-            SELECT metadata FROM media
-            WHERE id = $1 AND tenant_id = $2
+            UPDATE media
+            SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{user}', $1::jsonb, true),
+                updated_at = NOW()
+            WHERE id = $2 AND tenant_id = $3
+            RETURNING metadata
             "#,
             )
+            .bind(user_json)
             .bind(media_id)
             .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await?;
 
-        let current_metadata = row
-            .ok_or_else(|| {
-                AppError::NotFound("Media not found or does not belong to tenant".to_string())
-            })?
-            .0
-            .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
-
-        let plugins_obj = current_metadata
-            .get("plugins")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-
-        let user_obj = if let Some(obj) = new_metadata.as_object() {
-            obj.clone()
-        } else {
-            serde_json::Map::new()
-        };
-
-        let merged_metadata = serde_json::json!({
-            "user": serde_json::Value::Object(user_obj),
-            "plugins": serde_json::Value::Object(plugins_obj),
-        });
-
-        let rows_affected = sqlx::query(
-            r#"
-            UPDATE media
-            SET metadata = $1, updated_at = NOW()
-            WHERE id = $2 AND tenant_id = $3
-            "#,
-        )
-        .bind(serde_json::to_value(&merged_metadata)?)
-        .bind(media_id)
-        .bind(tenant_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Media not found or does not belong to tenant".to_string(),
-            ));
-        }
-
-        Ok(Some(merged_metadata))
+        let merged = row.and_then(|r| r.0).ok_or_else(|| {
+            AppError::NotFound("Media not found or does not belong to tenant".to_string())
+        })?;
+        Ok(Some(merged))
     }
 
-    /// Merge plugin metadata into plugins.{plugin_name} namespace
+    /// Merge plugin metadata into plugins.{plugin_name} namespace.
+    /// Uses atomic PostgreSQL jsonb_set and || to avoid read-modify-write races.
     #[tracing::instrument(skip(self, plugin_data), fields(db.table = "media", db.operation = "update", db.record_id = %media_id, plugin.name = %plugin_name))]
     pub async fn merge_plugin_metadata(
         &self,
@@ -2572,81 +2421,32 @@ impl MediaRepository {
         plugin_name: &str,
         plugin_data: serde_json::Value,
     ) -> Result<Option<serde_json::Value>, AppError> {
+        let plugin_json = serde_json::to_value(plugin_data).map_err(AppError::from)?;
         let row: Option<(Option<serde_json::Value>,)> =
             sqlx::query_as::<Postgres, (Option<serde_json::Value>,)>(
                 r#"
-            SELECT metadata FROM media
-            WHERE id = $1 AND tenant_id = $2
+            UPDATE media
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                array['plugins', $1]::text[],
+                (COALESCE(metadata #> array['plugins', $1]::text[], '{}'::jsonb) || $2::jsonb),
+                true
+            ),
+            updated_at = NOW()
+            WHERE id = $3 AND tenant_id = $4
+            RETURNING metadata
             "#,
             )
+            .bind(plugin_name)
+            .bind(plugin_json)
             .bind(media_id)
             .bind(tenant_id)
             .fetch_optional(&self.pool)
             .await?;
 
-        let current_metadata = row
-            .ok_or_else(|| {
-                AppError::NotFound("Media not found or does not belong to tenant".to_string())
-            })?
-            .0
-            .unwrap_or_else(|| serde_json::json!({"user": {}, "plugins": {}}));
-
-        let user_obj = current_metadata
-            .get("user")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-        let mut plugins_obj = current_metadata
-            .get("plugins")
-            .and_then(|v| v.as_object())
-            .cloned()
-            .unwrap_or_else(serde_json::Map::new);
-
-        let mut plugin_obj = plugins_obj
-            .entry(plugin_name.to_string())
-            .or_insert_with(|| serde_json::json!({}))
-            .as_object_mut()
-            .expect("plugin namespace value must be a JSON object")
-            .clone();
-
-        if let Some(new_obj) = plugin_data.as_object() {
-            for (key, value) in new_obj {
-                plugin_obj.insert(key.clone(), value.clone());
-            }
-        } else if let Some(obj) = plugin_data.as_object() {
-            plugin_obj = obj.clone();
-        }
-
-        plugins_obj.insert(
-            plugin_name.to_string(),
-            serde_json::Value::Object(plugin_obj),
-        );
-
-        let merged_metadata = serde_json::json!({
-            "user": serde_json::Value::Object(user_obj),
-            "plugins": serde_json::Value::Object(plugins_obj),
-        });
-
-        let rows_affected = sqlx::query(
-            r#"
-            UPDATE media
-            SET metadata = $1, updated_at = NOW()
-            WHERE id = $2 AND tenant_id = $3
-            "#,
-        )
-        .bind(serde_json::to_value(&merged_metadata)?)
-        .bind(media_id)
-        .bind(tenant_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
-
-        if rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Media not found or does not belong to tenant".to_string(),
-            ));
-        }
-
-        Ok(Some(merged_metadata))
+        let merged = row.and_then(|r| r.0).ok_or_else(|| {
+            AppError::NotFound("Media not found or does not belong to tenant".to_string())
+        })?;
+        Ok(Some(merged))
     }
 }

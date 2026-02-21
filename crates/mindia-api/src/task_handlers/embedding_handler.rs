@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use mindia_core::models::{EntityType, GenerateEmbeddingPayload, Task};
+use mindia_services::SemanticSearchProvider;
 use serde_json::json;
 use std::str;
 use std::sync::Arc;
@@ -259,8 +260,11 @@ impl EmbeddingTaskHandler {
         std::io::Write::write_all(&mut temp_audio, audio_data)?;
         let audio_path = temp_audio.path().to_path_buf();
 
-        // Extract metadata using AudioService
-        let ffprobe_path = state.config.ffmpeg_path().replace("ffmpeg", "ffprobe");
+        // Extract metadata using AudioService (derive ffprobe path from ffmpeg: same dir, basename ffprobe)
+        let ffprobe_path = std::path::Path::new(state.config.ffmpeg_path())
+            .parent()
+            .map(|p| p.join("ffprobe").display().to_string())
+            .unwrap_or_else(|| state.config.ffmpeg_path().replace("ffmpeg", "ffprobe"));
         let audio_service = AudioService::new(ffprobe_path);
 
         // Extract metadata if path is valid UTF-8 (temp file paths should always be valid)

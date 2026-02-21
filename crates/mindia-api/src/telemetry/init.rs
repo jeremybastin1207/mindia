@@ -7,13 +7,13 @@ use tracing_subscriber::{
 pub fn init_telemetry(
     enabled: bool,
     endpoint: Option<String>,
-    _service_name: String,
-    _service_version: String,
-    _protocol: String,
-    _environment: String,
-    _sampler: String,
-    _sample_ratio: f64,
-    _metrics_interval_secs: u64,
+    service_name: String,
+    service_version: String,
+    protocol: String,
+    environment: String,
+    sampler: String,
+    sample_ratio: f64,
+    metrics_interval_secs: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if !enabled || endpoint.is_none() {
         // Console: compact format (message string for convenience). Structured fields go to OTLP when enabled.
@@ -55,19 +55,17 @@ pub fn init_telemetry(
     }
 
     #[cfg(feature = "observability-opentelemetry")]
-    {
-        mindia_infra::init_telemetry(
-            enabled,
-            endpoint,
-            service_name,
-            service_version,
-            protocol,
-            environment,
-            sampler,
-            sample_ratio,
-            metrics_interval_secs,
-        )
-    }
+    mindia_infra::init_telemetry(
+        enabled,
+        endpoint,
+        service_name,
+        service_version,
+        protocol,
+        environment,
+        sampler,
+        sample_ratio,
+        metrics_interval_secs,
+    )
 }
 
 pub async fn shutdown_telemetry() {

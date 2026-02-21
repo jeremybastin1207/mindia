@@ -9,7 +9,9 @@ use mindia_core::models::{EntityType, SearchQuery, SearchResult};
 use mindia_core::validation::validate_metadata_key;
 use mindia_core::AppError;
 use mindia_db::media::metadata_search::MetadataFilters;
-use mindia_services::{normalize_embedding_dim, SemanticSearchProvider};
+use mindia_services::{
+    normalize_embedding_dim, DefaultSemanticSearchService, SemanticSearchProvider,
+};
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -172,6 +174,7 @@ async fn execute_metadata_search(
 }
 
 /// Execute semantic-only search
+#[allow(clippy::too_many_arguments)]
 async fn execute_semantic_search(
     state: &Arc<AppState>,
     tenant_id: uuid::Uuid,
@@ -180,6 +183,7 @@ async fn execute_semantic_search(
     folder_id: Option<uuid::Uuid>,
     limit: i64,
     offset: i64,
+    min_similarity: f64,
 ) -> Result<Vec<SearchResult>, AppError> {
     let semantic_search = state.semantic_search.as_ref().ok_or_else(|| {
         tracing::warn!("Semantic search requested but feature is not enabled");
@@ -205,6 +209,7 @@ async fn execute_semantic_search(
             folder_id,
             limit,
             offset,
+            min_similarity,
         )
         .await
         .map_err(|e| {
@@ -224,6 +229,7 @@ async fn execute_combined_search(
     folder_id: Option<uuid::Uuid>,
     limit: i64,
     offset: i64,
+    min_similarity: f64,
 ) -> Result<Vec<SearchResult>, AppError> {
     state.db
         .metadata_search_repository
@@ -235,6 +241,7 @@ async fn execute_combined_search(
             folder_id,
             limit,
             offset,
+            min_similarity,
         )
         .await
         .map_err(|e| {
@@ -262,7 +269,7 @@ fn convert_search_error(e: anyhow::Error) -> AppError {
 
 /// Generate embedding from query text. Ensures dimension matches DB (pgvector).
 async fn generate_query_embedding(
-    semantic_search: &(dyn SemanticSearchProvider + Send + Sync),
+    semantic_search: &DefaultSemanticSearchService,
     query: &str,
 ) -> Result<Vec<f32>, AppError> {
     let vec = semantic_search
@@ -275,12 +282,20 @@ async fn generate_query_embedding(
     Ok(normalize_embedding_dim(vec))
 }
 
+/// Search plan: which search modes to use
+#[derive(Debug, Clone)]
+struct SearchPlan {
+    use_metadata: bool,
+    use_semantic: bool,
+    allow_combined: bool,
+}
+
 /// Determine search strategy based on mode and available parameters
 fn determine_search_strategy(
     strategy: SearchStrategy,
     has_query: bool,
     has_metadata_filters: bool,
-) -> Result<(bool, bool, bool), AppError> {
+) -> Result<SearchPlan, AppError> {
     match strategy {
         SearchStrategy::Metadata => {
             if !has_metadata_filters {
@@ -288,7 +303,11 @@ fn determine_search_strategy(
                     "Metadata search mode requires metadata filters".to_string(),
                 ));
             }
-            Ok((true, false, false)) // metadata only
+            Ok(SearchPlan {
+                use_metadata: true,
+                use_semantic: false,
+                allow_combined: false,
+            })
         }
         SearchStrategy::Semantic => {
             if !has_query && !has_metadata_filters {
@@ -297,7 +316,11 @@ fn determine_search_strategy(
                         .to_string(),
                 ));
             }
-            Ok((has_metadata_filters, true, false)) // semantic, possibly with metadata
+            Ok(SearchPlan {
+                use_metadata: has_metadata_filters,
+                use_semantic: true,
+                allow_combined: false,
+            })
         }
         SearchStrategy::Both => {
             if !has_query && !has_metadata_filters {
@@ -305,7 +328,11 @@ fn determine_search_strategy(
                     "Either query parameter 'q' or metadata filters are required".to_string(),
                 ));
             }
-            Ok((has_metadata_filters, has_query, true)) // both if available
+            Ok(SearchPlan {
+                use_metadata: has_metadata_filters,
+                use_semantic: has_query,
+                allow_combined: true,
+            })
         }
     }
 }
@@ -315,7 +342,7 @@ fn determine_search_strategy(
     path = "/api/v0/search",
     tag = "search",
     summary = "Search media by semantic query and/or metadata filters",
-    description = "Returns matching media. For semantic search, limit and offset are applied in the database; then results are filtered in memory by min_similarity. Thus count is the number of results after similarity filtering (you may receive fewer than limit). Pagination (offset) skips rows before filtering, so page boundaries depend on the full result set ordering, not only on items passing min_similarity.",
+    description = "Returns matching media. For semantic search, min_similarity is applied in the database; limit and offset give correct pagination over results passing the threshold.",
     params(
         SearchQuery
     ),
@@ -385,11 +412,11 @@ pub async fn search_files(
     }
 
     // Determine what type of search to execute
-    let (use_metadata, use_semantic, allow_combined) =
-        determine_search_strategy(search_strategy, has_query, has_metadata_filters)?;
+    let plan = determine_search_strategy(search_strategy, has_query, has_metadata_filters)?;
+    let min_similarity: f64 = params.min_similarity.unwrap_or(0.3).into();
 
     // Execute the appropriate search strategy
-    let results = if allow_combined && has_query && has_metadata_filters {
+    let results = if plan.allow_combined && has_query && has_metadata_filters {
         // Combined search: semantic + metadata
         let semantic_search = state
             .semantic_search
@@ -412,9 +439,10 @@ pub async fn search_files(
             params.folder_id,
             limit,
             offset,
+            min_similarity,
         )
         .await?
-    } else if use_semantic && has_query {
+    } else if plan.use_semantic && has_query {
         // Pure semantic search
         if let Some(ref metadata_filters) = metadata_filters {
             if !metadata_filters.is_empty() {
@@ -436,6 +464,7 @@ pub async fn search_files(
                     params.folder_id,
                     limit,
                     offset,
+                    min_similarity,
                 )
                 .await?
             } else {
@@ -451,6 +480,7 @@ pub async fn search_files(
                     params.folder_id,
                     limit,
                     offset,
+                    min_similarity,
                 )
                 .await?
             }
@@ -467,10 +497,11 @@ pub async fn search_files(
                 params.folder_id,
                 limit,
                 offset,
+                min_similarity,
             )
             .await?
         }
-    } else if use_metadata && has_metadata_filters {
+    } else if plan.use_metadata && has_metadata_filters {
         // Pure metadata search
         let filters = metadata_filters.ok_or_else(|| {
             AppError::Internal("Metadata filters should be present but were None".to_string())
@@ -497,13 +528,7 @@ pub async fn search_files(
         )));
     };
 
-    // Apply similarity threshold filtering if min_similarity is specified
-    let min_similarity = params.min_similarity.unwrap_or(0.3);
-    let results: Vec<SearchResult> = results
-        .into_iter()
-        .filter(|r| r.similarity_score >= min_similarity)
-        .collect();
-
+    // Similarity filtering is now applied in SQL for semantic searches; metadata search returns 1.0
     let count = results.len();
 
     tracing::info!(

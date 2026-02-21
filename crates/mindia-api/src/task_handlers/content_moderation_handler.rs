@@ -110,6 +110,7 @@ impl crate::task_handlers::TaskHandler for ContentModerationTaskHandler {
             storage: state.media.storage.clone(),
             media_repo: Arc::new(state.media.repository.clone()),
             file_group_repo: Arc::new(state.media.file_group_repository.clone()),
+            get_public_file_url: None,
             config: plugin_config,
         };
 

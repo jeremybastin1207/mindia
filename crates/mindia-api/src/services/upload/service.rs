@@ -9,7 +9,6 @@ use axum::extract::Multipart;
 use chrono::DateTime;
 use mindia_core::models::{ContentModerationPayload, GenerateEmbeddingPayload, Priority, TaskType};
 use mindia_core::AppError;
-use mindia_services::StorageError;
 use uuid::Uuid;
 
 use crate::middleware::audit;
@@ -214,59 +213,6 @@ impl MediaUploadService {
             store_permanently,
             expires_at,
         })
-    }
-
-    /// Cleanup storage with retry mechanism
-    ///
-    /// Attempts to delete a file from storage with exponential backoff retry.
-    ///
-    /// # Arguments
-    /// * `storage` - Storage implementation
-    /// * `storage_key` - Key of the file to delete
-    /// * `max_retries` - Maximum number of retry attempts
-    ///
-    /// # Returns
-    /// Ok(()) if cleanup succeeds, Err if all retries fail
-    #[allow(dead_code)]
-    async fn cleanup_storage_with_retry(
-        storage: Arc<dyn mindia_services::Storage>,
-        storage_key: String,
-        max_retries: u32,
-    ) -> Result<(), StorageError> {
-        let mut last_error: Option<StorageError> = None;
-
-        for attempt in 0..=max_retries {
-            match storage.delete(&storage_key).await {
-                Ok(()) => {
-                    if attempt > 0 {
-                        tracing::info!(
-                            storage_key = %storage_key,
-                            attempt = attempt + 1,
-                            "Storage cleanup succeeded after retry"
-                        );
-                    }
-                    return Ok(());
-                }
-                Err(e) => {
-                    last_error = Some(e);
-                    if attempt < max_retries {
-                        let delay_ms = 100 * (attempt + 1) as u64; // Exponential backoff
-                        tracing::warn!(
-                            storage_key = %storage_key,
-                            attempt = attempt + 1,
-                            max_retries = max_retries,
-                            delay_ms = delay_ms,
-                            "Storage cleanup failed, retrying"
-                        );
-                        tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
-                    }
-                }
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| {
-            StorageError::DeleteFailed("Storage cleanup failed after all retries".to_string())
-        }))
     }
 
     /// Track usage metrics for uploaded file (no-op; billing/usage removed).

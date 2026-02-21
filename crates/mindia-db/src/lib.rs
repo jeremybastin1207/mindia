@@ -22,9 +22,6 @@ pub use db::{
     StorageMetricsRepository, TaskRepository,
 };
 
-// Re-exports: Transaction utilities
-pub use db::transaction::{with_transaction, TransactionGuard};
-
 // Re-exports: Module convenience re-exports
 pub use db::media;
 

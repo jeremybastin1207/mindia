@@ -13,18 +13,30 @@ pub mod video_orchestration;
 
 #[cfg(feature = "capacity")]
 pub use mindia_infra::CapacityChecker;
-#[cfg(feature = "cleanup")]
-pub use mindia_infra::CleanupService;
 #[cfg(feature = "rate-limit")]
 pub use mindia_infra::RateLimiter;
-#[cfg(feature = "archive")]
-pub use mindia_infra::{create_archive, ArchiveFormat};
-#[cfg(feature = "analytics")]
-pub use mindia_infra::{start_storage_metrics_refresh, AnalyticsService};
+
 #[cfg(feature = "webhook")]
-pub use mindia_infra::{
+pub mod webhook;
+#[cfg(feature = "webhook")]
+pub use webhook::{
     WebhookRetryService, WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
 };
+
+#[cfg(feature = "analytics")]
+pub mod analytics;
+#[cfg(feature = "analytics")]
+pub use analytics::{start_storage_metrics_refresh, AnalyticsService};
+
+#[cfg(feature = "cleanup")]
+pub mod cleanup;
+#[cfg(feature = "cleanup")]
+pub use cleanup::CleanupService;
+
+#[cfg(feature = "archive")]
+pub mod archive;
+#[cfg(feature = "archive")]
+pub use archive::{create_archive, ArchiveFormat};
 #[cfg(feature = "video")]
 pub use mindia_processing::FFmpegService;
 #[cfg(feature = "audio")]
@@ -39,11 +51,9 @@ pub use mindia_storage::{
 };
 #[cfg(feature = "clamav")]
 pub use services::clamav::{ClamAVService, ScanResult};
-#[cfg(feature = "storage-s3")]
-pub use services::s3::S3Service;
 #[cfg(feature = "semantic-search")]
 pub use services::{
-    anthropic::AnthropicService,
+    anthropic::DefaultSemanticSearchService,
     semantic_search::{normalize_embedding_dim, SemanticSearchProvider},
 };
 #[cfg(feature = "video")]

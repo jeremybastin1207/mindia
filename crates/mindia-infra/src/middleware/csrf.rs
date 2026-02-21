@@ -47,6 +47,46 @@ pub fn generate_csrf_token(secret: &str) -> String {
 /// CSRF token expiration time (1 hour)
 const CSRF_TOKEN_EXPIRATION_SECS: u64 = 3600;
 
+const DEFAULT_CSRF_SECRET: &str = "default-csrf-secret-change-in-production";
+
+static CACHED_CSRF_SECRET: std::sync::LazyLock<(String, bool)> = std::sync::LazyLock::new(|| {
+    match std::env::var("CSRF_SECRET").or_else(|_| std::env::var("JWT_SECRET")) {
+        Ok(secret) => (secret, false),
+        Err(_) => {
+            let is_production = std::env::var("ENVIRONMENT")
+                .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
+                .unwrap_or(false);
+            if is_production {
+                tracing::error!(
+                    "CSRF_SECRET not configured in production. Set CSRF_SECRET or JWT_SECRET."
+                );
+            } else {
+                tracing::warn!(
+                    "CSRF_SECRET not configured, using insecure default. Set CSRF_SECRET in production."
+                );
+            }
+            (DEFAULT_CSRF_SECRET.to_string(), true)
+        }
+    }
+});
+
+static CACHED_IS_PRODUCTION: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
+        .unwrap_or(false)
+});
+
+/// Check if running in production environment (cached)
+fn is_production_env() -> bool {
+    *CACHED_IS_PRODUCTION
+}
+
+/// Get CSRF secret from environment (CSRF_SECRET or JWT_SECRET).
+/// Returns (secret, used_default). Cached at first use.
+fn get_csrf_secret_from_env() -> (String, bool) {
+    CACHED_CSRF_SECRET.clone()
+}
+
 /// Verify a CSRF token
 /// Token format: <hmac>.<timestamp>.<nonce>
 /// Validates:
@@ -120,31 +160,18 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Response {
         return next.run(request).await;
     }
 
-    // Get CSRF secret from environment (fallback to JWT_SECRET if CSRF_SECRET not set)
-    let is_production = std::env::var("ENVIRONMENT")
-        .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
-        .unwrap_or(false);
-
-    let csrf_secret = match std::env::var("CSRF_SECRET").or_else(|_| std::env::var("JWT_SECRET")) {
-        Ok(secret) => secret,
-        Err(_) => {
-            if is_production {
-                tracing::error!(
-                    "CSRF_SECRET not configured in production. Set CSRF_SECRET or JWT_SECRET."
-                );
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    axum::Json(serde_json::json!({
-                        "error": "Server misconfiguration",
-                        "message": "CSRF protection disabled. Set CSRF_SECRET or JWT_SECRET."
-                    })),
-                )
-                    .into_response();
-            }
-            tracing::warn!("CSRF_SECRET not configured, using insecure default. Set CSRF_SECRET in production.");
-            "default-csrf-secret-change-in-production".to_string()
-        }
-    };
+    let (csrf_secret, used_default) = get_csrf_secret_from_env();
+    if used_default && is_production_env() {
+        tracing::error!("CSRF protection disabled in production. Set CSRF_SECRET or JWT_SECRET.");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({
+                "error": "Server misconfiguration",
+                "message": "Server is temporarily unavailable. Please try again later."
+            })),
+        )
+            .into_response();
+    }
 
     // Extract CSRF token from header
     let header_token = request
@@ -192,22 +219,7 @@ pub async fn csrf_middleware(request: Request, next: Next) -> Response {
 
 /// Generate and return a CSRF token endpoint handler
 pub async fn get_csrf_token() -> impl IntoResponse {
-    // Get CSRF secret from environment (fallback to JWT_SECRET if CSRF_SECRET not set)
-    let is_production = std::env::var("ENVIRONMENT")
-        .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
-        .unwrap_or(false);
-
-    let csrf_secret = std::env::var("CSRF_SECRET")
-        .or_else(|_| std::env::var("JWT_SECRET"))
-        .unwrap_or_else(|_| {
-            if is_production {
-                tracing::error!("CSRF_SECRET not configured in production environment! Using insecure default. Please set CSRF_SECRET or JWT_SECRET environment variable.");
-            } else {
-                tracing::warn!("CSRF_SECRET not configured, using insecure default. This should be set in production.");
-            }
-            "default-csrf-secret-change-in-production".to_string()
-        });
-
+    let (csrf_secret, _) = get_csrf_secret_from_env();
     let token = generate_csrf_token(&csrf_secret);
 
     // Return token in both JSON response and Set-Cookie header
@@ -217,11 +229,7 @@ pub async fn get_csrf_token() -> impl IntoResponse {
 
     // Set cookie with SameSite=Strict and HttpOnly for additional security
     // Note: Secure flag should be set in production (HTTPS only)
-    let is_production = std::env::var("ENVIRONMENT")
-        .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
-        .unwrap_or(false);
-
-    let secure_flag = if is_production { "; Secure" } else { "" };
+    let secure_flag = if is_production_env() { "; Secure" } else { "" };
     let cookie_value = format!(
         "csrf-token={}; Path=/; SameSite=Strict; HttpOnly{}",
         token, secure_flag

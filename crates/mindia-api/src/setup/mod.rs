@@ -40,10 +40,10 @@ pub async fn initialize_app(config: Config) -> Result<(Arc<AppState>, axum::Rout
     let pool = database::setup_database(&config).await?;
 
     // Setup storage
-    let (s3_service, storage) = storage::setup_storage(&config).await?;
+    let (s3_config, storage) = storage::setup_storage(&config).await?;
 
     // Initialize all services and repositories
-    let state = services::initialize_services(&config, pool, s3_service, storage).await?;
+    let state = services::initialize_services(&config, pool, s3_config, storage).await?;
 
     // Setup routes
     let router = routes::setup_routes(&config, state.clone()).await?;

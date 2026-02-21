@@ -28,7 +28,8 @@ pub mod replicate_deoldify;
 // Re-export commonly used types
 #[cfg(feature = "plugin")]
 pub use plugin::{
-    Plugin, PluginContext, PluginExecutionStatus, PluginInfo, PluginResult, PluginUsage,
+    GetPublicFileUrl, Plugin, PluginContext, PluginExecutionStatus, PluginInfo, PluginResult,
+    PluginUsage,
 };
 #[cfg(feature = "plugin")]
 pub use registry::PluginRegistry;

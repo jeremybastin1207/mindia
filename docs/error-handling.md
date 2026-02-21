@@ -21,13 +21,41 @@ Guide to handling errors and status codes in Mindia's API.
 
 ## Error Response Format
 
-All errors return JSON with an `error` field:
+All errors return JSON in a consistent shape. Use the `code` field for programmatic handling and `recoverable` to decide whether to retry.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error` | string | Human-readable message (always present) |
+| `code` | string | Machine-readable code (e.g. `NOT_FOUND`, `INVALID_INPUT`) for client logic |
+| `recoverable` | boolean | If `true`, the client may retry; if `false`, retrying is unlikely to help |
+| `details` | string? | Extra context (often omitted in production for security) |
+| `error_type` | string? | Internal error classification (often omitted in production) |
+| `suggested_action` | string? | Hint for the user (e.g. "Wait 60s and retry") |
+
+Example response:
 
 ```json
 {
-  "error": "Description of what went wrong"
+  "error": "Media not found",
+  "code": "NOT_FOUND",
+  "recoverable": false
 }
 ```
+
+With optional fields (e.g. in non-production):
+
+```json
+{
+  "error": "Database connection failed",
+  "details": "Connection timed out after 30s",
+  "error_type": "Database",
+  "code": "DATABASE_ERROR",
+  "recoverable": true,
+  "suggested_action": "Wait 60s and retry"
+}
+```
+
+**Client handling:** Prefer switching on `code` for branching; use `recoverable` to drive retry/backoff. Do not rely on `details` or `error_type` in production, as they may be hidden.
 
 ## Common Errors
 

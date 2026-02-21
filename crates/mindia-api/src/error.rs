@@ -7,6 +7,8 @@
 //! so they become `HttpAppError` and render consistently (status, body, logging).
 
 use axum::{
+    extract::rejection::JsonRejection,
+    extract::{FromRequest, Request},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -14,7 +16,7 @@ use axum::{
 use mindia_core::{AppError, ErrorMetadata, LogLevel};
 use mindia_processing::validator::ValidationError;
 use mindia_storage::StorageError;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -84,6 +86,44 @@ impl From<anyhow::Error> for HttpAppError {
             message: err.to_string(),
             source: err,
         })
+    }
+}
+
+/// Convert JSON body deserialization failures into a 400 with our ErrorResponse format.
+impl From<JsonRejection> for HttpAppError {
+    fn from(rejection: JsonRejection) -> Self {
+        let body_text = rejection.body_text();
+        let message = if body_text.contains("expected a formatted UUID")
+            || body_text.contains("invalid type")
+        {
+            // User-friendly summary for common cases (e.g. media_id: integer instead of UUID)
+            "Invalid request body: check that fields like media_id are UUID strings, not numbers."
+                .to_string()
+        } else {
+            format!("Invalid request body: {}", body_text)
+        };
+        HttpAppError(AppError::InvalidInput(message))
+    }
+}
+
+/// JSON body extractor that returns our ErrorResponse format (400 + JSON) on deserialization failure.
+/// Use this instead of `Json<T>` when you want a consistent API error shape for invalid bodies.
+#[derive(Debug, Clone, Copy)]
+pub struct ValidatedJson<T>(pub T);
+
+impl<T, S> FromRequest<S> for ValidatedJson<T>
+where
+    T: DeserializeOwned + Send,
+    S: Send + Sync,
+    Json<T>: FromRequest<S, Rejection = JsonRejection>,
+{
+    type Rejection = HttpAppError;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        let Json(inner) = Json::<T>::from_request(req, state)
+            .await
+            .map_err(HttpAppError::from)?;
+        Ok(ValidatedJson(inner))
     }
 }
 

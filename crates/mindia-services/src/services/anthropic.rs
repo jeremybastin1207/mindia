@@ -1,7 +1,7 @@
-//! Anthropic (Claude) semantic search provider.
+//! Default semantic search provider: Anthropic (Claude) + Voyage AI.
 //!
-//! Uses Messages API for vision and document summarization, and Embeddings API
-//! for vector generation.
+//! - **Vision and document summarization**: Anthropic Messages API (Claude).
+//! - **Embeddings**: Voyage AI embeddings API (used for both indexing and query embedding).
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -17,10 +17,45 @@ const ANTHROPIC_API_BASE: &str = "https://api.anthropic.com/v1";
 const VOYAGE_API_BASE: &str = "https://api.voyageai.com/v1";
 const API_VERSION: &str = "2023-06-01";
 
+/// Detect media type from image bytes using magic numbers.
+/// Anthropic validates that the base64 payload matches the declared media_type.
+fn detect_image_media_type(data: &[u8]) -> &'static str {
+    if data.len() < 4 {
+        return "image/jpeg";
+    }
+    // JPEG: FF D8 FF
+    if data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
+        return "image/jpeg";
+    }
+    // PNG: 89 50 4E 47
+    if data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47 {
+        return "image/png";
+    }
+    // GIF: 47 49 46
+    if data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46 {
+        return "image/gif";
+    }
+    // WebP: RIFF ... WEBP
+    if data.len() >= 12
+        && data[0] == 0x52
+        && data[1] == 0x49
+        && data[2] == 0x46
+        && data[3] == 0x46
+        && data[8] == 0x57
+        && data[9] == 0x45
+        && data[10] == 0x42
+        && data[11] == 0x50
+    {
+        return "image/webp";
+    }
+    "image/jpeg"
+}
+
+/// Default semantic search implementation: Claude for vision/summarization, Voyage for embeddings.
 #[derive(Clone)]
-pub struct AnthropicService {
-    anthropic_api_key: String,      // For Claude Vision
-    voyage_api_key: Option<String>, // For embeddings (required for semantic search)
+pub struct DefaultSemanticSearchService {
+    anthropic_api_key: String, // Claude Messages API (vision, summarization)
+    voyage_api_key: Option<String>, // Voyage AI (embeddings; required for semantic search)
     vision_model: String,
     embedding_model: String,
     client: reqwest::Client,
@@ -88,7 +123,7 @@ struct VoyageEmbedResponse {
     data: Vec<VoyageEmbedData>,
 }
 
-impl AnthropicService {
+impl DefaultSemanticSearchService {
     pub fn new(
         api_key: String,
         vision_model: String,
@@ -174,7 +209,7 @@ impl AnthropicService {
 }
 
 #[async_trait]
-impl SemanticSearchProvider for AnthropicService {
+impl SemanticSearchProvider for DefaultSemanticSearchService {
     fn embedding_model_name(&self) -> &str {
         &self.embedding_model
     }
@@ -289,7 +324,9 @@ impl SemanticSearchProvider for AnthropicService {
         content_type: Option<&str>,
     ) -> Result<String> {
         let base64_image = STANDARD.encode(&image_data);
-        let media_type = content_type.unwrap_or("image/jpeg");
+        let media_type = content_type
+            .map(String::from)
+            .unwrap_or_else(|| detect_image_media_type(&image_data).to_string());
         let prompt = "Describe this image in detail. Focus on the main subjects, objects, colors, setting, and any text visible. Keep the description concise but informative.";
 
         let content = vec![
@@ -314,7 +351,9 @@ impl SemanticSearchProvider for AnthropicService {
         content_type: Option<&str>,
     ) -> Result<String> {
         let base64_image = STANDARD.encode(&frame_data);
-        let media_type = content_type.unwrap_or("image/jpeg");
+        let media_type = content_type
+            .map(String::from)
+            .unwrap_or_else(|| detect_image_media_type(&frame_data).to_string());
         let prompt = "Describe this video frame in detail. Focus on the scene, subjects, actions, setting, and any context. This is a still frame from a video.";
 
         let content = vec![

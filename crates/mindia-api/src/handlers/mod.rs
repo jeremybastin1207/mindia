@@ -27,6 +27,7 @@ pub mod metadata;
 pub mod named_transformations;
 #[cfg(feature = "plugin")]
 pub mod plugins;
+pub mod public_file;
 pub mod search;
 pub mod tasks;
 pub mod transform;

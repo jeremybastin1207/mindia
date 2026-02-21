@@ -5,6 +5,7 @@
 
 #[cfg(feature = "content-moderation")]
 use crate::task_handlers::ContentModerationTaskHandler;
+#[cfg(feature = "plugin")]
 use crate::task_handlers::PluginTaskHandler;
 use mindia_core::models::MediaType;
 use mindia_core::Config;
@@ -14,10 +15,9 @@ use mindia_db::{
     TaskRepository, TenantRepository, WebhookEventRepository, WebhookRepository,
     WebhookRetryRepository,
 };
-use mindia_infra::{
-    AnalyticsService, CapacityChecker, CleanupService, WebhookRetryService, WebhookService,
-};
-use mindia_services::Storage;
+use mindia_infra::CapacityChecker;
+use mindia_services::{AnalyticsService, CleanupService, WebhookRetryService, WebhookService};
+use mindia_storage::Storage;
 use mindia_worker::TaskQueue;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -32,9 +32,8 @@ use mindia_db::media::{WorkflowExecutionRepository, WorkflowRepository};
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
 #[cfg(feature = "clamav")]
 use mindia_services::ClamAVService;
-use mindia_services::S3Service;
 #[cfg(feature = "semantic-search")]
-use mindia_services::SemanticSearchProvider;
+use mindia_services::DefaultSemanticSearchService;
 
 // ----- Sub-state types -----
 
@@ -119,10 +118,10 @@ impl MediaConfig {
     }
 }
 
-/// S3 storage configuration (for chunked uploads).
+/// S3 storage configuration (bucket/region for config API and content moderation).
+/// Presigned URLs and storage operations use the unified Storage trait.
 #[derive(Clone)]
 pub struct S3Config {
-    pub service: S3Service,
     pub bucket: String,
     pub region: String,
     pub endpoint_url: Option<String>,
@@ -144,40 +143,16 @@ pub struct DatabaseConfig {
 }
 
 /// Task queue and related handlers.
-#[cfg(all(feature = "content-moderation", feature = "video"))]
+/// Optional fields are `Some` when the corresponding feature is enabled.
 #[derive(Clone)]
-#[allow(dead_code)] // Used via FromRef and in setup::services; variant depends on features
+#[allow(dead_code)] // Used via FromRef and in setup::services; not all fields in every build
 pub struct TaskState {
     pub task_queue: TaskQueue,
     pub task_repository: TaskRepository,
-    pub content_moderation_handler: ContentModerationTaskHandler,
-    pub video_job_queue: crate::job_queue::VideoJobQueue,
-}
-
-#[cfg(all(feature = "content-moderation", not(feature = "video")))]
-#[derive(Clone)]
-#[allow(dead_code)] // Used via FromRef and in setup::services
-pub struct TaskState {
-    pub task_queue: TaskQueue,
-    pub task_repository: TaskRepository,
-    pub content_moderation_handler: ContentModerationTaskHandler,
-}
-
-#[cfg(all(not(feature = "content-moderation"), feature = "video"))]
-#[derive(Clone)]
-#[allow(dead_code)] // Used via FromRef and in setup::services
-pub struct TaskState {
-    pub task_queue: TaskQueue,
-    pub task_repository: TaskRepository,
-    pub video_job_queue: crate::job_queue::VideoJobQueue,
-}
-
-#[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
-#[derive(Clone)]
-#[allow(dead_code)] // Used via FromRef and in setup::services
-pub struct TaskState {
-    pub task_queue: TaskQueue,
-    pub task_repository: TaskRepository,
+    #[cfg(feature = "content-moderation")]
+    pub content_moderation_handler: Option<ContentModerationTaskHandler>,
+    #[cfg(feature = "video")]
+    pub video_job_queue: Option<crate::job_queue::VideoJobQueue>,
 }
 
 /// Webhook delivery and retry services.
@@ -233,7 +208,7 @@ pub struct AppState {
     pub is_production: bool,
     pub s3: Option<S3Config>,
     #[cfg(feature = "semantic-search")]
-    pub semantic_search: Option<Arc<dyn SemanticSearchProvider + Send + Sync>>,
+    pub semantic_search: Option<Arc<DefaultSemanticSearchService>>,
 }
 
 // ----- FromRef for sub-state extraction -----

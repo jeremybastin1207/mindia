@@ -1,7 +1,7 @@
 //! Plugin API handlers
 
 use crate::auth::models::TenantContext;
-use crate::error::{ErrorResponse, HttpAppError};
+use crate::error::{ErrorResponse, HttpAppError, ValidatedJson};
 use crate::state::AppState;
 use anyhow::Error as AnyhowError;
 use axum::{
@@ -79,7 +79,7 @@ pub async fn execute_plugin(
     tenant_context: TenantContext,
     Path(plugin_name): Path<String>,
     State(state): State<Arc<AppState>>,
-    Json(request): Json<ExecutePluginRequest>,
+    ValidatedJson(request): ValidatedJson<ExecutePluginRequest>,
 ) -> Result<impl IntoResponse, HttpAppError> {
     let tenant_id = tenant_context.tenant_id;
 

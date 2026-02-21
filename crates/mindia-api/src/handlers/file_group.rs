@@ -246,7 +246,7 @@ pub async fn get_group_archive(
     tenant_ctx: TenantContext,
     Path((id, format_str)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse, HttpAppError> {
-    use mindia_infra::{create_archive, ArchiveFormat};
+    use mindia_services::{create_archive, ArchiveFormat};
 
     let format: ArchiveFormat = format_str
         .parse()

@@ -204,6 +204,7 @@ impl TestPluginContextBuilder {
             storage: self.storage.unwrap_or(storage),
             media_repo,
             file_group_repo,
+            get_public_file_url: None,
             config: self.config,
         }
     }

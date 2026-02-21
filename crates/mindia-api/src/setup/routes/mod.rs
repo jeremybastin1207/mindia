@@ -303,7 +303,11 @@ fn public_routes(state: Arc<AppState>) -> Router<Arc<AppState>> {
                 move || async { health::readiness_check(state).await }
             }),
         )
-        .with_state(state)
+        .with_state(state.clone())
+        .route(
+            &format!("{}/public/file", crate::constants::API_PREFIX),
+            get(crate::handlers::public_file::get_public_file),
+        )
         .route(
             "/api/openapi.json",
             get(|| async { Json(crate::api_doc::get_openapi_spec()) }),

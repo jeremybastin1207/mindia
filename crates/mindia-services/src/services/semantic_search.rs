@@ -1,6 +1,8 @@
 //! Semantic search provider abstraction.
 //!
-//! Cloud providers (e.g. Anthropic/Claude) for vision, document summarization, and embeddings.
+//! Implementations provide vision (image/frame description), document summarization,
+//! and text embeddings. The default implementation uses Claude for vision/summarization
+//! and Voyage AI for embeddings.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -10,7 +12,7 @@ use bytes::Bytes;
 pub const EMBEDDING_DIM: usize = 768;
 
 /// Provider for semantic search: vision, document summarization, and embeddings.
-/// Implemented by Anthropic/Claude (cloud).
+/// Default implementation: Claude (vision/summarization) + Voyage AI (embeddings).
 #[async_trait]
 pub trait SemanticSearchProvider: Send + Sync {
     /// Human-readable model name stored with embeddings (e.g. "nomic-embed-text", "embed-v3").

@@ -131,9 +131,9 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
     #[tracing::instrument(skip(self), fields(
         db.system = "postgresql",
         db.name = "mindia",
-        db.table = "request_logs",
+        db.table = "hourly_url_statistics",
         db.operation = "aggregate",
-        db.sql.table = "request_logs"
+        db.sql.table = "hourly_url_statistics"
     ))]
     async fn get_url_statistics(
         &self,
@@ -145,29 +145,31 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
             r#"
             SELECT 
                 normalized_path as path,
-                COUNT(*)::BIGINT as request_count,
-                (COALESCE(SUM(response_size_bytes), 0))::BIGINT as total_bytes_sent,
-                (COALESCE(SUM(request_size_bytes), 0))::BIGINT as total_bytes_received,
-                COALESCE(AVG(duration_ms), 0)::DOUBLE PRECISION as avg_response_time_ms,
-                COALESCE(MIN(duration_ms), 0)::DOUBLE PRECISION as min_duration_ms,
-                COALESCE(MAX(duration_ms), 0)::DOUBLE PRECISION as max_duration_ms,
-                COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) as status_2xx,
-                COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) as status_3xx,
-                COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) as status_4xx,
-                COUNT(*) FILTER (WHERE status_code >= 500) as status_5xx
-            FROM request_logs
+                SUM(request_count)::BIGINT as request_count,
+                SUM(total_bytes_sent)::BIGINT as total_bytes_sent,
+                SUM(total_bytes_received)::BIGINT as total_bytes_received,
+                CASE 
+                    WHEN SUM(request_count) > 0 
+                    THEN (SUM(total_duration_ms)::DOUBLE PRECISION / SUM(request_count)::DOUBLE PRECISION)
+                    ELSE 0
+                END as avg_response_time_ms,
+                COALESCE(MIN(min_duration_ms), 0)::DOUBLE PRECISION as min_duration_ms,
+                COALESCE(MAX(max_duration_ms), 0)::DOUBLE PRECISION as max_duration_ms,
+                SUM(status_2xx)::BIGINT as status_2xx,
+                SUM(status_3xx)::BIGINT as status_3xx,
+                SUM(status_4xx)::BIGINT as status_4xx,
+                SUM(status_5xx)::BIGINT as status_5xx
+            FROM hourly_url_statistics
             "#,
         );
 
-        let mut conditions = Vec::new();
-        let end_condition;
+        let mut conditions: Vec<String> = Vec::new();
         if start_date.is_some() {
-            conditions.push("created_at >= $1");
+            conditions.push("bucket >= $1".to_string());
         }
         if end_date.is_some() {
             let param_num = if start_date.is_some() { 2 } else { 1 };
-            end_condition = format!("created_at <= ${}", param_num);
-            conditions.push(&end_condition);
+            conditions.push(format!("bucket <= ${}", param_num));
         }
 
         if !conditions.is_empty() {
@@ -175,19 +177,19 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
             query.push_str(&conditions.join(" AND "));
         }
 
-        query.push_str(
-            r#"
-            GROUP BY normalized_path
-            ORDER BY request_count DESC
-            "#,
-        );
-
         let limit_param_num = match (start_date.is_some(), end_date.is_some()) {
             (true, true) => 3,
             (true, false) | (false, true) => 2,
             (false, false) => 1,
         };
-        query.push_str(&format!("LIMIT ${}", limit_param_num));
+        query.push_str(&format!(
+            r#"
+            GROUP BY normalized_path
+            ORDER BY request_count DESC
+            LIMIT ${}
+            "#,
+            limit_param_num
+        ));
 
         let mut query_builder = sqlx::query_as::<Postgres, UrlStatistics>(&query);
 
@@ -220,22 +222,7 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
     /// - System-wide traffic monitoring
     /// - Infrastructure capacity planning
     /// - Global analytics dashboard (admin only)
-    /// Get traffic summary aggregated across all tenants
-    ///
-    /// # Security Notice
-    ///
-    /// **This is a system-level operation** that queries across ALL tenants.
-    /// It returns aggregated traffic statistics from all tenants combined.
-    ///
-    /// **Access Control:**
-    /// - This method should ONLY be accessible to system administrators
-    /// - User-facing handlers MUST NOT call this method directly
-    ///
-    /// **Use Cases:**
-    /// - System-wide traffic monitoring
-    /// - Infrastructure capacity planning
-    /// - Global analytics dashboard (admin only)
-    #[tracing::instrument(skip(self), fields(db.table = "request_logs", db.operation = "aggregate"))]
+    #[tracing::instrument(skip(self), fields(db.table = "hourly_traffic_summary", db.operation = "aggregate"))]
     async fn get_traffic_summary(
         &self,
         start_date: Option<DateTime<Utc>>,
@@ -244,23 +231,25 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
         let mut query = String::from(
             r#"
             SELECT 
-                COUNT(*)::BIGINT as total_requests,
-                (COALESCE(SUM(response_size_bytes), 0))::BIGINT as total_bytes_sent,
-                (COALESCE(SUM(request_size_bytes), 0))::BIGINT as total_bytes_received,
-                COALESCE(AVG(duration_ms), 0)::DOUBLE PRECISION as avg_response_time_ms
-            FROM request_logs
+                COALESCE(SUM(total_requests), 0)::BIGINT as total_requests,
+                COALESCE(SUM(total_bytes_sent), 0)::BIGINT as total_bytes_sent,
+                COALESCE(SUM(total_bytes_received), 0)::BIGINT as total_bytes_received,
+                CASE 
+                    WHEN SUM(total_requests) > 0 
+                    THEN (SUM(total_duration_ms)::DOUBLE PRECISION / SUM(total_requests)::DOUBLE PRECISION)
+                    ELSE 0
+                END as avg_response_time_ms
+            FROM hourly_traffic_summary
             "#,
         );
 
-        let mut conditions = Vec::new();
-        let end_condition;
+        let mut conditions: Vec<String> = Vec::new();
         if start_date.is_some() {
-            conditions.push("created_at >= $1");
+            conditions.push("bucket >= $1".to_string());
         }
         if end_date.is_some() {
             let param_num = if start_date.is_some() { 2 } else { 1 };
-            end_condition = format!("created_at <= ${}", param_num);
-            conditions.push(&end_condition);
+            conditions.push(format!("bucket <= ${}", param_num));
         }
 
         if !conditions.is_empty() {
@@ -287,7 +276,7 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
         ))
     }
 
-    #[tracing::instrument(skip(self), fields(db.table = "request_logs", db.operation = "aggregate"))]
+    #[tracing::instrument(skip(self), fields(db.table = "hourly_requests_by_method", db.operation = "aggregate"))]
     async fn get_requests_per_method(
         &self,
         start_date: Option<DateTime<Utc>>,
@@ -295,20 +284,18 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
     ) -> Result<HashMap<String, i64>, AppError> {
         let mut query = String::from(
             r#"
-            SELECT method, COUNT(*) as count
-            FROM request_logs
+            SELECT method, SUM(request_count)::BIGINT as count
+            FROM hourly_requests_by_method
             "#,
         );
 
-        let mut conditions = Vec::new();
-        let end_condition;
+        let mut conditions: Vec<String> = Vec::new();
         if start_date.is_some() {
-            conditions.push("created_at >= $1");
+            conditions.push("bucket >= $1".to_string());
         }
         if end_date.is_some() {
             let param_num = if start_date.is_some() { 2 } else { 1 };
-            end_condition = format!("created_at <= ${}", param_num);
-            conditions.push(&end_condition);
+            conditions.push(format!("bucket <= ${}", param_num));
         }
 
         if !conditions.is_empty() {
@@ -349,7 +336,7 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
     /// **Access Control:**
     /// - This method should ONLY be accessible to system administrators
     /// - User-facing handlers MUST NOT call this method directly
-    #[tracing::instrument(skip(self), fields(db.table = "request_logs", db.operation = "aggregate"))]
+    #[tracing::instrument(skip(self), fields(db.table = "hourly_requests_by_status", db.operation = "aggregate"))]
     async fn get_requests_per_status(
         &self,
         start_date: Option<DateTime<Utc>>,
@@ -357,20 +344,18 @@ impl AnalyticsRepositoryTrait for PostgresAnalyticsRepository {
     ) -> Result<HashMap<i32, i64>, AppError> {
         let mut query = String::from(
             r#"
-            SELECT status_code, COUNT(*) as count
-            FROM request_logs
+            SELECT status_code, SUM(request_count)::BIGINT as count
+            FROM hourly_requests_by_status
             "#,
         );
 
-        let mut conditions = Vec::new();
-        let end_condition;
+        let mut conditions: Vec<String> = Vec::new();
         if start_date.is_some() {
-            conditions.push("created_at >= $1");
+            conditions.push("bucket >= $1".to_string());
         }
         if end_date.is_some() {
             let param_num = if start_date.is_some() { 2 } else { 1 };
-            end_condition = format!("created_at <= ${}", param_num);
-            conditions.push(&end_condition);
+            conditions.push(format!("bucket <= ${}", param_num));
         }
 
         if !conditions.is_empty() {

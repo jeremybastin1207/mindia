@@ -65,6 +65,7 @@ postgres-data/
 .*.swp
 
 # Build & Distribution
+target-build/
 dist/
 build/
 *.tar.gz

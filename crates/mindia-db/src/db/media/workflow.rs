@@ -125,6 +125,16 @@ impl WorkflowRepository {
         metadata_filter: Option<Option<serde_json::Value>>,
     ) -> Result<Option<Workflow>> {
         let now = Utc::now();
+        // Nullable fields use CASE to support "set to NULL" (Some(None)) vs "no change" (None)
+        let update_media_types = media_types.is_some();
+        let media_types_val = media_types.and_then(std::convert::identity);
+        let update_folder_ids = folder_ids.is_some();
+        let folder_ids_val = folder_ids.and_then(std::convert::identity);
+        let update_content_types = content_types.is_some();
+        let content_types_val = content_types.and_then(std::convert::identity);
+        let update_metadata_filter = metadata_filter.is_some();
+        let metadata_filter_val = metadata_filter.and_then(std::convert::identity);
+
         let w = sqlx::query_as::<Postgres, Workflow>(
             r#"
             UPDATE workflows
@@ -135,11 +145,11 @@ impl WorkflowRepository {
                 steps = COALESCE($6, steps),
                 trigger_on_upload = COALESCE($7, trigger_on_upload),
                 stop_on_failure = COALESCE($8, stop_on_failure),
-                media_types = COALESCE($9, media_types),
-                folder_ids = COALESCE($10, folder_ids),
-                content_types = COALESCE($11, content_types),
-                metadata_filter = COALESCE($12, metadata_filter),
-                updated_at = $13
+                media_types = CASE WHEN $9 THEN $10 ELSE media_types END,
+                folder_ids = CASE WHEN $11 THEN $12 ELSE folder_ids END,
+                content_types = CASE WHEN $13 THEN $14 ELSE content_types END,
+                metadata_filter = CASE WHEN $15 THEN $16 ELSE metadata_filter END,
+                updated_at = $17
             WHERE tenant_id = $1 AND id = $2
             RETURNING id, tenant_id, name, description, enabled, steps,
                 trigger_on_upload, stop_on_failure,
@@ -155,10 +165,14 @@ impl WorkflowRepository {
         .bind(steps.as_ref())
         .bind(trigger_on_upload)
         .bind(stop_on_failure)
-        .bind(media_types.and_then(std::convert::identity).as_deref())
-        .bind(folder_ids.and_then(std::convert::identity).as_deref())
-        .bind(content_types.and_then(std::convert::identity).as_deref())
-        .bind(metadata_filter.and_then(std::convert::identity).as_ref())
+        .bind(update_media_types)
+        .bind(media_types_val.as_deref())
+        .bind(update_folder_ids)
+        .bind(folder_ids_val.as_deref())
+        .bind(update_content_types)
+        .bind(content_types_val.as_deref())
+        .bind(update_metadata_filter)
+        .bind(metadata_filter_val.as_ref())
         .bind(now)
         .fetch_optional(&self.pool)
         .await
@@ -354,22 +368,28 @@ impl WorkflowExecutionRepository {
         task_ids: Vec<Uuid>,
         stop_on_failure: bool,
     ) -> Result<WorkflowExecution> {
-        let pool = self.pool.clone();
-        let repo = self.clone();
-        crate::db::transaction::with_transaction(&pool, move |tx| {
-            Box::pin(async move {
-                repo.create_tx(
-                    tx,
-                    workflow_id,
-                    tenant_id,
-                    media_id,
-                    task_ids,
-                    stop_on_failure,
-                )
-                .await
-            })
-        })
-        .await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .context("Failed to begin workflow execution transaction")?;
+
+        let execution = self
+            .create_tx(
+                &mut tx,
+                workflow_id,
+                tenant_id,
+                media_id,
+                task_ids,
+                stop_on_failure,
+            )
+            .await?;
+
+        tx.commit()
+            .await
+            .context("Failed to commit workflow execution transaction")?;
+
+        Ok(execution)
     }
 
     pub async fn get(&self, execution_id: Uuid) -> Result<Option<WorkflowExecution>> {
@@ -526,7 +546,7 @@ impl WorkflowExecutionRepository {
             return Ok(Some(exec.status));
         }
         let task_ids = &exec.task_ids;
-        let _stop_on_failure = exec.stop_on_failure;
+        let stop_on_failure = exec.stop_on_failure;
 
         let rows = sqlx::query(
             r#"
@@ -543,7 +563,7 @@ impl WorkflowExecutionRepository {
 
         let statuses: Vec<String> = rows.iter().map(|r| r.get::<String, _>("status")).collect();
 
-        let (new_status, current_step) = derive_workflow_status(&statuses);
+        let (new_status, current_step) = derive_workflow_status(&statuses, stop_on_failure);
         self.update_status(execution_id, new_status, Some(current_step))
             .await
             .context("Failed to update workflow execution status")?;
@@ -551,14 +571,21 @@ impl WorkflowExecutionRepository {
     }
 }
 
-fn derive_workflow_status(task_statuses: &[String]) -> (WorkflowExecutionStatus, i32) {
+fn derive_workflow_status(
+    task_statuses: &[String],
+    stop_on_failure: bool,
+) -> (WorkflowExecutionStatus, i32) {
     let mut current_step = 0i32;
     for (i, s) in task_statuses.iter().enumerate() {
         current_step = i as i32;
         match s.as_str() {
             "completed" => continue,
             "failed" => {
-                return (WorkflowExecutionStatus::Failed, current_step);
+                if stop_on_failure {
+                    return (WorkflowExecutionStatus::Failed, current_step);
+                }
+                // stop_on_failure=false: treat failed step as non-fatal, continue
+                continue;
             }
             "cancelled" => {
                 return (WorkflowExecutionStatus::Cancelled, current_step);

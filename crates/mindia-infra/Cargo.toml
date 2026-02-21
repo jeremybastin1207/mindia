@@ -50,28 +50,15 @@ opentelemetry-aws = { workspace = true, optional = true }
 [features]
 default = [
     "middleware",
-    "webhook",
-    "analytics",
     "rate-limit",
-    "cleanup",
     "capacity",
-    "archive",
     "observability-basic",
 ]
 
-# Infrastructure components
+# Infrastructure components (cross-cutting only)
 middleware = ["dep:hex", "dep:hmac", "dep:sha2", "dep:subtle"]
-webhook = ["dep:reqwest", "dep:mindia-db", "dep:hex", "dep:hmac", "dep:sha2"]
-analytics = ["dep:mindia-db", "dep:sqlx"]
 rate-limit = []
-cleanup = ["dep:mindia-db", "dep:mindia-storage"]
 capacity = ["dep:sysinfo", "dep:tokio-util"]
-archive = ["dep:mindia-storage", "dep:time", "dep:zip", "dep:tar"]
-
-# Media type features (passed through to mindia-db for cleanup service)
-audio = ["dep:mindia-db", "mindia-db/audio"]
-video = ["dep:mindia-db", "mindia-db/video"]
-document = ["dep:mindia-db", "mindia-db/document"]
 
 # Observability
 observability-opentelemetry = [
@@ -88,11 +75,7 @@ observability-basic = []
 # Convenience features
 full = [
     "middleware",
-    "webhook",
-    "analytics",
     "rate-limit",
-    "cleanup",
     "capacity",
-    "archive",
     "observability-opentelemetry",
 ]

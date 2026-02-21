@@ -1715,26 +1715,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enumflags2"
-version = "0.7.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef"
-dependencies = [
- "enumflags2_derive",
-]
-
-[[package]]
-name = "enumflags2_derive"
-version = "0.7.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.116",
-]
-
-[[package]]
 name = "envy"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2903,17 +2883,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "landlock"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9baa9eeb6e315942429397e617a190f4fdc696ef1ee0342939d641029cbb4ea7"
-dependencies = [
- "enumflags2",
- "libc",
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3200,9 +3169,9 @@ dependencies = [
  "chrono",
  "futures",
  "hex",
+ "hmac",
  "hostname",
  "jsonwebtoken",
- "landlock",
  "lettre",
  "mimalloc",
  "mindia-core",
@@ -3226,6 +3195,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "subtle",
  "tempfile",
@@ -3428,6 +3398,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "bytes",
+ "chrono",
  "clamav-client",
  "hex",
  "hmac",
@@ -3439,14 +3410,20 @@ dependencies = [
  "mindia-processing",
  "mindia-storage",
  "object_store",
+ "opentelemetry 0.27.1",
  "reqwest",
  "serde",
  "serde_json",
  "sha2",
+ "sqlx",
+ "subtle",
+ "tar",
  "tempfile",
+ "time",
  "tokio",
  "tracing",
  "uuid",
+ "zip",
 ]
 
 [[package]]

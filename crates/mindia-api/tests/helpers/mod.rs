@@ -43,9 +43,10 @@ use mindia_db::{
     PresignedUploadRepository, StorageMetricsRepository, TaskRepository, TenantRepository,
     WebhookEventRepository, WebhookRepository, WebhookRetryRepository,
 };
-use mindia_infra::{
-    AnalyticsService, CapacityChecker, CleanupService, RateLimiter, WebhookRetryService,
-    WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
+use mindia_infra::{CapacityChecker, RateLimiter};
+use mindia_services::{
+    AnalyticsService, CleanupService, WebhookRetryService, WebhookRetryServiceConfig,
+    WebhookService, WebhookServiceConfig,
 };
 use mindia_services::{LocalStorage, Storage};
 use mindia_worker::{TaskQueue, TaskQueueConfig};
@@ -228,45 +229,27 @@ pub async fn setup_test_app() -> TestApp {
     #[cfg(feature = "video")]
     let video_job_queue = mindia_api::VideoJobQueue::dummy();
 
-    #[cfg(all(feature = "content-moderation", feature = "video"))]
-    let tasks = {
+    #[cfg(feature = "content-moderation")]
+    let content_moderation_handler = {
         #[cfg(feature = "plugin")]
-        let content_moderation_handler = mindia_api::ContentModerationTaskHandler::new(Arc::new(
-            mindia_api::plugins::PluginRegistry::new(),
-        ));
+        {
+            mindia_api::ContentModerationTaskHandler::new(Arc::new(
+                mindia_api::plugins::PluginRegistry::new(),
+            ))
+        }
         #[cfg(not(feature = "plugin"))]
-        let content_moderation_handler = panic!("content-moderation requires plugin for tests");
-        TaskState {
-            task_queue: task_queue.clone(),
-            task_repository: task_db.clone(),
-            content_moderation_handler,
-            video_job_queue,
+        {
+            panic!("content-moderation requires plugin for tests")
         }
     };
-    #[cfg(all(feature = "content-moderation", not(feature = "video")))]
-    let tasks = {
-        #[cfg(feature = "plugin")]
-        let content_moderation_handler = mindia_api::ContentModerationTaskHandler::new(Arc::new(
-            mindia_api::plugins::PluginRegistry::new(),
-        ));
-        #[cfg(not(feature = "plugin"))]
-        let content_moderation_handler = panic!("content-moderation requires plugin for tests");
-        TaskState {
-            task_queue: task_queue.clone(),
-            task_repository: task_db.clone(),
-            content_moderation_handler,
-        }
-    };
-    #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
+
     let tasks = TaskState {
         task_queue: task_queue.clone(),
         task_repository: task_db.clone(),
-        video_job_queue,
-    };
-    #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
-    let tasks = TaskState {
-        task_queue: task_queue.clone(),
-        task_repository: task_db.clone(),
+        #[cfg(feature = "content-moderation")]
+        content_moderation_handler: Some(content_moderation_handler),
+        #[cfg(feature = "video")]
+        video_job_queue: Some(video_job_queue),
     };
 
     let presigned_upload_db = PresignedUploadRepository::new(pool.clone());

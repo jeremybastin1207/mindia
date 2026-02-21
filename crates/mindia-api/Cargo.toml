@@ -25,20 +25,12 @@ mindia-storage = { path = "../mindia-storage" }
 mindia-processing = { path = "../mindia-processing" }
 mindia-worker = { path = "../mindia-worker" }
 mindia-infra = { path = "../mindia-infra", features = [
-  "analytics",
-  "archive",
-  "audio",
   "capacity",
-  "cleanup",
-  "document",
   "middleware",
   "rate-limit",
-  "video",
-  "webhook",
 ] }
 mindia-plugins = { path = "../mindia-plugins", optional = true }
 mimalloc = "0.1"
-landlock = { version = "0.3", optional = true }
 axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
@@ -56,6 +48,8 @@ serde_json = { workspace = true }
 jsonwebtoken = { workspace = true }
 validator = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
 rand = { workspace = true }
 urlencoding = "2.1"
 rand_core = { workspace = true }
@@ -104,7 +98,7 @@ default = [
   "plugin-claude-vision",
   "plugin-openai-image-description",
   "plugin-replicate-deoldify",
-  # "observability-opentelemetry",  # Disabled: API needs update for opentelemetry-otlp 0.27
+  "observability-opentelemetry",
 ]
 
 # Core features
@@ -165,6 +159,7 @@ observability-opentelemetry = [
   "dep:opentelemetry-http",
   "dep:opentelemetry-aws",
   "mindia-infra/observability-opentelemetry",
+  "mindia-services/observability-opentelemetry",
 ]
 observability-basic = []
 
@@ -205,11 +200,8 @@ full = [
   "clamav",
   "semantic-search",
   "content-moderation",
-  # "observability-opentelemetry",  # Disabled: API telemetry needs update for opentelemetry 0.27
+  "observability-opentelemetry",
 ]
-
-[target.'cfg(target_os = "linux")'.dependencies]
-landlock = { version = "0.3" }
 
 [dev-dependencies]
 axum-test = "18"
@@ -218,7 +210,7 @@ testcontainers-modules = { version = "0.9", features = ["postgres"] }
 uuid = { workspace = true }
 mindia-core = { path = "../mindia-core" }
 mindia-db = { path = "../mindia-db" }
-mindia-infra = { path = "../mindia-infra", features = ["analytics", "webhook", "rate-limit", "cleanup", "capacity", "video", "document", "audio"] }
+mindia-infra = { path = "../mindia-infra", features = ["rate-limit", "capacity"] }
 mindia-services = { path = "../mindia-services", features = ["storage-local"] }
 mindia-worker = { path = "../mindia-worker" }
 mindia-storage = { path = "../mindia-storage" }

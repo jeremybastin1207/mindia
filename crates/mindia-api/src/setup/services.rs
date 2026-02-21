@@ -16,10 +16,7 @@ use mindia_db::{
 };
 #[cfg(feature = "plugin")]
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
-use mindia_infra::{
-    start_storage_metrics_refresh, AnalyticsService, CapacityChecker, CleanupService, RateLimiter,
-    WebhookRetryService, WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
-};
+use mindia_infra::{CapacityChecker, RateLimiter};
 #[cfg(all(feature = "plugin", feature = "plugin-assembly-ai"))]
 use mindia_plugins::AssemblyAiPlugin;
 #[cfg(all(feature = "plugin", feature = "content-moderation"))]
@@ -34,9 +31,13 @@ use mindia_plugins::GoogleVisionPlugin;
 use mindia_plugins::ReplicateDeoldifyPlugin;
 #[cfg(feature = "clamav")]
 use mindia_services::ClamAVService;
+use mindia_services::{
+    start_storage_metrics_refresh, AnalyticsService, CleanupService, WebhookRetryService,
+    WebhookRetryServiceConfig, WebhookService, WebhookServiceConfig,
+};
 #[cfg(feature = "semantic-search")]
-use mindia_services::{AnthropicService, SemanticSearchProvider};
-use mindia_services::{S3Service, Storage};
+use mindia_services::{DefaultSemanticSearchService, SemanticSearchProvider};
+use mindia_storage::Storage;
 // TaskQueue and task handlers moved to api crate
 #[cfg(feature = "plugin")]
 use crate::state::PluginState;
@@ -59,7 +60,7 @@ use std::sync::Arc;
 pub async fn initialize_services(
     config: &Config,
     pool: PgPool,
-    s3_service: Option<S3Service>,
+    s3_config: Option<S3Config>,
     storage: Arc<dyn Storage>,
 ) -> Result<Arc<AppState>> {
     #[cfg(feature = "clamav")]
@@ -140,7 +141,7 @@ pub async fn initialize_services(
             "Semantic search enabled: Claude Vision + Voyage AI embeddings"
         );
 
-        let svc = AnthropicService::new_with_voyage(
+        let svc = DefaultSemanticSearchService::new_with_voyage(
             api_key,
             voyage_key,
             config.anthropic_vision_model().to_string(),
@@ -152,24 +153,13 @@ pub async fn initialize_services(
                 "⚠️  Semantic search health check failed - check ANTHROPIC_API_KEY and VOYAGE_API_KEY"
             ),
         }
-        Some(Arc::new(svc) as Arc<dyn SemanticSearchProvider + Send + Sync>)
+        Some(Arc::new(svc))
     } else {
         tracing::info!("Semantic search disabled");
         None
     };
     #[cfg(not(feature = "semantic-search"))]
     let semantic_search = None;
-
-    let s3_config = s3_service.as_ref().map(|s3_svc| S3Config {
-        service: s3_svc.clone(),
-        bucket: config.s3_bucket().unwrap_or_default().to_string(),
-        region: config
-            .s3_region()
-            .or_else(|| config.aws_region())
-            .unwrap_or_default()
-            .to_string(),
-        endpoint_url: config.s3_endpoint().map(|s| s.to_string()),
-    });
 
     #[cfg(feature = "clamav")]
     let security_config = SecurityConfig {
@@ -526,29 +516,13 @@ pub async fn initialize_services(
     #[cfg(feature = "video")]
     let temp_video_job_queue = crate::job_queue::VideoJobQueue::dummy();
 
-    #[cfg(all(feature = "content-moderation", feature = "video"))]
     let tasks_temp = TaskState {
         task_queue: no_worker_queue.clone(),
         task_repository: task_db.clone(),
-        content_moderation_handler: content_moderation_handler.clone(),
-        video_job_queue: temp_video_job_queue,
-    };
-    #[cfg(all(feature = "content-moderation", not(feature = "video")))]
-    let tasks_temp = TaskState {
-        task_queue: no_worker_queue.clone(),
-        task_repository: task_db.clone(),
-        content_moderation_handler: content_moderation_handler.clone(),
-    };
-    #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
-    let tasks_temp = TaskState {
-        task_queue: no_worker_queue.clone(),
-        task_repository: task_db.clone(),
-        video_job_queue: temp_video_job_queue,
-    };
-    #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
-    let tasks_temp = TaskState {
-        task_queue: no_worker_queue.clone(),
-        task_repository: task_db.clone(),
+        #[cfg(feature = "content-moderation")]
+        content_moderation_handler: Some(content_moderation_handler.clone()),
+        #[cfg(feature = "video")]
+        video_job_queue: Some(temp_video_job_queue),
     };
 
     #[cfg(feature = "plugin")]
@@ -577,8 +551,9 @@ pub async fn initialize_services(
         ),
     };
 
-    // Temporary state to break circular dependency: VideoJobQueue needs Arc<AppState>.
-    let temp_state = AppState {
+    // Bootstrap state: VideoJobQueue::new() requires Arc<AppState> for its worker, so we build
+    // an AppState with a dummy VideoJobQueue first, then create the real queue, then the final state.
+    let bootstrap_state = AppState {
         db: db_state_temp.clone(),
         media: media_config.clone(),
         security: security_config.clone(),
@@ -596,14 +571,12 @@ pub async fn initialize_services(
         semantic_search: semantic_search.clone(),
     };
 
-    let temp_state_arc = Arc::new(temp_state);
+    let state_arc = Arc::new(bootstrap_state);
     #[cfg(feature = "video")]
-    let video_job_queue = crate::job_queue::VideoJobQueue::new(
-        temp_state_arc.clone(),
-        config.max_concurrent_transcodes(),
-    );
+    let video_job_queue =
+        crate::job_queue::VideoJobQueue::new(state_arc.clone(), config.max_concurrent_transcodes());
 
-    let state_weak = Arc::downgrade(&temp_state_arc);
+    let state_weak = Arc::downgrade(&state_arc);
     #[cfg(feature = "workflow")]
     let (task_finished_tx, task_finished_rx) = tokio::sync::mpsc::channel(256);
     let task_queue = TaskQueue::new(
@@ -645,29 +618,13 @@ pub async fn initialize_services(
         "Capacity checker initialized"
     );
 
-    #[cfg(all(feature = "content-moderation", feature = "video"))]
     let tasks_final = TaskState {
         task_queue: task_queue.clone(),
         task_repository: task_db.clone(),
-        content_moderation_handler: content_moderation_handler.clone(),
-        video_job_queue,
-    };
-    #[cfg(all(feature = "content-moderation", not(feature = "video")))]
-    let tasks_final = TaskState {
-        task_queue: task_queue.clone(),
-        task_repository: task_db.clone(),
-        content_moderation_handler: content_moderation_handler.clone(),
-    };
-    #[cfg(all(not(feature = "content-moderation"), feature = "video"))]
-    let tasks_final = TaskState {
-        task_queue: task_queue.clone(),
-        task_repository: task_db.clone(),
-        video_job_queue,
-    };
-    #[cfg(all(not(feature = "content-moderation"), not(feature = "video")))]
-    let tasks_final = TaskState {
-        task_queue: task_queue.clone(),
-        task_repository: task_db.clone(),
+        #[cfg(feature = "content-moderation")]
+        content_moderation_handler: Some(content_moderation_handler.clone()),
+        #[cfg(feature = "video")]
+        video_job_queue: Some(video_job_queue),
     };
 
     #[cfg(feature = "plugin")]

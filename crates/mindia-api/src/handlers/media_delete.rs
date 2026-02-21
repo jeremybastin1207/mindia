@@ -2,6 +2,7 @@ use crate::auth::models::TenantContext;
 use crate::error::{error_response_with_event, ErrorResponse, HttpAppError};
 use crate::middleware::audit;
 use crate::middleware::WideEventCtx;
+use crate::services::media_lifecycle::MediaLifecycleService;
 use crate::state::AppState;
 use crate::utils::ip_extraction::extract_client_ip;
 use axum::{
@@ -16,66 +17,6 @@ use mindia_core::models::{
 use mindia_core::AppError;
 use std::sync::Arc;
 use uuid::Uuid;
-
-/// Helper function to delete video HLS files
-/// Uses Storage trait abstraction to support both S3 and local filesystem storage
-pub(crate) async fn delete_video_hls_files(
-    storage: &Arc<dyn mindia_services::Storage>,
-    media_id: Uuid,
-    hls_master_playlist: Option<&String>,
-) {
-    if let Some(master_playlist) = hls_master_playlist {
-        if let Err(e) = storage.delete(master_playlist).await {
-            tracing::error!(
-                error = %e,
-                storage_key = %master_playlist,
-                "Failed to delete master playlist from storage"
-            );
-        }
-
-        let base_key = format!("uploads/{}", media_id);
-        let variants = vec!["360p", "480p", "720p", "1080p"];
-
-        for variant in variants {
-            let variant_playlist = format!("{}/{}/index.m3u8", base_key, variant);
-            if let Err(e) = storage.delete(&variant_playlist).await {
-                tracing::debug!(
-                    error = %e,
-                    storage_key = %variant_playlist,
-                    "Variant playlist not found or already deleted"
-                );
-            }
-
-            // Max 999 segments per variant
-            for i in 0..999 {
-                let segment_key = format!("{}/{}/segment_{:03}.ts", base_key, variant, i);
-                match storage.delete(&segment_key).await {
-                    Ok(_) => {}
-                    Err(_) => break, // No more segments in this variant
-                }
-            }
-        }
-    }
-}
-
-/// Helper function to delete audio embeddings
-pub(crate) async fn delete_audio_embeddings(
-    embedding_repository: &mindia_db::EmbeddingRepository,
-    tenant_id: Uuid,
-    audio_id: Uuid,
-) {
-    if let Err(e) = embedding_repository
-        .delete_embedding(tenant_id, audio_id)
-        .await
-    {
-        tracing::warn!(
-            error = %e,
-            audio_id = %audio_id,
-            tenant_id = %tenant_id,
-            "Failed to delete audio embeddings"
-        );
-    }
-}
 
 #[utoipa::path(
     delete,
@@ -132,16 +73,16 @@ pub async fn delete_media(
         _ => None,
     };
 
-    // Type-specific cleanup BEFORE deleting
-    match media_type {
-        MediaType::Video => {
-            delete_video_hls_files(&state.media.storage, id, hls_master_playlist.as_ref()).await;
-        }
-        MediaType::Audio => {
-            delete_audio_embeddings(&state.db.embedding_repository, tenant_ctx.tenant_id, id).await;
-        }
-        MediaType::Image | MediaType::Document => {}
-    }
+    // Type-specific cleanup BEFORE deleting (HLS files, embeddings)
+    MediaLifecycleService::delete_media_artifacts(
+        tenant_ctx.tenant_id,
+        id,
+        media_type,
+        &state.media.storage,
+        &state.db.embedding_repository,
+        hls_master_playlist.as_ref(),
+    )
+    .await;
 
     // Extract client IP and user agent for audit logging
     let trusted_proxy_count = std::env::var("TRUSTED_PROXY_COUNT")

@@ -1,6 +1,12 @@
 use axum::http::HeaderValue;
 use axum::{extract::Request, middleware::Next, response::Response};
 
+static CACHED_IS_PRODUCTION: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    std::env::var("ENVIRONMENT")
+        .map(|e| e.to_lowercase() == "production" || e.to_lowercase() == "prod")
+        .unwrap_or(false)
+});
+
 /// Security headers middleware
 /// Adds security headers to all HTTP responses
 pub async fn security_headers_middleware(request: Request, next: Next) -> Response {
@@ -17,11 +23,8 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
     // X-Frame-Options: Prevent clickjacking
     headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
 
-    // X-XSS-Protection: optional XSS filter
-    headers.insert(
-        "X-XSS-Protection",
-        HeaderValue::from_static("1; mode=block"),
-    );
+    // X-XSS-Protection intentionally omitted: deprecated in modern browsers.
+    // CSP (Content-Security-Policy) below provides XSS protection instead.
 
     // Referrer-Policy: Control referrer information
     headers.insert(
@@ -29,15 +32,12 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
 
-    // HSTS header (only set in production over HTTPS)
-    if let Ok(env) = std::env::var("ENVIRONMENT") {
-        if env.to_lowercase() == "production" || env.to_lowercase() == "prod" {
-            // HSTS: Force HTTPS for 1 year, include subdomains
-            headers.insert(
-                "Strict-Transport-Security",
-                HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-            );
-        }
+    // HSTS header (only set in production over HTTPS, cached at first use)
+    if *CACHED_IS_PRODUCTION {
+        headers.insert(
+            "Strict-Transport-Security",
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
     }
 
     // Content-Security-Policy: Restrict resource loading

@@ -2,7 +2,8 @@
 
 #[cfg(feature = "plugin")]
 pub use mindia_plugins::{
-    PluginContext, PluginExecutionStatus, PluginInfo, PluginRegistry, PluginResult,
+    GetPublicFileUrl, PluginContext, PluginExecutionStatus, PluginInfo, PluginRegistry,
+    PluginResult,
 };
 
 #[cfg(feature = "plugin")]

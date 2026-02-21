@@ -409,13 +409,21 @@ impl Plugin for ReplicateDeoldifyPlugin {
             "Image validated, preparing for colorization"
         );
 
-        // For Replicate API, we need a publicly accessible URL to the image
-        // Generate a presigned URL from storage (valid for 1 hour)
-        let image_url = context
-            .storage
-            .get_presigned_url(image.storage_key(), Duration::from_secs(3600))
-            .await
-            .context("Failed to get presigned URL for image")?;
+        // For Replicate API, we need a publicly accessible URL to the image.
+        // Use the public file URL provider when set (e.g. local storage); otherwise presigned URL.
+        let expires_in = Duration::from_secs(3600);
+        let image_url = if let Some(provider) = &context.get_public_file_url {
+            provider
+                .get_public_file_url(context.tenant_id, context.media_id, expires_in)
+                .await
+                .context("Failed to get public file URL for image")?
+        } else {
+            context
+                .storage
+                .get_presigned_url(image.storage_key(), expires_in)
+                .await
+                .context("Failed to get presigned URL for image")?
+        };
 
         // Create prediction
         let prediction_id = self

@@ -4,15 +4,19 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use serde_json::json;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
-use crate::plugins::{PluginContext, PluginExecutionStatus, PluginRegistry};
+use crate::constants::API_PREFIX;
+use crate::plugins::{GetPublicFileUrl, PluginContext, PluginExecutionStatus, PluginRegistry};
 use crate::state::AppState;
 use crate::task_handlers::TaskHandler;
+use crate::utils::public_file_token;
 use mindia_core::models::PluginExecutionStatus as DbPluginExecutionStatus;
 use mindia_core::models::{
     PluginExecutionPayload, Task, WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
 };
+use mindia_core::StorageBackend;
 use mindia_core::{EncryptionService, TaskError};
 use mindia_db::{PluginConfigRepository, PluginExecutionRepository};
 
@@ -133,6 +137,24 @@ impl TaskHandler for PluginTaskHandler {
             ).into());
         }
 
+        let get_public_file_url: Option<Arc<dyn GetPublicFileUrl>> =
+            if state.config.storage_backend() == Some(StorageBackend::Local)
+                && state.config.public_app_url().is_some()
+            {
+                let base = state
+                    .config
+                    .public_app_url()
+                    .unwrap_or("")
+                    .trim_end_matches('/');
+                let path = format!("{}{}/public/file", base, API_PREFIX);
+                Some(Arc::new(PublicFileUrlProvider {
+                    url_with_query_prefix: format!("{}?token=", path),
+                    secret: state.config.jwt_secret().to_string(),
+                }))
+            } else {
+                None
+            };
+
         // Note: db_pool is intentionally excluded to enforce use of repository methods
         // which ensure tenant isolation and authorized operations
         let context = PluginContext {
@@ -141,6 +163,7 @@ impl TaskHandler for PluginTaskHandler {
             storage: state.media.storage.clone(),
             media_repo: Arc::new(state.media.repository.clone()),
             file_group_repo: Arc::new(state.media.file_group_repository.clone()),
+            get_public_file_url,
             config: decrypted_config,
         };
 
@@ -594,5 +617,25 @@ impl PluginTaskHandler {
         );
 
         Ok(transcript_doc.id)
+    }
+}
+
+/// Provides a publicly fetchable URL for a media file via the token-based public file route.
+struct PublicFileUrlProvider {
+    url_with_query_prefix: String,
+    secret: String,
+}
+
+#[async_trait::async_trait]
+impl GetPublicFileUrl for PublicFileUrlProvider {
+    async fn get_public_file_url(
+        &self,
+        tenant_id: Uuid,
+        media_id: Uuid,
+        expires_in: Duration,
+    ) -> anyhow::Result<String> {
+        let token =
+            public_file_token::create(tenant_id, media_id, expires_in, self.secret.as_bytes());
+        Ok(format!("{}{}", self.url_with_query_prefix, token))
     }
 }

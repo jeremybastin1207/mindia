@@ -8,12 +8,12 @@ pub mod s3;
 pub mod semantic_search;
 
 // Re-export from mindia-infra
+#[cfg(feature = "archive")]
+pub use crate::archive::{create_archive, ArchiveFormat};
 #[cfg(feature = "semantic-search")]
-pub use anthropic::AnthropicService;
+pub use anthropic::DefaultSemanticSearchService;
 #[cfg(feature = "clamav")]
 pub use clamav::{ClamAVService, ScanResult};
-#[cfg(feature = "archive")]
-pub use mindia_infra::{create_archive, ArchiveFormat};
 #[cfg(feature = "video")]
 pub use mindia_processing::FFmpegService;
 #[cfg(feature = "audio")]

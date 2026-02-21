@@ -196,6 +196,7 @@ impl MetadataSearchRepository {
         folder_id: Option<Uuid>,
         limit: i64,
         offset: i64,
+        min_similarity: f64,
     ) -> Result<Vec<SearchResult>> {
         // If no embedding provided, use metadata-only search
         if query_embedding.is_none() {
@@ -229,6 +230,7 @@ impl MetadataSearchRepository {
                 }
                 let metadata_filter_json = serde_json::Value::Object(exact_obj);
 
+                let min_sim = min_similarity as f32;
                 let rows = match (entity_type, folder_id) {
                     (Some(et), Some(fid)) => {
                         sqlx::query(
@@ -249,8 +251,9 @@ impl MetadataSearchRepository {
                               AND e.entity_type::text = $3
                               AND m.metadata->'user' @> $4::jsonb
                               AND m.folder_id = $5
+                              AND (1 - (e.embedding <=> $1)) >= $6
                             ORDER BY e.embedding <=> $1
-                            LIMIT $6 OFFSET $7
+                            LIMIT $7 OFFSET $8
                             "#,
                         )
                         .bind(vector)
@@ -258,6 +261,7 @@ impl MetadataSearchRepository {
                         .bind(et.to_string())
                         .bind(metadata_filter_json)
                         .bind(fid)
+                        .bind(min_sim)
                         .bind(limit)
                         .bind(offset)
                         .fetch_all(&self.pool)
@@ -281,14 +285,16 @@ impl MetadataSearchRepository {
                             WHERE e.tenant_id = $2 
                               AND e.entity_type::text = $3
                               AND m.metadata->'user' @> $4::jsonb
+                              AND (1 - (e.embedding <=> $1)) >= $5
                             ORDER BY e.embedding <=> $1
-                            LIMIT $5 OFFSET $6
+                            LIMIT $6 OFFSET $7
                             "#,
                         )
                         .bind(vector)
                         .bind(tenant_id)
                         .bind(et.to_string())
                         .bind(metadata_filter_json)
+                        .bind(min_sim)
                         .bind(limit)
                         .bind(offset)
                         .fetch_all(&self.pool)
@@ -312,14 +318,16 @@ impl MetadataSearchRepository {
                             WHERE e.tenant_id = $2 
                               AND m.metadata->'user' @> $3::jsonb
                               AND m.folder_id = $4
+                              AND (1 - (e.embedding <=> $1)) >= $5
                             ORDER BY e.embedding <=> $1
-                            LIMIT $5 OFFSET $6
+                            LIMIT $6 OFFSET $7
                             "#,
                         )
                         .bind(vector)
                         .bind(tenant_id)
                         .bind(metadata_filter_json)
                         .bind(fid)
+                        .bind(min_sim)
                         .bind(limit)
                         .bind(offset)
                         .fetch_all(&self.pool)
@@ -342,13 +350,15 @@ impl MetadataSearchRepository {
                             LEFT JOIN storage_locations sl ON m.storage_id = sl.id
                             WHERE e.tenant_id = $2 
                               AND m.metadata->'user' @> $3::jsonb
+                              AND (1 - (e.embedding <=> $1)) >= $4
                             ORDER BY e.embedding <=> $1
-                            LIMIT $4 OFFSET $5
+                            LIMIT $5 OFFSET $6
                             "#,
                         )
                         .bind(vector)
                         .bind(tenant_id)
                         .bind(metadata_filter_json)
+                        .bind(min_sim)
                         .bind(limit)
                         .bind(offset)
                         .fetch_all(&self.pool)
@@ -376,6 +386,7 @@ impl MetadataSearchRepository {
         _folder_id: Option<Uuid>,
         _limit: i64,
         _offset: i64,
+        _min_similarity: f64,
     ) -> Result<Vec<SearchResult>> {
         Err(anyhow::anyhow!("Semantic search feature is not enabled"))
     }

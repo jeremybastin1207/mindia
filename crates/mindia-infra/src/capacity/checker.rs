@@ -33,19 +33,19 @@ impl CapacityChecker {
         let min_free_bytes = self.config.min_disk_free_gb() * 1024 * 1024 * 1024;
         let total_required = required_bytes + min_free_bytes;
 
-        // Get the mount point for the path
-        let mount_path = self.get_mount_path(path)?;
+        let canonical_path = path.canonicalize().context("Failed to canonicalize path")?;
 
         // Refresh disk info
         let disks = Disks::new_with_refreshed_list();
 
-        // Find the disk for this path
+        // Find the disk with the longest matching mount_point prefix (most specific)
         let available_bytes = disks
             .iter()
-            .find(|disk| {
-                let disk_path = PathBuf::from(disk.mount_point());
-                mount_path.starts_with(&disk_path) || disk_path.starts_with(&mount_path)
+            .filter(|disk| {
+                let disk_mount = PathBuf::from(disk.mount_point());
+                canonical_path.starts_with(&disk_mount)
             })
+            .max_by_key(|disk| disk.mount_point().as_os_str().len())
             .map(|disk| disk.available_space())
             .ok_or_else(|| {
                 anyhow!(
@@ -344,16 +344,6 @@ impl CapacityChecker {
                 }
             }
         })
-    }
-
-    /// Get the mount path for a given path
-    fn get_mount_path(&self, path: &Path) -> Result<PathBuf> {
-        // Try to canonicalize the path
-        let canonical = path.canonicalize().context("Failed to canonicalize path")?;
-
-        // For now, return the canonical path
-        // In a more sophisticated implementation, we could traverse up to find the mount point
-        Ok(canonical)
     }
 }
 

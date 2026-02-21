@@ -78,6 +78,7 @@ impl EmbeddingRepository {
         Ok(embedding)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip(self, query_embedding), fields(db.table = "embeddings", db.operation = "vector_search", tenant_id = %tenant_id, db.limit = %limit))]
     pub async fn search_similar(
         &self,
@@ -87,12 +88,13 @@ impl EmbeddingRepository {
         folder_id: Option<Uuid>,
         limit: i64,
         offset: i64,
+        min_similarity: f64,
     ) -> Result<Vec<SearchResult>, AppError> {
         let vector = Vector::from(query_embedding);
+        let min_sim = min_similarity as f32;
 
         let results = match (entity_type, folder_id) {
             (Some(et), Some(fid)) => {
-                // Search with both entity type and folder filter
                 sqlx::query(
                     r#"
                     SELECT 
@@ -108,21 +110,22 @@ impl EmbeddingRepository {
                     JOIN media m ON e.entity_id = m.id AND e.tenant_id = m.tenant_id AND e.entity_type::text = m.media_type::text
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
                     WHERE e.tenant_id = $2 AND e.entity_type = $3 AND m.folder_id = $4
+                      AND (1 - (e.embedding <=> $1)) >= $5
                     ORDER BY e.embedding <=> $1
-                    LIMIT $5 OFFSET $6
+                    LIMIT $6 OFFSET $7
                     "#,
                 )
                 .bind(vector)
                 .bind(tenant_id)
                 .bind(et)
                 .bind(fid)
+                .bind(min_sim)
                 .bind(limit)
                 .bind(offset)
                 .fetch_all(&self.pool)
                 .await?
             }
             (Some(et), None) => {
-                // Search with entity type filter only
                 sqlx::query(
                     r#"
                     SELECT 
@@ -138,20 +141,21 @@ impl EmbeddingRepository {
                     JOIN media m ON e.entity_id = m.id AND e.tenant_id = m.tenant_id AND e.entity_type::text = m.media_type::text
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
                     WHERE e.tenant_id = $2 AND e.entity_type = $3
+                      AND (1 - (e.embedding <=> $1)) >= $4
                     ORDER BY e.embedding <=> $1
-                    LIMIT $4 OFFSET $5
+                    LIMIT $5 OFFSET $6
                     "#,
                 )
                 .bind(vector)
                 .bind(tenant_id)
                 .bind(et)
+                .bind(min_sim)
                 .bind(limit)
                 .bind(offset)
                 .fetch_all(&self.pool)
                 .await?
             }
             (None, Some(fid)) => {
-                // Search with folder filter only
                 sqlx::query(
                     r#"
                     SELECT 
@@ -167,20 +171,21 @@ impl EmbeddingRepository {
                     JOIN media m ON e.entity_id = m.id AND e.tenant_id = m.tenant_id AND e.entity_type::text = m.media_type::text
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
                     WHERE e.tenant_id = $2 AND m.folder_id = $3
+                      AND (1 - (e.embedding <=> $1)) >= $4
                     ORDER BY e.embedding <=> $1
-                    LIMIT $4 OFFSET $5
+                    LIMIT $5 OFFSET $6
                     "#,
                 )
                 .bind(vector)
                 .bind(tenant_id)
                 .bind(fid)
+                .bind(min_sim)
                 .bind(limit)
                 .bind(offset)
                 .fetch_all(&self.pool)
                 .await?
             }
             (None, None) => {
-                // Search across all entity types and folders
                 sqlx::query(
                     r#"
                     SELECT 
@@ -196,12 +201,14 @@ impl EmbeddingRepository {
                     JOIN media m ON e.entity_id = m.id AND e.tenant_id = m.tenant_id AND e.entity_type::text = m.media_type::text
                     LEFT JOIN storage_locations sl ON m.storage_id = sl.id
                     WHERE e.tenant_id = $2
+                      AND (1 - (e.embedding <=> $1)) >= $3
                     ORDER BY e.embedding <=> $1
-                    LIMIT $3 OFFSET $4
+                    LIMIT $4 OFFSET $5
                     "#,
                 )
                 .bind(vector)
                 .bind(tenant_id)
+                .bind(min_sim)
                 .bind(limit)
                 .bind(offset)
                 .fetch_all(&self.pool)

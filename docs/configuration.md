@@ -50,7 +50,8 @@ DATABASE_URL=postgresql://admin:pass@db.xxx.rds.amazonaws.com:5432/mindia?sslmod
 **Notes**:
 - Always use `?sslmode=require` for production
 - For Neon, copy the connection string from the dashboard
-- For pgvector support, ensure the extension is installed
+- **TimescaleDB** is required for analytics (request_logs, storage_metrics use hypertables and continuous aggregates). Use `timescale/timescaledb-ha:pg16` Docker image locally, or ensure the extension is installed on your PostgreSQL instance
+- For pgvector (semantic search), ensure the extension is installed (included in timescaledb-ha)
 
 ### JWT_SECRET
 
@@ -148,8 +149,8 @@ ANALYTICS_DB_TYPE=postgres
 
 **Notes**:
 - Analytics use the main PostgreSQL database by default
-- Storage metrics always use PostgreSQL (they query the main application tables)
-- No additional configuration needed for analytics when using PostgreSQL
+- **TimescaleDB** extension is required: analytics tables are hypertables with continuous aggregates for fast traffic/URL/method/status queries
+- Storage metrics use the main database (they query media tables and the storage_metrics hypertable)
 
 ### ANALYTICS_DB_URL
 
@@ -209,6 +210,12 @@ LOCAL_STORAGE_BASE_URL=http://localhost:3000/uploads
 **LOCAL_STORAGE_BASE_URL**:
 - Base URL for serving files
 - Used to construct public URLs
+
+**PUBLIC_APP_URL** (optional):
+- Public origin of the API (e.g. `https://mindia.fly.dev`, `https://api.example.com`)
+- When set and storage backend is **local**, plugins that need a publicly fetchable file URL (e.g. Replicate DeOldify) use a signed token-based URL under this origin instead of a storage presigned URL
+- Enables external services (e.g. Replicate) to fetch images without auth
+- Omit or leave unset when using S3 (presigned URLs are used)
 
 ---
 

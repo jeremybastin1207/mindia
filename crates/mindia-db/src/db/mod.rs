@@ -10,10 +10,6 @@ pub mod control;
 //
 // Media repositories (media operations, processing, storage, etc.)
 pub mod media;
-//
-// Transaction utilities
-pub mod transaction;
-//
 // Re-export from media processor
 #[cfg(feature = "semantic-search")]
 pub use media::EmbeddingRepository;

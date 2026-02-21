@@ -38,8 +38,7 @@ fn parse_optional_env_bool(key: &str, default: bool) -> Result<bool, anyhow::Err
 /// Uses override so that .env values take precedence over existing env vars (e.g. empty JWT_SECRET).
 /// Best-effort: does not fail if .env is missing or unreadable.
 ///
-/// Must be called before any sandbox (e.g. Landlock) that restricts filesystem access,
-/// otherwise .env cannot be read when running outside the allowed paths (e.g. outside `/app`).
+/// Load from current directory or executable directory so .env is found when run via cargo or from project root.
 pub fn load_dotenv() {
     // 1) Try current working directory (e.g. when run via `cargo run` from project root)
     if let Ok(current_dir) = env::current_dir() {
@@ -123,6 +122,8 @@ pub struct MediaProcessorConfig {
     pub aws_secret_access_key: Option<String>,
     pub local_storage_path: Option<String>,
     pub local_storage_base_url: Option<String>,
+    /// Public app URL for building token-based public file URLs (e.g. https://mindia.fly.dev).
+    pub public_app_url: Option<String>,
     // Media processing configuration
     pub max_file_size_bytes: usize,
     pub allowed_extensions: Vec<String>,
@@ -604,6 +605,10 @@ impl Config {
     pub fn local_storage_base_url(&self) -> Option<&str> {
         self.as_media().local_storage_base_url.as_deref()
     }
+
+    pub fn public_app_url(&self) -> Option<&str> {
+        self.as_media().public_app_url.as_deref()
+    }
 }
 
 impl MediaProcessorConfig {
@@ -744,6 +749,7 @@ impl MediaProcessorConfig {
             aws_secret_access_key: env::var("AWS_SECRET_ACCESS_KEY").ok(),
             local_storage_path: env::var("LOCAL_STORAGE_PATH").ok(),
             local_storage_base_url: env::var("LOCAL_STORAGE_BASE_URL").ok(),
+            public_app_url: env::var("PUBLIC_APP_URL").ok(),
             max_file_size_bytes: max_file_size_mb * 1024 * 1024,
             allowed_extensions,
             allowed_content_types,

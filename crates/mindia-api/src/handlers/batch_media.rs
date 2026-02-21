@@ -2,14 +2,12 @@
 
 use crate::auth::models::TenantContext;
 use crate::error::{ErrorResponse, HttpAppError};
-use crate::handlers::media_delete::{delete_audio_embeddings, delete_video_hls_files};
 use crate::middleware::audit;
+use crate::services::media_lifecycle::MediaLifecycleService;
 use crate::state::AppState;
 use axum::{extract::State, Json};
 use chrono::Utc;
-use mindia_core::models::{
-    Media, MediaType, WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo,
-};
+use mindia_core::models::{Media, WebhookDataInfo, WebhookEventType, WebhookInitiatorInfo};
 use mindia_core::AppError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -97,25 +95,15 @@ pub async fn batch_delete_media(
                     _ => None,
                 };
 
-                match media_type {
-                    MediaType::Video => {
-                        delete_video_hls_files(
-                            &state.media.storage,
-                            id,
-                            hls_master_playlist.as_ref(),
-                        )
-                        .await;
-                    }
-                    MediaType::Audio => {
-                        delete_audio_embeddings(
-                            &state.db.embedding_repository,
-                            tenant_ctx.tenant_id,
-                            id,
-                        )
-                        .await;
-                    }
-                    MediaType::Image | MediaType::Document => {}
-                }
+                MediaLifecycleService::delete_media_artifacts(
+                    tenant_ctx.tenant_id,
+                    id,
+                    media_type,
+                    &state.media.storage,
+                    &state.db.embedding_repository,
+                    hls_master_playlist.as_ref(),
+                )
+                .await;
 
                 let filename = match &media {
                     Media::Image(img) => img.original_filename.clone(),

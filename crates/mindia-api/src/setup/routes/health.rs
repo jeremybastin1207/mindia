@@ -2,12 +2,14 @@
 
 use crate::state::AppState;
 use axum::{http::StatusCode, response::IntoResponse, Json};
+use mindia_services::SemanticSearchProvider;
 use std::fmt::Display;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Run an async check with timeout; returns status string "healthy", "timeout", or "{prefix}: {error}".
+/// Run an async check with timeout; returns status string "healthy", "timeout", or error_prefix.
+/// Error details are logged but not exposed to clients to avoid leaking internal info.
 async fn run_check<F, E>(timeout: Duration, f: F, error_prefix: &str) -> String
 where
     F: Future<Output = Result<(), E>>,
@@ -15,7 +17,10 @@ where
 {
     match tokio::time::timeout(timeout, f).await {
         Ok(Ok(())) => "healthy".to_string(),
-        Ok(Err(e)) => format!("{}: {}", error_prefix, e),
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "Health check failed");
+            error_prefix.to_string()
+        }
         Err(_) => "timeout".to_string(),
     }
 }
@@ -70,7 +75,7 @@ pub async fn readiness_check(state: Arc<AppState>) -> impl IntoResponse {
         Ok(Ok(_)) => response["database"] = serde_json::json!("ready"),
         Ok(Err(e)) => {
             tracing::error!(error = %e, "Database readiness check failed");
-            response["database"] = serde_json::json!(format!("not_ready: {}", e));
+            response["database"] = serde_json::json!("not_ready");
             overall_ready = false;
         }
         Err(_) => {
@@ -109,7 +114,6 @@ pub async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
         "unhealthy",
     )
     .await;
-    let overall_healthy = response.database == "healthy";
 
     let storage = state.media.storage.clone();
     response.storage = run_check(
@@ -164,6 +168,11 @@ pub async fn health_check(state: Arc<AppState>) -> impl IntoResponse {
         .await,
     );
 
+    // Overall healthy only if database, storage, and task queue are healthy
+    let overall_healthy = response.database == "healthy"
+        && response.storage == "healthy"
+        && response.task_queue.as_deref() == Some("healthy");
+
     let status_code = if overall_healthy {
         StatusCode::OK
     } else {
@@ -194,7 +203,6 @@ pub async fn deep_health_check(state: Arc<AppState>) -> impl IntoResponse {
         "unhealthy",
     )
     .await;
-    let overall_healthy = response.database == "healthy";
 
     let storage = state.media.storage.clone();
     response.storage = run_check(
@@ -262,6 +270,12 @@ pub async fn deep_health_check(state: Arc<AppState>) -> impl IntoResponse {
         )
         .await,
     );
+
+    // Overall healthy only if database, storage, task queue, and webhooks are healthy
+    let overall_healthy = response.database == "healthy"
+        && response.storage == "healthy"
+        && response.task_queue.as_deref() == Some("healthy")
+        && response.webhooks.as_deref() == Some("healthy");
 
     let status_code = if overall_healthy {
         StatusCode::OK

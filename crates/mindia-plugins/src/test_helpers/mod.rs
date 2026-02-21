@@ -33,6 +33,7 @@ pub fn create_mock_plugin_context(
         storage,
         media_repo,
         file_group_repo,
+        get_public_file_url: None,
         config,
     }
 }

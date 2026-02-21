@@ -8,10 +8,25 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use mindia_db::{PluginFileGroupRepository, PluginMediaRepository};
 use mindia_storage::Storage;
+
+/// Provider for a publicly fetchable URL for a media file (e.g. for external APIs like Replicate).
+/// When set, plugins that need a public URL (e.g. Replicate DeOldify) use it instead of
+/// storage presigned URLs, so the URL works with local storage or when presigned URLs are not reachable.
+#[async_trait]
+pub trait GetPublicFileUrl: Send + Sync {
+    /// Return a URL that allows unauthenticated GET access to the file for the given duration.
+    async fn get_public_file_url(
+        &self,
+        tenant_id: Uuid,
+        media_id: Uuid,
+        expires_in: Duration,
+    ) -> Result<String>;
+}
 
 /// Context provided to plugins during execution
 ///
@@ -36,6 +51,8 @@ pub struct PluginContext {
     pub media_repo: Arc<dyn PluginMediaRepository>,
     /// File group repository for associating files
     pub file_group_repo: Arc<dyn PluginFileGroupRepository>,
+    /// When set, provides a publicly fetchable URL for the current media (for plugins that need one, e.g. Replicate).
+    pub get_public_file_url: Option<Arc<dyn GetPublicFileUrl>>,
     /// Plugin-specific configuration (from plugin_configs table)
     ///
     /// WARNING: May contain sensitive data (API keys, credentials).

@@ -38,7 +38,12 @@ impl TaskHandlerContext for AppState {
             }
             #[cfg(feature = "content-moderation")]
             TaskType::ContentModeration => {
-                let handler = self.tasks.content_moderation_handler.clone();
+                let handler = self
+                    .tasks
+                    .content_moderation_handler
+                    .as_ref()
+                    .expect("content-moderation feature guarantees handler")
+                    .clone();
                 handler.process(task, self).await
             }
             _ => Err(anyhow::anyhow!(
